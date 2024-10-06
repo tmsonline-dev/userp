@@ -1,5 +1,5 @@
 [package]
-name = "askama"
+name = "askama-example"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,4 +14,6 @@ tokio = { version = "1.40.0", features = ["full"] }
 url = "2.5.2"
 urlencoding = "2.1.3"
 uuid = { version = "1.10.0", features = ["v4"] }
+askama = { version = "0.12.1", features = ["with-axum"] }
+askama_axum = "0.4.0"
 

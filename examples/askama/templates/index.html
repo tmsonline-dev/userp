@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+  {% match name %}
+    {% when Some with (name) %}
+      <p>You are logged in as {name}</p>
+      <a href="/logout">Log out</a>
+      <a href="/account">Account</a>
+    {% when None %}
+      <p>You are not logged in</p>
+      <a href="/login?next=%2F">Log in</a>
+      <a href="/login">Account</a>
+  {% endmatch %}
+{% endblock %}

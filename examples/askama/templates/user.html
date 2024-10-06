@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<p>Welcome {{ name }}. <span id="status">Verifying token...</span></p>
+<form action="/delete_user" method="delete">
+  <input type="submit" value="Delete user">
+</form>
+<a href="/logout">Log out</a>
+<form action="/change_password" method="post">
+  <label for="current_password">Current password</label>
+  <input id="current_password" name="current_password" type="password">
+  <label for="new_password">New password</label>
+  <input id="new_password" name="new_password" type="password">
+  <input type="submit" value="Change password" />
+</form>
+<a href="/">Root</a>
+<script>
+  fetch("/verify").then((res) => {
+    {
+      if (res.ok) {
+        {
+          document.getElementById("status").innerText = "Token verified!"
+        }
+      } else {
+        {
+          location = "/login?next=" + encodeURIComponent(location.pathname + location.search)
+        }
+      }
+    }
+  })
+</script>
+{% endblock %}

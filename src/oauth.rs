@@ -225,7 +225,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             scopes: unmatched_token.scopes,
         };
 
-        self.store.update_oauth_token(new_token).await;
+        self.store.create_or_update_oauth_token(new_token).await;
 
         Ok((
             self.log_in(
@@ -235,6 +235,53 @@ impl<S: AxumUserStore> AxumUser<S> {
                 user.get_id(),
             )
             .await,
+            next,
+        ))
+    }
+
+    pub async fn oauth_link_callback(
+        self,
+        provider_name: String,
+        code: String,
+        state: String,
+    ) -> Result<(Self, Option<String>), (Self, &'static str)> {
+        let Ok((unmatched_token, next)) = self
+            .oauth_callback(provider_name.clone(), code, state)
+            .await
+        else {
+            return Err((self, "lkasjdklajsd"));
+        };
+
+        let Some(user_id) = self.jar.get("user_id") else {
+            return Err((self, "No user id in cooke"));
+        };
+
+        let Ok(user_id) = Uuid::parse_str(user_id.value()) else {
+            return Err((self, "Malformed user id"));
+        };
+
+        let Some(user) = self.store.get_user(user_id).await else {
+            return Err((self, "No user found"));
+        };
+
+        let id = Uuid::new_v4();
+
+        let new_token = OAuthToken {
+            id,
+            user_id,
+            provider_name,
+            provider_user_id: unmatched_token.provider_user.id,
+            access_token: unmatched_token.access_token,
+            refresh_token: unmatched_token.refresh_token,
+            expires: unmatched_token.expires,
+            scopes: unmatched_token.scopes,
+        };
+
+        self.store.create_or_update_oauth_token(new_token).await;
+
+        Ok((
+            self.log_in(LoginMethod::OAuth { token_id: id }, user.get_id())
+                .await,
             next,
         ))
     }

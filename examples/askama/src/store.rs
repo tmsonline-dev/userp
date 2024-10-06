@@ -104,7 +104,7 @@ impl AxumUserStore for MemoryStore {
         let user = MyUser {
             id,
             name: "".into(),
-            password: password_hash,
+            password: Some(password_hash),
             emails: vec![MyUserEmail {
                 email,
                 verified: false,
@@ -133,7 +133,7 @@ impl AxumUserStore for MemoryStore {
         let user = MyUser {
             id,
             name: "".into(),
-            password: "".into(),
+            password: None,
             emails: vec![email.clone()],
         };
 
@@ -166,7 +166,7 @@ impl AxumUserStore for MemoryStore {
         Some((user, token))
     }
 
-    async fn update_oauth_token(&self, token: OAuthToken) {
+    async fn create_or_update_oauth_token(&self, token: OAuthToken) {
         let mut tokens = self.oauth_tokens.write().await;
         tokens.insert(token.id, token);
     }
@@ -191,7 +191,7 @@ impl AxumUserStore for MemoryStore {
         let user = MyUser {
             id,
             name: token.provider_user.name.unwrap_or("".into()),
-            password: "".into(),
+            password: None,
             emails: match token.provider_user.email {
                 Some(email) => vec![MyUserEmail {
                     email,
@@ -221,12 +221,47 @@ impl AxumUserStore for MemoryStore {
 }
 
 impl MemoryStore {
+    pub async fn get_sessions(&self, user_id: Uuid) -> Vec<LoginSession> {
+        let sessions = self.sessions.read().await;
+
+        sessions
+            .values()
+            .filter(|s| s.user_id == user_id)
+            .cloned()
+            .collect()
+    }
+
+    pub async fn get_oauth_tokens(&self, user_id: Uuid) -> Vec<OAuthToken> {
+        let tokens = self.oauth_tokens.read().await;
+
+        tokens
+            .values()
+            .filter(|s| s.user_id == user_id)
+            .cloned()
+            .collect()
+    }
+
     pub async fn delete_user(&self, id: Uuid) {
         let mut users = self.users.write().await;
         let mut sessions = self.sessions.write().await;
 
         users.remove(&id);
         sessions.retain(|_, session| session.user_id != id);
+    }
+
+    pub async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid) {
+        let mut users = self.users.write().await;
+
+        if let Some(user) = users.get_mut(&user_id) {
+            let mut sessions = self.sessions.write().await;
+            sessions.retain(|_, session| {
+                session.user_id != user_id
+                    || session.method != LoginMethod::Password
+                    || session.id == session_id
+            });
+
+            user.password = None
+        }
     }
 
     pub async fn set_user_password(
@@ -245,7 +280,7 @@ impl MemoryStore {
                     || session.id == session_id
             });
 
-            user.password = password.into()
+            user.password = Some(password.into())
         }
     }
 }

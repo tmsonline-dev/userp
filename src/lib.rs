@@ -99,7 +99,7 @@ pub trait AxumUserStore {
         provider_user_id: String,
     ) -> Option<(Self::User, OAuthToken)>;
     #[cfg(feature = "oauth")]
-    async fn update_oauth_token(&self, token: OAuthToken);
+    async fn create_or_update_oauth_token(&self, token: OAuthToken);
     #[cfg(feature = "oauth")]
     async fn create_oauth_user(
         &self,

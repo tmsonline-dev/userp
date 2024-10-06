@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<form method="post">
+  <label for="name">User name</label>
+  <input id="name" name="name">
+  <input type="submit" value="Log in">
+</form>
+{% if let Some(error) = error %}
+<p>Error: {{error}}</p>
+{% endif %}
+{% endblock %}

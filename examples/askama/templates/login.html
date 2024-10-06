@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+  {% if let Some(message) = message %}
+    <span><strong>{{ message }}</strong></span>
+  {% endif %}
+
+  <p>Log in with either an email link, email address and password or OAuth</p>
+
+  <form action="/login/email" method="post">
+    <fieldset>
+      <legend>Magic link login</legend>
+      <p>
+        <label for="email">email</label>
+        <input name="email" id="email" value="stefan@provai.eu" />
+      </p>
+      <input type="submit" value="login" />
+    </fieldset>
+    {% if let Some(next) = next %}
+    <input type="hidden" name="next" value="{{next}}" />
+    {% endif %}
+  </form>
+
+  <form action="/login/password" method="post">
+    <fieldset>
+      <legend>Password login</legend>
+      <p>
+        <label for="email">email</label>
+        <input name="email" id="email" value="stefan@provai.eu" />
+      </p>
+      <p>
+        <label for="password">Password</label>
+        <input name="password" id="password" type="password" value="hunter42" />
+      </p>
+      <input type="submit" value="login" />
+    </fieldset>
+    {% if let Some(next) = next %}
+    <input type="hidden" name="next" value="{{next}}" />
+    {% endif %}
+  </form>
+
+  <fieldset>
+    <legend>OAuth login</legend>
+    <form action="/login/oauth" method="post">
+      <input type="hidden" name="provider" value="github" />
+      <input type="submit" value="GitHub" />
+      {% if let Some(next) = next %}
+      <input type="hidden" name="next" value="{{next}}" />
+      {% endif %}
+    </form>
+    <form action="/login/oauth" method="post">
+      <input type="hidden" name="provider" value="spotify" />
+      <input type="submit" value="Spotify" />
+      {% if let Some(next) = next %}
+      <input type="hidden" name="next" value="{{next}}" />
+      {% endif %}
+    </form>
+  </fieldset>
+{% endblock %}
