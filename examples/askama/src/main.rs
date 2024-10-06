@@ -1,8 +1,5 @@
-mod auth;
 mod mem;
 
-use crate::auth::User;
-use auth::{Email, EmailConfig, OAuthConfig, PasswordConfig, Smtp, UserTrait};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -12,7 +9,12 @@ use axum::{
 };
 use axum_extra::extract::cookie::Key;
 use axum_macros::{debug_handler, FromRef};
-use mem::MemoryAuthStore;
+use axum_user::{
+    Allow, AxumUser, AxumUserConfig, EmailConfig, EmailTrait, OAuthConfig, PasswordConfig,
+    SmtpSettings, UserTrait,
+};
+use chrono::Duration;
+use mem::MemoryStore;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use url::Url;
@@ -32,13 +34,17 @@ pub struct MyUserEmail {
     verified: bool,
 }
 
-impl From<MyUserEmail> for Email {
-    fn from(val: MyUserEmail) -> Self {
-        Email {
-            email: val.email,
-            verified: val.verified,
-            allow_login: true,
-        }
+impl EmailTrait for MyUserEmail {
+    fn address(&self) -> String {
+        self.email.clone()
+    }
+
+    fn verified(&self) -> bool {
+        self.verified
+    }
+
+    fn allow_login(&self) -> bool {
+        true
     }
 }
 
@@ -54,41 +60,43 @@ impl UserTrait for MyUser {
 
 #[derive(Clone, FromRef)]
 struct AppState {
-    key: Key,
-    auth_store: MemoryAuthStore,
-    email: EmailConfig,
-    oauth: OAuthConfig,
-    pass: PasswordConfig,
+    store: MemoryStore,
+    auth: AxumUserConfig,
 }
 
 #[tokio::main]
 async fn main() {
     let state = AppState {
-        key: Key::generate(),
-        auth_store: MemoryAuthStore::default(),
-        pass: PasswordConfig {
-            allow_login: auth::AllowLogin::OnLogin,
-            allow_signup: auth::AllowSignup::OnSignup,
-        },
-        email: EmailConfig {
-            allow_login: auth::AllowLogin::OnLogin,
-            allow_signup: auth::AllowSignup::OnSignup,
-            base_url: Url::parse("http://svt.se").unwrap(),
-            login_path: "login/email".into(),
-            verify_path: "verify/email".into(),
-            signup_path: "signup/email".into(),
-            smtp: Smtp {
-                server_url: "".into(),
-                username: "".into(),
-                password: "".into(),
-                from: "".into(),
-                starttls: true,
+        store: MemoryStore::default(),
+        auth: AxumUserConfig {
+            key: Key::generate(),
+            pass: PasswordConfig {
+                allow_login: Allow::OnSelf,
+                allow_signup: Allow::OnSelf,
             },
-        },
-        oauth: OAuthConfig {
-            allow_login: auth::AllowLogin::OnLogin,
-            allow_signup: auth::AllowSignup::OnSignupAndLogin,
-            clients: Default::default(),
+            email: EmailConfig {
+                allow_login: Allow::OnSelf,
+                allow_signup: Allow::OnSelf,
+                challenge_lifetime: Duration::minutes(5),
+                base_url: Url::parse("http://svt.se").unwrap(),
+                login_path: "login/email".into(),
+                verify_path: "verify/email".into(),
+                signup_path: "signup/email".into(),
+                reset_pw_path: "reset-pw".into(),
+                smtp: SmtpSettings {
+                    server_url: "".into(),
+                    username: "".into(),
+                    password: "".into(),
+                    from: "".into(),
+                    starttls: true,
+                },
+            },
+            oauth: OAuthConfig {
+                base_redirect_url: Url::parse("https://localhost:3000/login").unwrap(),
+                allow_login: Allow::OnSelf,
+                allow_signup: Allow::OnEither,
+                clients: Default::default(),
+            },
         },
     };
 
@@ -136,7 +144,7 @@ async fn get_signup_handler() -> impl IntoResponse {
 
 #[debug_handler(state = AppState)]
 async fn post_signup_handler(
-    x: User<MemoryAuthStore>,
+    x: AxumUser<MemoryStore>,
     Form(SignUpForm { name, password }): Form<SignUpForm>,
 ) -> impl IntoResponse {
     if name.len() <= 3 {
@@ -164,7 +172,7 @@ async fn post_signup_handler(
 }
 
 #[debug_handler(state = AppState)]
-async fn get_verify_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_verify_handler(x: AxumUser<MemoryStore>) -> impl IntoResponse {
     if x.logged_in().await {
         (x, StatusCode::OK)
     } else {
@@ -174,11 +182,11 @@ async fn get_verify_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
 
 #[debug_handler]
 async fn delete_user_handler(
-    x: User<MemoryAuthStore>,
+    x: AxumUser<MemoryStore>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     if let Some(user) = x.user().await {
-        state.auth_store.delete_user(user.id).await;
+        state.store.delete_user(user.id).await;
 
         (x, Redirect::to("/")).into_response()
     } else {
@@ -194,7 +202,7 @@ struct ChangePasswordForm {
 
 #[debug_handler]
 async fn put_change_password_handler(
-    x: User<MemoryAuthStore>,
+    x: AxumUser<MemoryStore>,
     State(state): State<AppState>,
     Form(ChangePasswordForm {
         current_password,
@@ -210,7 +218,7 @@ async fn put_change_password_handler(
     };
 
     state
-        .auth_store
+        .store
         .set_user_password(user.id, new_password, session.id)
         .await;
 
@@ -218,7 +226,7 @@ async fn put_change_password_handler(
 }
 
 #[debug_handler(state = AppState)]
-async fn get_secure_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_secure_handler(x: AxumUser<MemoryStore>) -> impl IntoResponse {
     let Some(user) = x.user().await else {
         return Redirect::to("/login?next=%2Fsecure").into_response();
     };
@@ -256,7 +264,7 @@ async fn get_secure_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
 }
 
 #[debug_handler(state = AppState)]
-async fn get_login_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_login_handler(x: AxumUser<MemoryStore>) -> impl IntoResponse {
     if x.logged_in().await {
         Redirect::to("/secure").into_response()
     } else {
@@ -289,7 +297,7 @@ struct LoginForm {
 
 #[debug_handler(state = AppState)]
 async fn post_login_handler(
-    x: User<MemoryAuthStore>,
+    x: AxumUser<MemoryStore>,
     Form(LoginForm {
         name,
         password,
@@ -319,14 +327,14 @@ async fn post_login_handler(
 }
 
 #[debug_handler(state = AppState)]
-async fn get_logout_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_logout_handler(x: AxumUser<MemoryStore>) -> impl IntoResponse {
     let x = x.log_out().await;
 
     (x, Redirect::to("/"))
 }
 
 #[debug_handler(state = AppState)]
-async fn get_root_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_root_handler(x: AxumUser<MemoryStore>) -> impl IntoResponse {
     match x.user().await {
         Some(user) => {
             let name = user.name;

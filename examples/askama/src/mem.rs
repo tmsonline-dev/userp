@@ -1,23 +1,24 @@
-use crate::{
-    auth::{
-        Email, EmailChallenge, LoginMethod, LoginSession, OAuthToken, Store, UnmatchedOAuthToken,
-    },
-    MyUser, MyUserEmail,
+use crate::{MyUser, MyUserEmail};
+use axum::async_trait;
+use axum_user::{
+    AxumUserStore, EmailChallenge, LoginMethod, LoginSession, OAuthToken, UnmatchedOAuthToken,
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 #[derive(Clone, Default)]
-pub struct MemoryAuthStore {
+pub struct MemoryStore {
     sessions: Arc<RwLock<HashMap<Uuid, LoginSession>>>,
     users: Arc<RwLock<HashMap<Uuid, MyUser>>>,
     challenges: Arc<RwLock<HashMap<String, EmailChallenge>>>,
     oauth_tokens: Arc<RwLock<HashMap<Uuid, OAuthToken>>>,
 }
 
-impl Store for MemoryAuthStore {
+#[async_trait]
+impl AxumUserStore for MemoryStore {
     type User = MyUser;
+    type Email = MyUserEmail;
 
     async fn get_session(&self, session_id: Uuid) -> Option<LoginSession> {
         let sessions = self.sessions.read().await;
@@ -43,14 +44,6 @@ impl Store for MemoryAuthStore {
         users.get(&user_id).cloned()
     }
 
-    async fn set_password_hash(&self, user_id: Uuid, password_hash: String) {
-        let mut users = self.users.write().await;
-
-        if let Some(user) = users.get_mut(&user_id) {
-            user.password = password_hash;
-        }
-    }
-
     async fn get_user_by_password_id(&self, password_id: String) -> Option<Self::User> {
         let users = self.users.read().await;
 
@@ -60,14 +53,14 @@ impl Store for MemoryAuthStore {
             .cloned()
     }
 
-    async fn get_user_by_email(&self, email: String) -> Option<(Self::User, Email)> {
+    async fn get_user_by_email(&self, email: String) -> Option<(Self::User, Self::Email)> {
         let users = self.users.read().await;
 
         users.values().find_map(|user| {
             user.emails
                 .iter()
                 .find(|user_email| user_email.email == email)
-                .map(|email| (user.clone(), email.clone().into()))
+                .map(|email| (user.clone(), email.clone()))
         })
     }
 
@@ -76,20 +69,13 @@ impl Store for MemoryAuthStore {
         challenges.insert(challenge.identifier(), challenge);
     }
 
-    async fn consume_email_challenge(
-        &self,
-        identifier: String,
-    ) -> Option<(String, Option<(Self::User, Email)>, Option<String>)> {
+    async fn consume_email_challenge(&self, identifier: String) -> Option<EmailChallenge> {
         let challenge = {
             let mut challenges = self.challenges.write().await;
             challenges.remove(&identifier)
         }?;
 
-        Some((
-            challenge.email.clone(),
-            self.get_user_by_email(challenge.email).await,
-            challenge.next,
-        ))
+        Some(challenge)
     }
 
     async fn set_user_email_verified(&self, user_id: Uuid, email: String) {
@@ -130,7 +116,7 @@ impl Store for MemoryAuthStore {
         user
     }
 
-    async fn create_email_user(&self, email: String) -> (Self::User, Email) {
+    async fn create_email_user(&self, email: String) -> (Self::User, Self::Email) {
         let mut users = self.users.write().await;
 
         if self.get_user_by_email(email.clone()).await.is_some() {
@@ -153,14 +139,14 @@ impl Store for MemoryAuthStore {
 
         users.insert(id, user.clone());
 
-        (user, email.into())
+        (user, email)
     }
 
     async fn get_user_by_oauth_provider_id(
         &self,
         provider_name: String,
         provider_user_id: String,
-    ) -> Option<(Self::User, crate::auth::OAuthToken)> {
+    ) -> Option<(Self::User, OAuthToken)> {
         let token = {
             let tokens = self.oauth_tokens.read().await;
 
@@ -180,7 +166,7 @@ impl Store for MemoryAuthStore {
         Some((user, token))
     }
 
-    async fn update_oauth_token(&self, token: crate::auth::OAuthToken) {
+    async fn update_oauth_token(&self, token: OAuthToken) {
         let mut tokens = self.oauth_tokens.write().await;
         tokens.insert(token.id, token);
     }
@@ -189,7 +175,7 @@ impl Store for MemoryAuthStore {
         &self,
         provider_name: String,
         token: UnmatchedOAuthToken,
-    ) -> Option<(Self::User, crate::auth::OAuthToken)> {
+    ) -> Option<(Self::User, OAuthToken)> {
         let mut tokens = self.oauth_tokens.write().await;
 
         if tokens.values().any(|t| {
@@ -234,7 +220,7 @@ impl Store for MemoryAuthStore {
     }
 }
 
-impl MemoryAuthStore {
+impl MemoryStore {
     pub async fn delete_user(&self, id: Uuid) {
         let mut users = self.users.write().await;
         let mut sessions = self.sessions.write().await;

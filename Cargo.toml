@@ -3,20 +3,23 @@ name = "axum-user"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = ["examples/askama"]
+
 [dependencies]
-anyhow = "1.0.89"
 axum = "0.7.7"
 axum-extra = { version = "0.9.4", features = ["cookie-private"] }
-axum-macros = "0.4.2"
-chrono = "0.4.38"
-lettre = "0.11.9"
-oauth2 = "4.4.2"
-password-auth = "1.0.0"
-reqwest = { version = "0.12.8", features = ["json"] }
-serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.128"
-thiserror = "1.0.64"
-tokio = { version = "1.40.0", features = ["full"] }
-url = "2.5.2"
-urlencoding = "2.1.3"
 uuid = { version = "1.10.0", features = ["v4"] }
+anyhow = { version = "1.0.89", optional = true }
+chrono = { version = "0.4.38", optional = true }
+lettre = { version = "0.11.9", optional = true }
+oauth2 = { version = "4.4.2", optional = true }
+serde_json = { version = "1.0.128", optional = true }
+url = { version = "2.5.2", optional = true }
+reqwest = { version = "0.12.8", features = ["json"], optional = true }
+
+[features]
+default = ["email", "password", "oauth"]
+email = ["chrono", "lettre", "url"]
+oauth = ["chrono", "oauth2", "url", "anyhow", "serde_json", "reqwest"]
+password = []
