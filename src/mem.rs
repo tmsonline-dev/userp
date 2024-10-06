@@ -1,5 +1,7 @@
 use crate::{
-    auth::{Email, EmailChallenge, OAuthToken, Session, Store, UnmatchedOAuthToken},
+    auth::{
+        Email, EmailChallenge, LoginMethod, LoginSession, OAuthToken, Store, UnmatchedOAuthToken,
+    },
     MyUser, MyUserEmail,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -8,7 +10,7 @@ use uuid::Uuid;
 
 #[derive(Clone, Default)]
 pub struct MemoryAuthStore {
-    sessions: Arc<RwLock<HashMap<Uuid, Session>>>,
+    sessions: Arc<RwLock<HashMap<Uuid, LoginSession>>>,
     users: Arc<RwLock<HashMap<Uuid, MyUser>>>,
     challenges: Arc<RwLock<HashMap<String, EmailChallenge>>>,
     oauth_tokens: Arc<RwLock<HashMap<Uuid, OAuthToken>>>,
@@ -17,13 +19,7 @@ pub struct MemoryAuthStore {
 impl Store for MemoryAuthStore {
     type User = MyUser;
 
-    // async fn verify_session(&self, id: Uuid) -> bool {
-    //     let lock = self.sessions.read().await;
-
-    //     lock.get(&id).is_some()
-    // }
-
-    async fn get_session(&self, session_id: Uuid) -> Option<Session> {
+    async fn get_session(&self, session_id: Uuid) -> Option<LoginSession> {
         let sessions = self.sessions.read().await;
 
         sessions.get(&session_id).cloned()
@@ -35,7 +31,7 @@ impl Store for MemoryAuthStore {
         sessions.remove(&session_id);
     }
 
-    async fn create_session(&self, session: Session) {
+    async fn create_session(&self, session: LoginSession) {
         let mut sessions = self.sessions.write().await;
 
         sessions.insert(session.id, session);
@@ -96,24 +92,6 @@ impl Store for MemoryAuthStore {
         ))
     }
 
-    async fn get_user_emails(&self, user_id: Uuid) -> Vec<crate::auth::Email> {
-        let users = self.users.read().await;
-
-        let Some(user) = users.get(&user_id) else {
-            return vec![];
-        };
-
-        user.emails
-            .clone()
-            .into_iter()
-            .map(|e| Email {
-                email: e.email,
-                verified: e.verified,
-                allow_login: true,
-            })
-            .collect()
-    }
-
     async fn set_user_email_verified(&self, user_id: Uuid, email: String) {
         let mut users = self.users.write().await;
 
@@ -152,7 +130,7 @@ impl Store for MemoryAuthStore {
         user
     }
 
-    async fn create_email_user(&self, email: String) -> Self::User {
+    async fn create_email_user(&self, email: String) -> (Self::User, Email) {
         let mut users = self.users.write().await;
 
         if self.get_user_by_email(email.clone()).await.is_some() {
@@ -161,19 +139,21 @@ impl Store for MemoryAuthStore {
 
         let id = Uuid::new_v4();
 
+        let email = MyUserEmail {
+            email,
+            verified: true,
+        };
+
         let user = MyUser {
             id,
             name: "".into(),
             password: "".into(),
-            emails: vec![MyUserEmail {
-                email,
-                verified: true,
-            }],
+            emails: vec![email.clone()],
         };
 
         users.insert(id, user.clone());
 
-        user
+        (user, email.into())
     }
 
     async fn get_user_by_oauth_provider_id(
@@ -255,45 +235,6 @@ impl Store for MemoryAuthStore {
 }
 
 impl MemoryAuthStore {
-    pub async fn user_name_taken(&self, name: &str) -> bool {
-        let users = self.users.read().await;
-
-        users.values().any(|user| user.name == name)
-    }
-
-    pub async fn login(
-        &self,
-        name: impl Into<String>,
-        password: impl Into<String>,
-    ) -> Option<Uuid> {
-        let name = name.into();
-        let password = password.into();
-        let users = self.users.read().await;
-
-        users
-            .iter()
-            .find(|(_, user)| user.name == name && user.password == password)
-            .map(|(id, _)| *id)
-    }
-
-    pub async fn create_user(&self, name: impl Into<String>, password: impl Into<String>) -> Uuid {
-        let id = Uuid::new_v4();
-
-        let mut users = self.users.write().await;
-
-        users.insert(
-            id,
-            MyUser {
-                id,
-                name: name.into(),
-                password: password.into(),
-                emails: vec![],
-            },
-        );
-
-        id
-    }
-
     pub async fn delete_user(&self, id: Uuid) {
         let mut users = self.users.write().await;
         let mut sessions = self.sessions.write().await;
@@ -302,10 +243,22 @@ impl MemoryAuthStore {
         sessions.retain(|_, session| session.user_id != id);
     }
 
-    pub async fn set_user_password(&self, user_id: Uuid, password: impl Into<String>) {
+    pub async fn set_user_password(
+        &self,
+        user_id: Uuid,
+        password: impl Into<String>,
+        session_id: Uuid,
+    ) {
         let mut users = self.users.write().await;
 
         if let Some(user) = users.get_mut(&user_id) {
+            let mut sessions = self.sessions.write().await;
+            sessions.retain(|_, session| {
+                session.user_id != user_id
+                    || session.method != LoginMethod::Password
+                    || session.id == session_id
+            });
+
             user.password = password.into()
         }
     }

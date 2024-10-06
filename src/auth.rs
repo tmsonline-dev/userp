@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AccessToken, AuthUrl, AuthorizationCode,
-    ClientId, ClientSecret, CsrfToken, Scope, TokenResponse, TokenUrl,
+    ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope, TokenResponse, TokenUrl,
 };
 use serde_json::Value;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
@@ -18,10 +18,17 @@ use url::Url;
 use uuid::Uuid;
 
 #[derive(Clone)]
-pub struct Session {
+pub struct LoginSession {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub provider: String,
+    pub method: LoginMethod,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum LoginMethod {
+    Password,
+    Email { address: String },
+    OAuth { token_id: Uuid },
 }
 
 pub struct UnmatchedOAuthToken {
@@ -135,17 +142,40 @@ pub trait OAuthProviderTrait: Sync + Send {
     fn get_scopes(&self) -> Vec<String>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AllowLogin {
+    Never,
+    OnLogin,
+    OnLoginAndSignup,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AllowSignup {
+    Never,
+    OnSignup,
+    OnSignupAndLogin,
+}
+
 #[derive(Clone)]
-pub struct OAuth {
+pub struct OAuthConfig {
+    pub allow_login: AllowLogin,
+    pub allow_signup: AllowSignup,
+    pub base_redirect_url: Url,
     pub clients: OAuthClients,
+}
+
+#[derive(Clone)]
+pub struct PasswordConfig {
+    pub allow_login: AllowLogin,
+    pub allow_signup: AllowSignup,
 }
 
 #[derive(Clone, Default)]
 pub struct OAuthClients(Arc<HashMap<String, Box<dyn OAuthProviderTrait>>>);
 
-pub trait AuthUser {
-    async fn get_password_hash(&self) -> String;
-    async fn get_id(&self) -> Uuid;
+pub trait UserTrait {
+    fn get_password_hash(&self) -> Option<String>;
+    fn get_id(&self) -> Uuid;
 }
 
 pub struct Email {
@@ -167,11 +197,11 @@ impl EmailChallenge {
 }
 
 pub trait Store {
-    type User: AuthUser;
+    type User: UserTrait;
 
     // session store
-    async fn create_session(&self, session: Session);
-    async fn get_session(&self, session_id: Uuid) -> Option<Session>;
+    async fn create_session(&self, session: LoginSession);
+    async fn get_session(&self, session_id: Uuid) -> Option<LoginSession>;
     async fn delete_session(&self, session_id: Uuid);
 
     // user store
@@ -189,9 +219,8 @@ pub trait Store {
         &self,
         code: String,
     ) -> Option<(String, Option<(Self::User, Email)>, Option<String>)>;
-    async fn get_user_emails(&self, user_id: Uuid) -> Vec<Email>;
     async fn set_user_email_verified(&self, user_id: Uuid, email: String);
-    async fn create_email_user(&self, email: String) -> Self::User;
+    async fn create_email_user(&self, email: String) -> (Self::User, Email);
 
     // oauth token store
     async fn get_user_by_oauth_provider_id(
@@ -207,11 +236,25 @@ pub trait Store {
     ) -> Option<(Self::User, OAuthToken)>;
 }
 
-pub struct AuthSession<S: Store, K = Key> {
+pub struct User<S: Store, K = Key> {
     jar: PrivateCookieJar<K>,
     store: S,
-    smtp: Smtp,
-    oauth: OAuth,
+    pass: PasswordConfig,
+    email: EmailConfig,
+    oauth: OAuthConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct EmailConfig {
+    pub allow_login: AllowLogin,
+    pub allow_signup: AllowSignup,
+
+    pub base_url: Url,
+    pub login_path: String,
+    pub verify_path: String,
+    pub signup_path: String,
+
+    pub smtp: Smtp,
 }
 
 #[derive(Debug, Clone)]
@@ -221,15 +264,9 @@ pub struct Smtp {
     pub password: String,
     pub from: String,
     pub starttls: bool,
-    pub base_url: Url,
-    pub allow_login_on_signup: bool,
-    pub allow_signup_on_login: bool,
-    pub login_path: String,
-    pub verify_path: String,
-    pub signup_path: String,
 }
 
-impl<S: Store> AuthSession<S> {
+impl<S: Store> User<S> {
     // Password
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
@@ -252,7 +289,7 @@ impl<S: Store> AuthSession<S> {
             .create_password_user(password_id, password_hash)
             .await;
 
-        Ok(self.log_in("password".into(), user.get_id().await).await)
+        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
@@ -265,11 +302,15 @@ impl<S: Store> AuthSession<S> {
             return Err((self, "Unknown user"));
         };
 
-        if user.get_password_hash().await != password_hash {
+        let Some(hash) = user.get_password_hash() else {
+            return Err((self, "No password"));
+        };
+
+        if hash != password_hash {
             return Err((self, "Wrong password"));
         };
 
-        Ok(self.log_in("password".into(), user.get_id().await).await)
+        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
     }
 
     // Email
@@ -292,28 +333,28 @@ impl<S: Store> AuthSession<S> {
             .await;
 
         let url = self
-            .smtp
+            .email
             .base_url
             .join(&format!("{path}?code={code}"))
             .unwrap();
 
         let email = Message::builder()
-            .from(self.smtp.from.parse().unwrap())
+            .from(self.email.smtp.from.parse().unwrap())
             .to(email.parse().unwrap())
             .subject("Login link")
             .header(ContentType::TEXT_HTML)
             .body(format!("<a href=\"{url}\">{message}</a>"))
             .unwrap();
 
-        let mailer = (if self.smtp.starttls {
+        let mailer = (if self.email.smtp.starttls {
             SmtpTransport::starttls_relay
         } else {
             SmtpTransport::relay
-        })(self.smtp.server_url.as_str())
+        })(self.email.smtp.server_url.as_str())
         .unwrap()
         .credentials(lettre::transport::smtp::authentication::Credentials::new(
-            self.smtp.username.clone(),
-            self.smtp.password.clone(),
+            self.email.smtp.username.clone(),
+            self.email.smtp.password.clone(),
         ))
         .build();
 
@@ -324,7 +365,7 @@ impl<S: Store> AuthSession<S> {
 
     pub async fn email_login_init(&self, email: String, next: Option<String>) {
         self.send_email_challenge(
-            self.smtp.login_path.clone(),
+            self.email.login_path.clone(),
             email,
             "Click here to log in".into(),
             next,
@@ -335,7 +376,7 @@ impl<S: Store> AuthSession<S> {
 
     pub async fn email_verify_init(&self, email: String, next: Option<String>) {
         self.send_email_challenge(
-            self.smtp.verify_path.clone(),
+            self.email.verify_path.clone(),
             email,
             "Click here to verify email".into(),
             next,
@@ -346,7 +387,7 @@ impl<S: Store> AuthSession<S> {
 
     pub async fn email_signup_init(&self, email: String, next: Option<String>) {
         self.send_email_challenge(
-            self.smtp.signup_path.clone(),
+            self.email.signup_path.clone(),
             email,
             "Click here to sign up".into(),
             next,
@@ -367,11 +408,20 @@ impl<S: Store> AuthSession<S> {
 
         if !email.verified {
             self.store
-                .set_user_email_verified(user.get_id().await, email.email)
+                .set_user_email_verified(user.get_id(), email.email.clone())
                 .await;
         }
 
-        Ok((self.log_in("email".into(), user.get_id().await).await, next))
+        Ok((
+            self.log_in(
+                LoginMethod::Email {
+                    address: email.email,
+                },
+                user.get_id(),
+            )
+            .await,
+            next,
+        ))
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
@@ -384,7 +434,7 @@ impl<S: Store> AuthSession<S> {
         };
 
         let Some((user, email)) = user_email else {
-            return if self.smtp.allow_signup_on_login {
+            return if self.email.allow_signup == AllowSignup::OnSignupAndLogin {
                 self.email_signup(email, next).await
             } else {
                 Err((self, "No such user"))
@@ -408,7 +458,7 @@ impl<S: Store> AuthSession<S> {
 
         if !email.verified {
             self.store
-                .set_user_email_verified(user.get_id().await, email.email)
+                .set_user_email_verified(user.get_id(), email.email)
                 .await;
         }
 
@@ -417,12 +467,21 @@ impl<S: Store> AuthSession<S> {
 
     async fn email_signup(
         self,
-        email: String,
+        address: String,
         next: Option<String>,
     ) -> Result<(Self, Option<String>), (Self, &'static str)> {
-        let user = self.store.create_email_user(email).await;
+        let (user, email) = self.store.create_email_user(address).await;
 
-        Ok((self.log_in("email".into(), user.get_id().await).await, next))
+        Ok((
+            self.log_in(
+                LoginMethod::Email {
+                    address: email.email,
+                },
+                user.get_id(),
+            )
+            .await,
+            next,
+        ))
     }
 
     pub async fn email_signup_callback(
@@ -434,7 +493,7 @@ impl<S: Store> AuthSession<S> {
         };
 
         if let Some((user, email)) = existing {
-            return if self.smtp.allow_login_on_signup {
+            return if self.email.allow_login == AllowLogin::OnLoginAndSignup {
                 self.email_login(user, email, next).await
             } else {
                 Err((self, "User already exists"))
@@ -457,6 +516,12 @@ impl<S: Store> AuthSession<S> {
 
         let (auth_url, csrf_state) = provider
             .get_client()
+            .set_redirect_uri(RedirectUrl::from_url(
+                self.oauth
+                    .base_redirect_url
+                    .join(provider_name.as_str())
+                    .unwrap(),
+            ))
             .authorize_url(CsrfToken::new_random)
             .add_scopes(provider.get_scopes().into_iter().map(Scope::new))
             .url();
@@ -509,7 +574,7 @@ impl<S: Store> AuthSession<S> {
         let (mut new_self, url) = self.oauth_init(provider_name, next).await?;
 
         new_self.jar = new_self.jar.add(
-            Cookie::build(("user_id", user.get_id().await.to_string()))
+            Cookie::build(("user_id", user.get_id().to_string()))
                 .same_site(SameSite::Lax)
                 .secure(true)
                 .build(),
@@ -523,7 +588,7 @@ impl<S: Store> AuthSession<S> {
         provider_name: String,
         code: String,
         state: String,
-    ) -> Result<UnmatchedOAuthToken, &'static str> {
+    ) -> Result<(UnmatchedOAuthToken, Option<String>), &'static str> {
         let Some(provider) = self.oauth.clients.0.get(&provider_name) else {
             return Err("Provider not found");
         };
@@ -535,6 +600,8 @@ impl<S: Store> AuthSession<S> {
         if state != prev_state.value() {
             return Err("Csrf token doesn't match");
         }
+
+        let next = self.jar.get("next").map(|x| x.value().to_string());
 
         let Ok(oauth_token) = provider
             .get_client()
@@ -565,7 +632,7 @@ impl<S: Store> AuthSession<S> {
                 .unwrap(),
         };
 
-        Ok(unmatched_token)
+        Ok((unmatched_token, next))
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
@@ -574,8 +641,8 @@ impl<S: Store> AuthSession<S> {
         provider_name: String,
         code: String,
         state: String,
-    ) -> Result<Self, (Self, &'static str)> {
-        let Ok(unmatched_token) = self
+    ) -> Result<(Self, Option<String>), (Self, &'static str)> {
+        let Ok((unmatched_token, next)) = self
             .oauth_callback(provider_name.clone(), code, state)
             .await
         else {
@@ -603,39 +670,54 @@ impl<S: Store> AuthSession<S> {
 
         self.store.update_oauth_token(new_token).await;
 
-        Ok(self.log_in(provider_name, user.get_id().await).await)
+        Ok((
+            self.log_in(
+                LoginMethod::OAuth {
+                    token_id: current_token.id,
+                },
+                user.get_id(),
+            )
+            .await,
+            next,
+        ))
     }
 
-    // #[must_use = "Don't forget to return the auth session as part of the response!"]
-    // pub async fn oauth_signup_callback(
-    //     self,
-    //     provider_name: String,
-    //     code: String,
-    //     state: String,
-    // ) -> Result<Self, &'static str> {
-    //     let Ok(unmatched_token) = self
-    //         .oauth_callback(provider_name.clone(), code, state)
-    //         .await
-    //     else {
-    //         return Err((self, "lkasjdklajsd"));
-    //     };
-    //     let Some((user, token)) = self
-    //         .store
-    //         .create_oauth_user(provider_name.clone(), unmatched_token)
-    //         .await
-    //     else {
-    //         return Err("i dunno");
-    //     };
-    // }
-
     #[must_use = "Don't forget to return the auth session as part of the response!"]
-    pub async fn log_in(mut self, x: String, user_id: Uuid) -> Self {
+    pub async fn oauth_signup_callback(
+        self,
+        provider_name: String,
+        code: String,
+        state: String,
+    ) -> Result<(Self, Option<String>), (Self, &'static str)> {
+        let Ok((unmatched_token, next)) = self
+            .oauth_callback(provider_name.clone(), code, state)
+            .await
+        else {
+            return Err((self, "lkasjdklajsd"));
+        };
+
+        let Some((user, token)) = self
+            .store
+            .create_oauth_user(provider_name.clone(), unmatched_token)
+            .await
+        else {
+            return Err((self, "i dunno"));
+        };
+
+        Ok((
+            self.log_in(LoginMethod::OAuth { token_id: token.id }, user.get_id())
+                .await,
+            next,
+        ))
+    }
+
+    async fn log_in(mut self, method: LoginMethod, user_id: Uuid) -> Self {
         let session_id = Uuid::new_v4();
 
-        let session = Session {
+        let session = LoginSession {
             id: session_id,
             user_id,
-            provider: x,
+            method,
         };
 
         self.store.create_session(session).await;
@@ -677,19 +759,29 @@ impl<S: Store> AuthSession<S> {
         let Some(session_id) = self.session_id_cookie() else {
             return false;
         };
-
         self.store.get_session(session_id).await.is_some()
     }
 
-    pub async fn user(&self) -> Option<S::User> {
+    pub async fn session(&self) -> Option<LoginSession> {
         let session_id = self.session_id_cookie()?;
-        let session = self.store.get_session(session_id).await?;
+        self.store.get_session(session_id).await
+    }
 
+    pub async fn user_session(&self) -> Option<(S::User, LoginSession)> {
+        let session = self.session().await?;
+        self.store
+            .get_user(session.user_id)
+            .await
+            .map(|user| (user, session))
+    }
+
+    pub async fn user(&self) -> Option<S::User> {
+        let session = &self.session().await?;
         self.store.get_user(session.user_id).await
     }
 }
 
-impl<S: Store> IntoResponseParts for AuthSession<S> {
+impl<S: Store> IntoResponseParts for User<S> {
     type Error = Infallible;
 
     fn into_response_parts(
@@ -701,10 +793,11 @@ impl<S: Store> IntoResponseParts for AuthSession<S> {
 }
 
 #[async_trait]
-impl<S, K, St> FromRequestParts<S> for AuthSession<St, K>
+impl<S, K, St> FromRequestParts<S> for User<St, K>
 where
-    Smtp: FromRef<S>,
-    OAuth: FromRef<S>,
+    EmailConfig: FromRef<S>,
+    OAuthConfig: FromRef<S>,
+    PasswordConfig: FromRef<S>,
     S: Send + Sync,
     K: FromRef<S> + Into<Key>,
     St: Store + FromRef<S>,
@@ -715,13 +808,15 @@ where
             return Err((StatusCode::INTERNAL_SERVER_ERROR, "No cookie jar found"));
         };
         let store = St::from_ref(state);
-        let smtp = Smtp::from_ref(state);
-        let oauth = OAuth::from_ref(state);
+        let email = EmailConfig::from_ref(state);
+        let oauth = OAuthConfig::from_ref(state);
+        let pass = PasswordConfig::from_ref(state);
 
-        return Ok(AuthSession {
+        return Ok(User {
             jar,
             store,
-            smtp,
+            email,
+            pass,
             oauth,
         });
     }

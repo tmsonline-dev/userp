@@ -1,10 +1,10 @@
 mod auth;
 mod mem;
 
-use crate::auth::AuthSession;
-use auth::{AuthUser, Email, OAuth, OAuthClients, Smtp};
+use crate::auth::User;
+use auth::{Email, EmailConfig, OAuthConfig, PasswordConfig, Smtp, UserTrait};
 use axum::{
-    extract::{FromRef, State},
+    extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Redirect},
     routing::{delete, get, put},
@@ -32,22 +32,22 @@ pub struct MyUserEmail {
     verified: bool,
 }
 
-impl Into<Email> for MyUserEmail {
-    fn into(self) -> Email {
+impl From<MyUserEmail> for Email {
+    fn from(val: MyUserEmail) -> Self {
         Email {
-            email: self.email,
-            verified: self.verified,
+            email: val.email,
+            verified: val.verified,
             allow_login: true,
         }
     }
 }
 
-impl AuthUser for MyUser {
-    async fn get_password_hash(&self) -> String {
-        self.password.clone()
+impl UserTrait for MyUser {
+    fn get_password_hash(&self) -> Option<String> {
+        Some(self.password.clone())
     }
 
-    async fn get_id(&self) -> Uuid {
+    fn get_id(&self) -> Uuid {
         self.id
     }
 }
@@ -55,30 +55,39 @@ impl AuthUser for MyUser {
 #[derive(Clone, FromRef)]
 struct AppState {
     key: Key,
-    auth: MemoryAuthStore,
-    smtp_config: Smtp,
-    oauth: OAuth,
+    auth_store: MemoryAuthStore,
+    email: EmailConfig,
+    oauth: OAuthConfig,
+    pass: PasswordConfig,
 }
 
 #[tokio::main]
 async fn main() {
     let state = AppState {
         key: Key::generate(),
-        auth: MemoryAuthStore::default(),
-        smtp_config: Smtp {
-            server_url: "".into(),
-            username: "".into(),
-            password: "".into(),
-            from: "".into(),
-            starttls: true,
+        auth_store: MemoryAuthStore::default(),
+        pass: PasswordConfig {
+            allow_login: auth::AllowLogin::OnLogin,
+            allow_signup: auth::AllowSignup::OnSignup,
+        },
+        email: EmailConfig {
+            allow_login: auth::AllowLogin::OnLogin,
+            allow_signup: auth::AllowSignup::OnSignup,
             base_url: Url::parse("http://svt.se").unwrap(),
-            allow_login_on_signup: true,
-            allow_signup_on_login: false,
             login_path: "login/email".into(),
             verify_path: "verify/email".into(),
             signup_path: "signup/email".into(),
+            smtp: Smtp {
+                server_url: "".into(),
+                username: "".into(),
+                password: "".into(),
+                from: "".into(),
+                starttls: true,
+            },
         },
-        oauth: OAuth {
+        oauth: OAuthConfig {
+            allow_login: auth::AllowLogin::OnLogin,
+            allow_signup: auth::AllowSignup::OnSignupAndLogin,
             clients: Default::default(),
         },
     };
@@ -125,10 +134,9 @@ async fn get_signup_handler() -> impl IntoResponse {
     .into_response()
 }
 
-#[debug_handler]
+#[debug_handler(state = AppState)]
 async fn post_signup_handler(
-    State(state): State<AppState>,
-    x: AuthSession<MemoryAuthStore>,
+    x: User<MemoryAuthStore>,
     Form(SignUpForm { name, password }): Form<SignUpForm>,
 ) -> impl IntoResponse {
     if name.len() <= 3 {
@@ -141,19 +149,22 @@ async fn post_signup_handler(
             .into_response();
     }
 
-    if state.auth.user_name_taken(name.as_str()).await {
-        return Redirect::to("/signup?error=Username already exists").into_response();
-    }
-
-    let user_id = state.auth.create_user(name, password).await;
-
-    let x = x.log_in("password".into(), user_id).await;
+    let x = match x.password_signup(name, password).await {
+        Err((x, err)) => {
+            return (
+                x,
+                Redirect::to(&format!("/signup?error={}", urlencoding::encode(err))),
+            )
+                .into_response();
+        }
+        Ok(x) => x,
+    };
 
     (x, Redirect::to("/secure")).into_response()
 }
 
 #[debug_handler(state = AppState)]
-async fn get_verify_handler(x: AuthSession<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_verify_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
     if x.logged_in().await {
         (x, StatusCode::OK)
     } else {
@@ -163,11 +174,11 @@ async fn get_verify_handler(x: AuthSession<MemoryAuthStore>) -> impl IntoRespons
 
 #[debug_handler]
 async fn delete_user_handler(
-    x: AuthSession<MemoryAuthStore>,
+    x: User<MemoryAuthStore>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     if let Some(user) = x.user().await {
-        state.auth.delete_user(user.id).await;
+        state.auth_store.delete_user(user.id).await;
 
         (x, Redirect::to("/")).into_response()
     } else {
@@ -183,14 +194,14 @@ struct ChangePasswordForm {
 
 #[debug_handler]
 async fn put_change_password_handler(
-    x: AuthSession<MemoryAuthStore>,
+    x: User<MemoryAuthStore>,
     State(state): State<AppState>,
     Form(ChangePasswordForm {
         current_password,
         new_password,
     }): Form<ChangePasswordForm>,
 ) -> impl IntoResponse {
-    let Some(user) = x.user().await else {
+    let Some((user, session)) = x.user_session().await else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
@@ -198,13 +209,16 @@ async fn put_change_password_handler(
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    state.auth.set_user_password(user.id, new_password).await;
+    state
+        .auth_store
+        .set_user_password(user.id, new_password, session.id)
+        .await;
 
     StatusCode::OK.into_response()
 }
 
 #[debug_handler(state = AppState)]
-async fn get_secure_handler(x: AuthSession<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_secure_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
     let Some(user) = x.user().await else {
         return Redirect::to("/login?next=%2Fsecure").into_response();
     };
@@ -242,7 +256,7 @@ async fn get_secure_handler(x: AuthSession<MemoryAuthStore>) -> impl IntoRespons
 }
 
 #[debug_handler(state = AppState)]
-async fn get_login_handler(x: AuthSession<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_login_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
     if x.logged_in().await {
         Redirect::to("/secure").into_response()
     } else {
@@ -275,21 +289,23 @@ struct LoginForm {
 
 #[debug_handler(state = AppState)]
 async fn post_login_handler(
-    x: AuthSession<MemoryAuthStore>,
-    State(state): State<AppState>,
+    x: User<MemoryAuthStore>,
     Form(LoginForm {
         name,
         password,
         next,
     }): Form<LoginForm>,
 ) -> impl IntoResponse {
-    println!("{next:?}");
-
-    let Some(user_id) = state.auth.login(name, password).await else {
-        return Redirect::to("/login?error=Wrong password or username").into_response();
+    let x = match x.password_login(name, password).await {
+        Err((x, err)) => {
+            return (
+                x,
+                Redirect::to(&format!("/login?error={}", urlencoding::encode(err))),
+            )
+                .into_response()
+        }
+        Ok(x) => x,
     };
-
-    let x = x.log_in("password".into(), user_id).await;
 
     (
         x,
@@ -303,16 +319,14 @@ async fn post_login_handler(
 }
 
 #[debug_handler(state = AppState)]
-async fn get_logout_handler(x: AuthSession<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_logout_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
     let x = x.log_out().await;
 
     (x, Redirect::to("/"))
-    // let x = x.log_out().await;
-    // (x, Redirect::to("/"))
 }
 
 #[debug_handler(state = AppState)]
-async fn get_root_handler(x: AuthSession<MemoryAuthStore>) -> impl IntoResponse {
+async fn get_root_handler(x: User<MemoryAuthStore>) -> impl IntoResponse {
     match x.user().await {
         Some(user) => {
             let name = user.name;

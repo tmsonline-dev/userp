@@ -1,5 +1,5 @@
 [package]
-name = "axum-next-auth"
+name = "axum-user"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,6 +11,7 @@ axum-macros = "0.4.2"
 chrono = "0.4.38"
 lettre = "0.11.9"
 oauth2 = "4.4.2"
+password-auth = "1.0.0"
 reqwest = { version = "0.12.8", features = ["json"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
