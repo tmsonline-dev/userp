@@ -5,12 +5,19 @@ mod oauth;
 #[cfg(feature = "password")]
 mod password;
 
+const SESSION_ID_KEY: &str = "auth:session_id";
+
 #[cfg(feature = "email")]
-pub use self::email::{EmailChallenge, EmailConfig, EmailTrait, SmtpSettings};
+pub use self::email::{EmailChallenge, EmailConfig, EmailPaths, EmailTrait, SmtpSettings};
 #[cfg(feature = "oauth")]
-pub use self::oauth::{providers, OAuthConfig, OAuthToken, UnmatchedOAuthToken};
+pub use self::oauth::{
+    providers, ClientRefreshResult, OAuthClients, OAuthConfig, OAuthPaths, OAuthToken,
+    RefreshInitResult, UnmatchedOAuthToken,
+};
 #[cfg(feature = "password")]
 pub use self::password::PasswordConfig;
+#[cfg(all(feature = "password", feature = "email"))]
+pub use self::password::PasswordReset;
 
 use axum::{
     async_trait,
@@ -19,17 +26,17 @@ use axum::{
     response::IntoResponseParts,
 };
 use axum_extra::extract::cookie::{Cookie, Expiration, Key, PrivateCookieJar, SameSite};
-use std::convert::Infallible;
+use std::{convert::Infallible, fmt::Display};
 use uuid::Uuid;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct LoginSession {
     pub id: Uuid,
     pub user_id: Uuid,
     pub method: LoginMethod,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoginMethod {
     #[cfg(feature = "password")]
     Password,
@@ -41,8 +48,15 @@ pub enum LoginMethod {
     OAuth { token_id: Uuid },
 }
 
+impl Display for LoginMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{self:#?}"))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Allow {
+    Never,
     OnSelf,
     OnEither,
 }
@@ -106,10 +120,19 @@ pub trait AxumUserStore {
         provider_name: String,
         token: UnmatchedOAuthToken,
     ) -> Option<(Self::User, OAuthToken)>;
+    #[cfg(feature = "oauth")]
+    async fn get_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        token_id: Uuid,
+    ) -> Option<(Self::User, OAuthToken)>;
 }
 
 pub struct AxumUser<S: AxumUserStore> {
+    allow_signup: Allow,
+    allow_login: Allow,
     jar: PrivateCookieJar,
+    https_only: bool,
     store: S,
     #[cfg(feature = "password")]
     pass: PasswordConfig,
@@ -129,25 +152,33 @@ impl<S: AxumUserStore> AxumUser<S> {
             method,
         };
 
+        println!("Before create_session");
+
         self.store.create_session(session).await;
 
+        println!("Before cookie add");
+
         self.jar = self.jar.add(
-            Cookie::build(("session_id", session_id.to_string()))
-                .same_site(SameSite::Strict)
+            Cookie::build((SESSION_ID_KEY, session_id.to_string()))
+                .same_site(SameSite::Lax)
                 .http_only(true)
                 .expires(Expiration::Session)
-                .secure(true)
+                .secure(self.https_only)
+                .path("/")
                 .build(),
         );
+
+        println!("After cookie add");
 
         self
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
-    pub async fn log_out(self) -> Self {
-        if let Some(session) = self.jar.get("session_id") {
+    pub async fn log_out(mut self) -> Self {
+        if let Some(session) = self.jar.get(SESSION_ID_KEY) {
             if let Ok(session_id) = Uuid::parse_str(session.value()) {
                 self.store.delete_session(session_id).await;
+                self.jar = self.jar.remove(SESSION_ID_KEY)
             }
         }
 
@@ -155,9 +186,13 @@ impl<S: AxumUserStore> AxumUser<S> {
     }
 
     fn session_id_cookie(&self) -> Option<Uuid> {
-        let session_id_cookie = self.jar.get("session_id")?;
+        let Some(session_id_cookie) = self.jar.get(SESSION_ID_KEY) else {
+            println!("No session ID cookie found");
+            return None;
+        };
 
         let Ok(session_id) = Uuid::parse_str(session_id_cookie.value()) else {
+            println!("Session ID not a UUID");
             return None;
         };
 
@@ -173,19 +208,12 @@ impl<S: AxumUserStore> AxumUser<S> {
     }
 
     pub async fn logged_in(&self) -> bool {
-        let Some(session_id) = self.session_id_cookie() else {
-            return false;
-        };
-
-        self.store
-            .get_session(session_id)
-            .await
-            .filter(Self::is_login_session)
-            .is_some()
+        self.session().await.is_some()
     }
 
     pub async fn session(&self) -> Option<LoginSession> {
         let session_id = self.session_id_cookie()?;
+        println!("Finding session by id: {session_id:#?}");
         self.store
             .get_session(session_id)
             .await
@@ -194,6 +222,7 @@ impl<S: AxumUserStore> AxumUser<S> {
 
     pub async fn user_session(&self) -> Option<(S::User, LoginSession)> {
         let session = self.session().await?;
+        println!("Finding user by id: {:#?}", session.user_id);
         self.store
             .get_user(session.user_id)
             .await
@@ -219,12 +248,52 @@ impl<S: AxumUserStore> IntoResponseParts for AxumUser<S> {
 #[derive(Clone)]
 pub struct AxumUserConfig {
     pub key: Key,
+    pub allow_signup: Allow,
+    pub allow_login: Allow,
+    pub https_only: bool,
     #[cfg(feature = "password")]
     pub pass: PasswordConfig,
     #[cfg(feature = "email")]
     pub email: EmailConfig,
     #[cfg(feature = "oauth")]
     pub oauth: OAuthConfig,
+}
+
+impl AxumUserConfig {
+    pub fn new(
+        key: Key,
+        #[cfg(feature = "password")] pass: PasswordConfig,
+        #[cfg(feature = "email")] email: EmailConfig,
+        #[cfg(feature = "oauth")] oauth: OAuthConfig,
+    ) -> Self {
+        Self {
+            key,
+            https_only: true,
+            allow_signup: Allow::OnSelf,
+            allow_login: Allow::OnEither,
+            #[cfg(feature = "password")]
+            pass,
+            #[cfg(feature = "email")]
+            email,
+            #[cfg(feature = "oauth")]
+            oauth,
+        }
+    }
+
+    pub fn with_https_only(mut self, https_only: bool) -> Self {
+        self.https_only = https_only;
+        self
+    }
+
+    pub fn with_allow_signup(mut self, allow_signup: Allow) -> Self {
+        self.allow_signup = allow_signup;
+        self
+    }
+
+    pub fn with_allow_login(mut self, allow_login: Allow) -> Self {
+        self.allow_login = allow_login;
+        self
+    }
 }
 
 #[async_trait]
@@ -242,6 +311,9 @@ where
         let store = St::from_ref(state);
 
         return Ok(AxumUser {
+            allow_signup: config.allow_signup,
+            allow_login: config.allow_login,
+            https_only: config.https_only,
             jar,
             store,
             #[cfg(feature = "email")]

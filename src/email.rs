@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct EmailConfig {
-    pub allow_login: Allow,
-    pub allow_signup: Allow,
+    pub allow_login: Option<Allow>,
+    pub allow_signup: Option<Allow>,
     pub challenge_lifetime: Duration,
     pub base_url: Url,
     pub login_path: String,
@@ -21,6 +21,47 @@ pub struct EmailConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct EmailPaths {
+    pub login: &'static str,
+    pub verify: &'static str,
+    pub signup: &'static str,
+    #[cfg(feature = "password")]
+    pub reset_pw: &'static str,
+}
+
+impl EmailConfig {
+    pub fn new(base_url: Url, paths: EmailPaths, smtp: SmtpSettings) -> Self {
+        Self {
+            allow_login: None,
+            allow_signup: None,
+            challenge_lifetime: Duration::minutes(5),
+            base_url,
+            login_path: paths.login.to_string(),
+            verify_path: paths.verify.to_string(),
+            signup_path: paths.signup.to_string(),
+            #[cfg(feature = "password")]
+            reset_pw_path: paths.reset_pw.to_string(),
+            smtp,
+        }
+    }
+
+    pub fn with_allow_signup(mut self, allow_signup: Allow) -> Self {
+        self.allow_signup = Some(allow_signup);
+        self
+    }
+
+    pub fn with_allow_login(mut self, allow_login: Allow) -> Self {
+        self.allow_login = Some(allow_login);
+        self
+    }
+
+    pub fn with_challenge_lifetime(mut self, challenge_lifetime: Duration) -> Self {
+        self.challenge_lifetime = challenge_lifetime;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SmtpSettings {
     pub server_url: String,
     pub username: String,
@@ -29,23 +70,36 @@ pub struct SmtpSettings {
     pub starttls: bool,
 }
 
+impl SmtpSettings {
+    pub fn new(
+        server_url: impl Into<String>,
+        username: impl Into<String>,
+        password: impl Into<String>,
+        from: impl Into<String>,
+        starttls: bool,
+    ) -> Self {
+        Self {
+            server_url: server_url.into(),
+            username: username.into(),
+            password: password.into(),
+            from: from.into(),
+            starttls,
+        }
+    }
+}
+
 pub trait EmailTrait {
     fn address(&self) -> String;
     fn verified(&self) -> bool;
     fn allow_login(&self) -> bool;
 }
 
+#[derive(Debug)]
 pub struct EmailChallenge {
     pub email: String,
     pub code: String,
     pub next: Option<String>,
     pub expires: DateTime<Utc>,
-}
-
-impl EmailChallenge {
-    pub fn identifier(&self) -> String {
-        format!("{}::{}", self.email, self.code)
-    }
 }
 
 impl<S: AxumUserStore> AxumUser<S> {
@@ -111,7 +165,7 @@ impl<S: AxumUserStore> AxumUser<S> {
 
     pub async fn email_reset_init(&self, email: String, next: Option<String>) {
         self.send_email_challenge(
-            self.email.login_path.clone(),
+            self.email.reset_pw_path.clone(),
             email,
             "Click here to reset password".into(),
             next,
@@ -175,6 +229,12 @@ impl<S: AxumUserStore> AxumUser<S> {
         self,
         code: String,
     ) -> Result<(Self, Option<String>), (Self, &'static str)> {
+        let allow = self.email.allow_login.as_ref().unwrap_or(&self.allow_login);
+
+        if allow == &Allow::Never {
+            return Err((self, "Forbidden"));
+        }
+
         let Some(EmailChallenge {
             email,
             next,
@@ -185,30 +245,32 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err((self, "Code not found"));
         };
 
-        if expires > Utc::now() {
+        if expires < Utc::now() {
             return Err((self, "Challenge expired"));
         }
 
-        let Some((user, email)) = self.store.get_user_by_email(email.clone()).await else {
-            return if self.email.allow_signup == Allow::OnEither {
-                self.email_signup(email, next).await
-            } else {
-                Err((self, "No such user"))
-            };
-        };
-
-        self.email_login(user, email, next).await
+        if let Some((user, email)) = self.store.get_user_by_email(email.clone()).await {
+            self.email_login(user, email, next).await
+        } else {
+            match allow {
+                Allow::Never => unreachable!(),
+                Allow::OnEither => self.email_signup(email, next).await,
+                Allow::OnSelf => Err((self, "No such user")),
+            }
+        }
     }
 
     #[cfg(feature = "password")]
     #[must_use = "Don't forget to return the auth session as part of the response!"]
-    pub async fn email_reset_callback(
-        self,
-        code: String,
-    ) -> Result<(Self, Option<String>), (Self, &'static str)> {
+    pub async fn email_reset_callback(self, code: String) -> Result<Self, (Self, &'static str)> {
+        use crate::password::PasswordReset;
+
+        if self.pass.allow_reset == PasswordReset::Never {
+            return Err((self, "Forbidden"));
+        }
+
         let Some(EmailChallenge {
             email: address,
-            next,
             expires,
             ..
         }) = self.store.consume_email_challenge(code).await
@@ -216,40 +278,26 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err((self, "Code not found"));
         };
 
-        if expires > Utc::now() {
+        if expires < Utc::now() {
             return Err((self, "Challenge expired"));
         }
 
         let Some((user, email)) = self.store.get_user_by_email(address.clone()).await else {
-            return if self.email.allow_signup == Allow::OnEither {
-                self.email_signup(address.clone(), next).await
-            } else {
-                Err((self, "No such user"))
-            };
+            return Err((self, "No such user"));
         };
 
-        if !email.verified() {
+        if !email.verified() && self.pass.allow_reset == PasswordReset::VerifiedEmailOnly {
             return Err((self, "Email not previously verified"));
         };
 
-        Ok((
-            self.log_in(LoginMethod::PasswordReset { address }, user.get_id())
-                .await,
-            next,
-        ))
+        Ok(self
+            .log_in(LoginMethod::PasswordReset { address }, user.get_id())
+            .await)
     }
 
     #[cfg(feature = "password")]
     pub async fn is_reset_session(&self) -> bool {
-        let Some(session_id) = self.session_id_cookie() else {
-            return false;
-        };
-
-        self.store
-            .get_session(session_id)
-            .await
-            .filter(|s| matches!(s.method, LoginMethod::PasswordReset { address: _ }))
-            .is_some()
+        self.reset_session().await.is_some()
     }
 
     #[cfg(feature = "password")]
@@ -263,7 +311,7 @@ impl<S: AxumUserStore> AxumUser<S> {
 
     #[cfg(feature = "password")]
     pub async fn reset_user_session(&self) -> Option<(S::User, LoginSession)> {
-        let session = self.session().await?;
+        let session = self.reset_session().await?;
         self.store
             .get_user(session.user_id)
             .await
@@ -279,7 +327,7 @@ impl<S: AxumUserStore> AxumUser<S> {
     pub async fn email_verify_callback(
         &self,
         code: String,
-    ) -> Result<Option<String>, &'static str> {
+    ) -> Result<(String, Option<String>), &'static str> {
         let Some(EmailChallenge {
             email,
             next,
@@ -294,7 +342,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err("No such user");
         };
 
-        if expires > Utc::now() {
+        if expires < Utc::now() {
             return Err("Challenge expired");
         }
 
@@ -304,7 +352,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                 .await;
         }
 
-        Ok(next)
+        Ok((email.address(), next))
     }
 
     async fn email_signup(
@@ -330,6 +378,16 @@ impl<S: AxumUserStore> AxumUser<S> {
         self,
         code: String,
     ) -> Result<(Self, Option<String>), (Self, &'static str)> {
+        let allow = self
+            .email
+            .allow_signup
+            .as_ref()
+            .unwrap_or(&self.allow_signup);
+
+        if allow == &Allow::Never {
+            return Err((self, "Forbidden"));
+        }
+
         let Some(EmailChallenge {
             email,
             next,
@@ -340,18 +398,18 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err((self, "Code not found"));
         };
 
-        if expires > Utc::now() {
+        if expires < Utc::now() {
             return Err((self, "Challenge expired"));
         }
 
         if let Some((user, email)) = self.store.get_user_by_email(email.clone()).await {
-            return if self.email.allow_login == Allow::OnEither {
-                self.email_login(user, email, next).await
-            } else {
-                Err((self, "User already exists"))
-            };
-        };
-
-        self.email_signup(email, next).await
+            match self.email.allow_login.as_ref().unwrap_or(&self.allow_login) {
+                Allow::Never => unreachable!(),
+                Allow::OnEither => self.email_login(user, email, next).await,
+                Allow::OnSelf => Err((self, "User already exists")),
+            }
+        } else {
+            self.email_signup(email, next).await
+        }
     }
 }

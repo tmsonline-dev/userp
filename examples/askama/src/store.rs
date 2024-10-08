@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct MemoryStore {
     sessions: Arc<RwLock<HashMap<Uuid, LoginSession>>>,
     users: Arc<RwLock<HashMap<Uuid, MyUser>>>,
@@ -49,7 +49,7 @@ impl AxumUserStore for MemoryStore {
 
         users
             .values()
-            .find(|user| user.name == password_id)
+            .find(|user| user.emails.iter().any(|e| e.email == password_id))
             .cloned()
     }
 
@@ -66,13 +66,13 @@ impl AxumUserStore for MemoryStore {
 
     async fn save_email_challenge(&self, challenge: EmailChallenge) {
         let mut challenges = self.challenges.write().await;
-        challenges.insert(challenge.identifier(), challenge);
+        challenges.insert(challenge.code.clone(), challenge);
     }
 
-    async fn consume_email_challenge(&self, identifier: String) -> Option<EmailChallenge> {
+    async fn consume_email_challenge(&self, code: String) -> Option<EmailChallenge> {
         let challenge = {
             let mut challenges = self.challenges.write().await;
-            challenges.remove(&identifier)
+            challenges.remove(&code)
         }?;
 
         Some(challenge)
@@ -93,11 +93,11 @@ impl AxumUserStore for MemoryStore {
     }
 
     async fn create_password_user(&self, email: String, password_hash: String) -> Self::User {
-        let mut users = self.users.write().await;
-
         if self.get_user_by_email(email.clone()).await.is_some() {
             panic!("user conflict");
         };
+
+        let mut users = self.users.write().await;
 
         let id = Uuid::new_v4();
 
@@ -108,6 +108,7 @@ impl AxumUserStore for MemoryStore {
             emails: vec![MyUserEmail {
                 email,
                 verified: false,
+                allow_login: false,
             }],
         };
 
@@ -117,16 +118,17 @@ impl AxumUserStore for MemoryStore {
     }
 
     async fn create_email_user(&self, email: String) -> (Self::User, Self::Email) {
-        let mut users = self.users.write().await;
-
         if self.get_user_by_email(email.clone()).await.is_some() {
             panic!("user conflict");
         };
+
+        let mut users = self.users.write().await;
 
         let id = Uuid::new_v4();
 
         let email = MyUserEmail {
             email,
+            allow_login: true,
             verified: true,
         };
 
@@ -195,6 +197,7 @@ impl AxumUserStore for MemoryStore {
             emails: match token.provider_user.email {
                 Some(email) => vec![MyUserEmail {
                     email,
+                    allow_login: token.provider_user.email_verified,
                     verified: token.provider_user.email_verified,
                 }],
                 None => vec![],
@@ -218,6 +221,28 @@ impl AxumUserStore for MemoryStore {
 
         Some((user, token))
     }
+
+    async fn get_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        token_id: Uuid,
+    ) -> Option<(Self::User, OAuthToken)> {
+        let token = {
+            let tokens = self.oauth_tokens.read().await;
+            tokens.get(&token_id)?.clone()
+        };
+
+        let user = {
+            let users = self.users.read().await;
+            users.get(&user_id)?.clone()
+        };
+
+        if user.id == token.user_id {
+            Some((user, token))
+        } else {
+            None
+        }
+    }
 }
 
 impl MemoryStore {
@@ -239,6 +264,21 @@ impl MemoryStore {
             .filter(|s| s.user_id == user_id)
             .cloned()
             .collect()
+    }
+
+    pub async fn get_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Option<OAuthToken> {
+        let tokens = self.oauth_tokens.read().await;
+
+        tokens
+            .values()
+            .find(|s| s.user_id == user_id && s.id == token_id)
+            .cloned()
+    }
+
+    pub async fn delete_oauth_token(&self, user_id: Uuid, token_id: Uuid) {
+        let mut tokens = self.oauth_tokens.write().await;
+
+        tokens.retain(|_, token| token.id != token_id || token.user_id != user_id);
     }
 
     pub async fn delete_user(&self, id: Uuid) {
@@ -282,5 +322,52 @@ impl MemoryStore {
 
             user.password = Some(password.into())
         }
+    }
+
+    pub async fn set_user_email_allow_login(
+        &self,
+        user_id: Uuid,
+        address: String,
+        allow_login: bool,
+    ) {
+        let mut users = self.users.write().await;
+
+        users.get_mut(&user_id).map(|u| {
+            u.emails
+                .iter_mut()
+                .find(|e| e.email == address)
+                .map(|e| e.allow_login = allow_login)
+        });
+    }
+
+    pub async fn add_user_email(&self, user_id: Uuid, address: String) {
+        let mut users = self.users.write().await;
+
+        if users
+            .values()
+            .any(|u| u.id != user_id && u.emails.iter().any(|e| e.email == address))
+        {
+            panic!("Email already in use");
+        }
+
+        let emails = &mut users.get_mut(&user_id).expect("User not found").emails;
+
+        if !emails.iter().any(|e| e.email == address) {
+            emails.push(MyUserEmail {
+                email: address,
+                verified: false,
+                allow_login: false,
+            });
+        }
+    }
+
+    pub async fn delete_user_email(&self, user_id: Uuid, address: String) {
+        let mut users = self.users.write().await;
+
+        users
+            .get_mut(&user_id)
+            .expect("User not found")
+            .emails
+            .retain(|e| e.email != address);
     }
 }

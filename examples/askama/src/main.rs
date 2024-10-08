@@ -7,19 +7,22 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::Redirect,
-    routing::{get, post, put},
+    routing::{get, post},
     serve, Form, Router,
 };
 use axum_extra::extract::cookie::Key;
 use axum_macros::{debug_handler, FromRef};
 use axum_user::{
-    Allow, AxumUser as BaseAxumUser, AxumUserConfig, EmailConfig, EmailTrait, OAuthConfig,
-    PasswordConfig, SmtpSettings, UserTrait,
+    providers::{GitHubOAuthProvider, SpotifyOAuthProvider},
+    AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, EmailConfig, EmailPaths, EmailTrait,
+    OAuthConfig, OAuthPaths, PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
 };
-use chrono::Duration;
+use dotenv::var;
 use serde::Deserialize;
 use tokio::net::TcpListener;
+use tower_http::trace::TraceLayer;
 use url::Url;
+use urlencoding::encode;
 use uuid::Uuid;
 
 use self::forms::*;
@@ -28,7 +31,7 @@ use self::templates::*;
 
 type AxumUser = BaseAxumUser<MemoryStore>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MyUser {
     id: Uuid,
     name: String,
@@ -46,10 +49,11 @@ impl UserTrait for MyUser {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MyUserEmail {
     email: String,
     verified: bool,
+    allow_login: bool,
 }
 
 impl EmailTrait for MyUserEmail {
@@ -62,7 +66,7 @@ impl EmailTrait for MyUserEmail {
     }
 
     fn allow_login(&self) -> bool {
-        true
+        self.allow_login
     }
 }
 
@@ -73,6 +77,12 @@ pub struct CommonQuery {
     error: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct ResetPasswordQuery {
+    code: Option<String>,
+    address: Option<String>,
+}
+
 #[derive(Clone, FromRef)]
 struct AppState {
     store: MemoryStore,
@@ -81,41 +91,68 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
+    let req_var = |name: &'static str| {
+        var(name).unwrap_or_else(|_| panic!("Missing required env var: {name}"))
+    };
+
+    let base_url = Url::parse("http://localhost:3000").unwrap();
+
+    let key = Key::from("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".as_bytes());
+
     let state = AppState {
         store: MemoryStore::default(),
-        auth: AxumUserConfig {
-            key: Key::generate(),
-            pass: PasswordConfig {
-                allow_login: Allow::OnSelf,
-                allow_signup: Allow::OnSelf,
-            },
-            email: EmailConfig {
-                allow_login: Allow::OnSelf,
-                allow_signup: Allow::OnSelf,
-                challenge_lifetime: Duration::minutes(5),
-                base_url: Url::parse("http://localhost:3000").unwrap(),
-                login_path: "login/email".into(),
-                verify_path: "user/verify-email".into(),
-                signup_path: "signup/email".into(),
-                reset_pw_path: "reset-password".into(),
-                smtp: SmtpSettings {
-                    server_url: "".into(),
-                    username: "".into(),
-                    password: "".into(),
-                    from: "".into(),
+        auth: AxumUserConfig::new(
+            key,
+            PasswordConfig::new().with_allow_reset(axum_user::PasswordReset::AnyUserEmail),
+            EmailConfig::new(
+                base_url.clone(),
+                EmailPaths {
+                    login: "login/email",
+                    verify: "user/email/verify",
+                    signup: "signup/email",
+                    reset_pw: "password/reset",
+                },
+                SmtpSettings {
+                    server_url: req_var("SMTP_URL"),
+                    username: req_var("SMTP_USERNAME"),
+                    password: req_var("SMTP_PASSWORD"),
+                    from: req_var("SMTP_FROM"),
                     starttls: true,
                 },
-            },
-            oauth: OAuthConfig {
-                base_redirect_url: Url::parse("http://localhost:3000/login").unwrap(),
-                allow_login: Allow::OnSelf,
-                allow_signup: Allow::OnEither,
-                clients: Default::default(),
-            },
-        },
+            ),
+            OAuthConfig::new(
+                base_url,
+                OAuthPaths {
+                    login: "login/oauth",
+                    signup: "signup/oauth",
+                    refresh: "user/oauth/refresh",
+                    link: "user/oauth/link",
+                },
+            )
+            .with_client(
+                "spotify",
+                SpotifyOAuthProvider::new(
+                    req_var("SPOTIFY_CLIENT_ID"),
+                    req_var("SPOTIFY_CLIENT_SECRET"),
+                ),
+            )
+            .with_client(
+                "github",
+                GitHubOAuthProvider::new(
+                    req_var("GITHUB_CLIENT_ID"),
+                    req_var("GITHUB_CLIENT_SECRET"),
+                ),
+            ),
+        )
+        .with_https_only(false),
     };
 
     let app = Router::new()
+        .route("/store", get(x))
         .route("/", get(get_index_handler))
         .route("/login", get(get_login_handler))
         .route("/login/password", post(post_login_password_handler))
@@ -139,62 +176,302 @@ async fn main() {
             "/signup/oauth/:provier",
             get(get_signup_oauth_provider_handler),
         )
-        .route("/user", get(get_user_handler).delete(delete_user_handler))
+        .route("/user", get(get_user_handler))
+        .route("/user/delete", post(post_user_delete_handler))
         .route("/user/logout", get(get_logout_handler))
-        .route("/user/verify-session", get(get_verify_handler))
+        .route("/user/verify-session", get(get_user_verify_session_handler))
+        .route("/user/password/set", post(post_user_password_set_handler))
         .route(
-            "/user/password",
-            put(put_user_password_handler).delete(delete_user_password_handler),
+            "/user/password/delete",
+            post(post_user_password_delete_handler),
         )
-        .route("/user/link-oauth", post(post_user_link_oauth_handler))
+        .route("/user/oauth/link", post(post_user_oauth_link_handler))
         .route(
-            "/user/link-oauth/:provider",
-            get(get_link_oauth_provider_handler),
+            "/user/oauth/link/:provider",
+            get(get_oauth_link_provider_handler),
         )
         .route(
-            "/user/verify-email",
+            "/user/session/delete",
+            post(post_user_session_delete_handler),
+        )
+        .route("/user/oauth/refresh", post(post_user_oauth_refresh_handler))
+        .route(
+            "/user/oauth/refresh/:provider",
+            get(get_user_oauth_refresh_provider_handler),
+        )
+        .route("/user/oauth/delete", post(post_user_oauth_delete_handler))
+        .route(
+            "/user/email/verify",
             get(get_user_verify_email_handler).post(post_user_verify_email_handler),
         )
+        .route("/user/email/add", post(post_user_email_handler))
+        .route("/user/email/delete", post(post_user_email_delete_handler))
         .route(
-            "/reset-password",
-            post(post_reset_password_handler).get(get_reset_password_handler),
+            "/user/email/enable_login",
+            post(post_user_email_enable_login),
         )
-        .with_state(state);
+        .route(
+            "/user/email/disable_login",
+            post(post_user_email_disable_login),
+        )
+        .route(
+            "/password/send-reset",
+            get(get_password_send_reset_handler).post(post_password_send_reset_handler),
+        )
+        .route(
+            "/password/reset",
+            get(get_password_reset_handler).post(post_password_reset_handler),
+        )
+        .with_state(state)
+        .layer(TraceLayer::new_for_http());
 
     let tcp = TcpListener::bind("0.0.0.0:3000").await.unwrap();
     serve(tcp, app.into_make_service()).await.unwrap();
 }
 
-async fn post_reset_password_handler(
+async fn post_user_email_enable_login(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(EmailSignUpForm { email }): Form<EmailSignUpForm>,
+) -> impl IntoResponse {
+    let Some(user) = auth.user().await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    state
+        .store
+        .set_user_email_allow_login(user.id, email.clone(), true)
+        .await;
+
+    Redirect::to(&format!(
+        "/user?message={}",
+        encode(&format!("You can now log in directly with {email}"))
+    ))
+    .into_response()
+}
+
+async fn post_user_email_disable_login(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(EmailSignUpForm { email }): Form<EmailSignUpForm>,
+) -> impl IntoResponse {
+    let Some(user) = auth.user().await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    state
+        .store
+        .set_user_email_allow_login(user.id, email.clone(), false)
+        .await;
+
+    Redirect::to(&format!(
+        "/user?message={}",
+        encode(&format!("You can no longer log in directly with {email}"))
+    ))
+    .into_response()
+}
+
+async fn get_password_send_reset_handler(
+    Query(query): Query<ResetPasswordQuery>,
+) -> impl IntoResponse {
+    SendResetPasswordTemplate {
+        sent: false,
+        address: query.address,
+    }
+    .into_response()
+}
+
+async fn post_password_send_reset_handler(
     auth: AxumUser,
     Form(EmailResetForm { email, next }): Form<EmailResetForm>,
 ) -> impl IntoResponse {
     auth.email_reset_init(email.clone(), next).await;
 
-    EmailSentTemplate { address: email }.into_response()
+    SendResetPasswordTemplate {
+        sent: true,
+        address: Some(email),
+    }
 }
 
-async fn get_reset_password_handler(
+async fn get_password_reset_handler(
     auth: AxumUser,
-    Query(CodeQuery { code }): Query<CodeQuery>,
+    Query(query): Query<ResetPasswordQuery>,
 ) -> impl IntoResponse {
-    if !auth.is_reset_session().await {
-        return (auth, StatusCode::UNAUTHORIZED).into_response();
+    if let Some(code) = query.code {
+        match auth.email_reset_callback(code).await {
+            Ok(auth) => (auth, ResetPasswordTemplate).into_response(),
+            Err((auth, err)) => {
+                (auth, Redirect::to(&format!("/login?err={}", encode(err)))).into_response()
+            }
+        }
+    } else {
+        StatusCode::UNAUTHORIZED.into_response()
     }
+}
 
-    match auth.email_reset_callback(code).await {
+async fn post_password_reset_handler(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(ChangePasswordForm { new_password }): Form<ChangePasswordForm>,
+) -> impl IntoResponse {
+    if let Some((user, session)) = auth.reset_user_session().await {
+        state
+            .store
+            .set_user_password(user.id, new_password, session.id)
+            .await;
+        Redirect::to("/login?message=Password has been reset").into_response()
+    } else {
+        StatusCode::UNAUTHORIZED.into_response()
+    }
+}
+
+// click reset password, goes to GET /password/reset
+// if code
+//   run email_reset_callback
+//     if valid
+//       redirect to /password/set
+//     if not
+//       redirect to /login
+// if !code
+//   display email form
+
+// }
+//
+// post /password/reset
+//   runs email_reset_init
+//
+// user clicks link to /password/reset?code
+//
+// get /password/set
+// if reset-session
+//   show password form
+// else
+//   redirect to /login
+// post /password/set
+// if reset-session
+//   set password, redirect to login
+// else
+//   unauthorized
+//
+// get form to type email
+// post - runs email_reset_init.
+// email should link to user/password/reset
+// get - runs email_reset_callback
+// AND THEN RETURNS THE SET NEW PASSWORD TEMPLATE.
+// post - sets new password if its a valid reset session, clears the session, and redirects to login.
+
+async fn x(State(state): State<AppState>) -> impl IntoResponse {
+    format!("{:#?}", state.store).into_response()
+}
+
+#[debug_handler(state = AppState)]
+async fn post_user_email_handler(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(EmailAddForm { email }): Form<EmailAddForm>,
+) -> impl IntoResponse {
+    let Some(user) = auth.user().await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    state.store.add_user_email(user.id, email).await;
+
+    Redirect::to("/user?message=Email added").into_response()
+}
+
+#[debug_handler(state = AppState)]
+async fn post_user_email_delete_handler(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(EmailAddForm { email }): Form<EmailAddForm>,
+) -> impl IntoResponse {
+    let Some(user) = auth.user().await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    state.store.delete_user_email(user.id, email).await;
+
+    Redirect::to("/user?message=Email deleted").into_response()
+}
+
+async fn get_user_oauth_refresh_provider_handler(
+    auth: AxumUser,
+    Path(OAuthCallbackPath { provider }): Path<OAuthCallbackPath>,
+    Query(OAuthCallbackQuery { code, state }): Query<OAuthCallbackQuery>,
+) -> impl IntoResponse {
+    match auth.oauth_refresh_callback(provider, code, state).await {
         Ok((auth, next)) => {
-            let next = next.unwrap_or("/login?message=Password reset successfull".into());
+            let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
         }
         Err((auth, err)) => {
-            let next = format!("/login?error={}", urlencoding::encode(err));
+            let next = format!("/signup?error={}", urlencoding::encode(err));
             (auth, Redirect::to(&next)).into_response()
         }
     }
 }
 
-async fn delete_user_password_handler(
+async fn post_user_session_delete_handler(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(IdForm { id }): Form<IdForm>,
+) -> impl IntoResponse {
+    if !auth.logged_in().await {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    state.store.delete_session(id).await;
+
+    Redirect::to("/user?message=Session deleted").into_response()
+}
+
+async fn post_user_oauth_delete_handler(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(IdForm { id }): Form<IdForm>,
+) -> impl IntoResponse {
+    let Some(user) = auth.user().await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    state.store.delete_oauth_token(user.id, id).await;
+
+    Redirect::to("/user?message=Token deleted").into_response()
+}
+
+async fn post_user_oauth_refresh_handler(
+    auth: AxumUser,
+    State(state): State<AppState>,
+    Form(IdForm { id }): Form<IdForm>,
+) -> impl IntoResponse {
+    let Some(user) = auth.user().await else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    let Some(token) = state.store.get_oauth_token(user.id, id).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    match auth
+        .oauth_refresh_init(token, Some("/user?message=Token refreshed".to_string()))
+        .await
+    {
+        Ok((auth, result)) => match result {
+            RefreshInitResult::Ok => {
+                (auth, Redirect::to("/user?message=Token refreshed")).into_response()
+            }
+            RefreshInitResult::Url(redirect_url) => {
+                (auth, Redirect::to(redirect_url.as_str())).into_response()
+            }
+        },
+        Err((auth, err)) => {
+            let next = format!("/user?error={}", urlencoding::encode(err));
+            (auth, Redirect::to(&next)).into_response()
+        }
+    }
+}
+
+async fn post_user_password_delete_handler(
     auth: AxumUser,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
@@ -204,7 +481,7 @@ async fn delete_user_password_handler(
 
     state.store.clear_user_password(user.id, session.id).await;
 
-    StatusCode::OK.into_response()
+    (auth, Redirect::to("/user?message=Password cleared")).into_response()
 }
 
 async fn post_login_oauth_handler(
@@ -220,7 +497,7 @@ async fn post_login_oauth_handler(
     }
 }
 
-async fn post_user_link_oauth_handler(
+async fn post_user_oauth_link_handler(
     auth: AxumUser,
     Form(OauthLoginForm { provider, next }): Form<OauthLoginForm>,
 ) -> impl IntoResponse {
@@ -267,7 +544,7 @@ async fn get_signup_oauth_provider_handler(
     }
 }
 
-async fn get_link_oauth_provider_handler(
+async fn get_oauth_link_provider_handler(
     auth: AxumUser,
     Path(OAuthCallbackPath { provider }): Path<OAuthCallbackPath>,
     Query(OAuthCallbackQuery { code, state }): Query<OAuthCallbackQuery>,
@@ -310,17 +587,16 @@ async fn get_user_verify_email_handler(
     auth: AxumUser,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> impl IntoResponse {
-    if !auth.logged_in().await {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
-
-    match auth.email_signup_callback(code).await {
-        Ok((auth, next)) => {
-            let next = next.unwrap_or("/user".into());
-            (auth, Redirect::to(&next)).into_response()
+    match auth.email_verify_callback(code).await {
+        Ok((address, next)) => {
+            if let Some(next) = next {
+                (auth, Redirect::to(&next)).into_response()
+            } else {
+                EmailVerifiedTemplate { address }.into_response()
+            }
         }
-        Err((auth, err)) => {
-            let next = format!("/user?error={}", urlencoding::encode(err));
+        Err(err) => {
+            let next = format!("/login?error={}", urlencoding::encode(err));
             (auth, Redirect::to(&next)).into_response()
         }
     }
@@ -403,9 +679,21 @@ async fn get_login_email_handler(
 
 #[debug_handler(state = AppState)]
 async fn get_signup_handler(
-    Query(CommonQuery { error, .. }): Query<CommonQuery>,
+    auth: AxumUser,
+    Query(CommonQuery {
+        error,
+        message,
+        next,
+        ..
+    }): Query<CommonQuery>,
 ) -> impl IntoResponse {
-    SignupTemplate { error }.into_response()
+    SignupTemplate {
+        error,
+        message,
+        next,
+        oauth_providers: auth.oauth_signup_providers(),
+    }
+    .into_response()
 }
 
 #[debug_handler(state = AppState)]
@@ -433,7 +721,7 @@ async fn post_signup_password_handler(
 }
 
 #[debug_handler(state = AppState)]
-async fn get_verify_handler(auth: AxumUser) -> impl IntoResponse {
+async fn get_user_verify_session_handler(auth: AxumUser) -> impl IntoResponse {
     // If the auth cookie is never modified, it's ok to return without it.
     if auth.logged_in().await {
         StatusCode::OK
@@ -443,7 +731,10 @@ async fn get_verify_handler(auth: AxumUser) -> impl IntoResponse {
 }
 
 #[debug_handler]
-async fn delete_user_handler(auth: AxumUser, State(state): State<AppState>) -> impl IntoResponse {
+async fn post_user_delete_handler(
+    auth: AxumUser,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
     if let Some(user) = auth.user().await {
         state.store.delete_user(user.id).await;
 
@@ -456,7 +747,7 @@ async fn delete_user_handler(auth: AxumUser, State(state): State<AppState>) -> i
 }
 
 #[debug_handler]
-async fn put_user_password_handler(
+async fn post_user_password_set_handler(
     auth: AxumUser,
     State(state): State<AppState>,
     Form(ChangePasswordForm { new_password }): Form<ChangePasswordForm>,
@@ -480,16 +771,16 @@ async fn put_user_password_handler(
         .set_user_password(user.id, new_password, session.id)
         .await;
 
-    Redirect::to("/login?message=The password has been reset!").into_response()
+    Redirect::to("/user?message=The password has been set!").into_response()
 }
 
 #[debug_handler(state = AppState)]
 async fn get_user_handler(
-    x: AxumUser,
+    auth: AxumUser,
     Query(CommonQuery { error, message, .. }): Query<CommonQuery>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    if let Some(user) = x.user().await {
+    if let Some(user) = auth.user().await {
         let sessions = state.store.get_sessions(user.id).await;
         let oauth_tokens = state.store.get_oauth_tokens(user.id).await;
 
@@ -498,24 +789,40 @@ async fn get_user_handler(
             message,
             error,
             sessions,
-            password: user.password.is_some(),
+            has_password: user.password.is_some(),
             emails: user.emails,
+            oauth_providers: auth
+                .oauth_link_providers()
+                .into_iter()
+                .filter(|p| !oauth_tokens.iter().any(|t| &t.provider_name == p))
+                .collect(),
             oauth_tokens,
         }
         .into_response()
     } else {
+        println!("User not found in store: {:#?}", state.store);
         Redirect::to("/login?next=%UFuser").into_response()
     }
 }
 
 #[debug_handler(state = AppState)]
-async fn get_login_handler(auth: AxumUser, Query(query): Query<CommonQuery>) -> impl IntoResponse {
+async fn get_login_handler(
+    auth: AxumUser,
+    Query(CommonQuery {
+        next,
+        message,
+        error,
+        ..
+    }): Query<CommonQuery>,
+) -> impl IntoResponse {
     if auth.logged_in().await {
-        Redirect::to("/User").into_response()
+        Redirect::to("/user").into_response()
     } else {
         LoginTemplate {
-            message: query.message,
-            next: query.next,
+            next,
+            message,
+            error,
+            oauth_providers: auth.oauth_login_providers(),
         }
         .into_response()
     }

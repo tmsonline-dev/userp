@@ -1,0 +1,9 @@
+- Add require email on signup/login for password/oauth
+- Routing modules in askama example
+- Make OAuthToken a trait???
+- All the error handling
+- Service??? (At least consitant use of self returns)
+- Leptos example
+- Code cleanup
+- MFA: Webauthn/passkeys etc
+- Publish on crates.io???

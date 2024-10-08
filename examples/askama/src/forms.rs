@@ -1,4 +1,10 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IdForm {
+    pub id: Uuid,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PasswordLoginForm {
@@ -27,6 +33,16 @@ pub struct PasswordSignUpForm {
 
 #[derive(Serialize, Deserialize)]
 pub struct EmailSignUpForm {
+    pub email: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EmailAddForm {
+    pub email: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EmailDeleteForm {
     pub email: String,
 }
 

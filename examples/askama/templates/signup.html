@@ -1,11 +1,63 @@
 {% extends "base.html" %}
+
 {% block content %}
-<form method="post">
-  <label for="name">User name</label>
-  <input id="name" name="name">
-  <input type="submit" value="Log in">
-</form>
-{% if let Some(error) = error %}
-<p>Error: {{error}}</p>
+{% if let Some(message) = message %}
+<span><strong>{{ message }}</strong></span>
 {% endif %}
+
+{% if let Some(error) = error%}
+<span><strong>Something went wrong: {{ error }}</strong></span>
+{% endif %}
+
+<p>Log in with either an email link, email address and password or OAuth</p>
+
+<form action="/signup/email" method="post">
+  <fieldset>
+    <legend>Magic link signup</legend>
+    <p>
+      <label for="email">email</label>
+      <input name="email" id="email" value="stefan@provai.eu" />
+    </p>
+    <input type="submit" value="Sign up" />
+  </fieldset>
+  {% if let Some(next) = next %}
+  <input type="hidden" name="next" value="{{next}}" />
+  {% endif %}
+</form>
+
+<form action="/signup/password" method="post">
+  <fieldset>
+    <legend>Password signup</legend>
+    <p>
+      <label for="email">email</label>
+      <input name="email" id="email" value="stefan@provai.eu" />
+    </p>
+    <p>
+      <label for="password">Password</label>
+      <input name="password" id="password" type="password" value="hunter42" />
+    </p>
+    <input type="submit" value="Sign up" />
+  </fieldset>
+  {% if let Some(next) = next %}
+  <input type="hidden" name="next" value="{{next}}" />
+  {% endif %}
+</form>
+
+<fieldset>
+  <legend>OAuth signup</legend>
+  {% for provider in oauth_providers %}
+  <form action="/signup/oauth" method="post">
+    <input type="hidden" name="provider" value="{{ provider }}" />
+    <input type="submit" value="{{ provider }}" />
+    {% if let Some(next) = next %}
+    <input type="hidden" name="next" value="{{next}}" />
+    {% endif %}
+  </form>
+  {% endfor %}
+</fieldset>
+
+<fieldset>
+  <legend>Already have an account?</legend>
+  <a href="/login">Log in!</a>
+</fieldset>
 {% endblock %}

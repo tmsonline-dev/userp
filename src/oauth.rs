@@ -6,18 +6,76 @@ use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{DateTime, Utc};
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AccessToken, AuthorizationCode, CsrfToken,
-    RedirectUrl, Scope, TokenResponse,
+    RedirectUrl, RefreshToken, Scope, TokenResponse,
 };
 use std::{collections::HashMap, sync::Arc};
 use url::Url;
 use uuid::Uuid;
 
+const NEXT_KEY: &str = "auth:next";
+const USER_ID_KEY: &str = "auth:user_id";
+const TOKEN_ID_KEY: &str = "auth:token_id";
+const CSRF_STATE_KEY: &str = "auth:csrf_state";
+
 #[derive(Clone)]
 pub struct OAuthConfig {
-    pub allow_login: Allow,
-    pub allow_signup: Allow,
-    pub base_redirect_url: Url,
+    pub allow_login: Option<Allow>,
+    pub allow_signup: Option<Allow>,
+    pub allow_linking: bool,
+    pub login_path: String,
+    pub link_path: String,
+    pub signup_path: String,
+    pub refresh_path: String,
+    pub base_url: Url,
     pub clients: OAuthClients,
+}
+
+#[derive(Debug, Clone)]
+pub struct OAuthPaths {
+    pub login: &'static str,
+    pub link: &'static str,
+    pub signup: &'static str,
+    pub refresh: &'static str,
+}
+
+impl OAuthConfig {
+    pub fn new(base_url: Url, paths: OAuthPaths) -> Self {
+        Self {
+            base_url,
+            allow_login: None,
+            allow_signup: None,
+            allow_linking: true,
+            login_path: paths.login.to_string(),
+            link_path: paths.link.to_string(),
+            signup_path: paths.signup.to_string(),
+            refresh_path: paths.refresh.to_string(),
+            clients: Default::default(),
+        }
+    }
+
+    pub fn with_client(
+        mut self,
+        name: impl Into<String>,
+        client: impl OAuthProvider + 'static,
+    ) -> Self {
+        self.clients.0.insert(name.into(), Arc::new(client));
+        self
+    }
+
+    pub fn with_allow_signup(mut self, allow_signup: Allow) -> Self {
+        self.allow_signup = Some(allow_signup);
+        self
+    }
+
+    pub fn with_allow_login(mut self, allow_login: Allow) -> Self {
+        self.allow_login = Some(allow_login);
+        self
+    }
+
+    pub fn with_allow_linking(mut self, allow_linking: bool) -> Self {
+        self.allow_linking = allow_linking;
+        self
+    }
 }
 
 pub struct OAuthProviderUser {
@@ -28,7 +86,7 @@ pub struct OAuthProviderUser {
 }
 
 #[derive(Clone, Default)]
-pub struct OAuthClients(pub(super) Arc<HashMap<String, Box<dyn OAuthProvider>>>);
+pub struct OAuthClients(pub(super) HashMap<String, Arc<dyn OAuthProvider>>);
 
 #[async_trait]
 pub trait OAuthProvider: Sync + Send {
@@ -36,8 +94,32 @@ pub trait OAuthProvider: Sync + Send {
         &self,
         access_token: AccessToken,
     ) -> anyhow::Result<OAuthProviderUser>;
+    async fn refresh_token(&self, token: OAuthToken) -> anyhow::Result<ClientRefreshResult> {
+        match token.refresh_token {
+            Some(refresh_token) => {
+                let client = self.get_client();
+                let refresh_token = RefreshToken::new(refresh_token);
+
+                let res = client
+                    .exchange_refresh_token(&refresh_token)
+                    .request_async(async_http_client)
+                    .await?;
+
+                Ok(ClientRefreshResult::Ok(OAuthToken {
+                    access_token: res.access_token().secret().to_string(),
+                    refresh_token: res.refresh_token().map(|rt| rt.secret().to_string()),
+                    expires: res.expires_in().map(|seconds| Utc::now() + seconds),
+                    ..token
+                }))
+            }
+            None => Ok(ClientRefreshResult::NotSupported(token)),
+        }
+    }
     fn get_client(&self) -> BasicClient;
     fn get_scopes(&self) -> Vec<String>;
+    fn allow_signup(&self) -> Option<Allow>;
+    fn allow_login(&self) -> Option<Allow>;
+    fn allow_linking(&self) -> Option<bool>;
 }
 
 pub struct UnmatchedOAuthToken {
@@ -62,8 +144,111 @@ pub struct OAuthToken {
 }
 
 impl<S: AxumUserStore> AxumUser<S> {
+    pub fn oauth_login_providers(&self) -> Vec<String> {
+        self.oauth
+            .clients
+            .0
+            .iter()
+            .filter_map(|(n, c)| {
+                if c.allow_login()
+                    .as_ref()
+                    .unwrap_or(self.oauth.allow_login.as_ref().unwrap_or(&self.allow_login))
+                    != &Allow::Never
+                {
+                    Some(n.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn oauth_signup_providers(&self) -> Vec<String> {
+        self.oauth
+            .clients
+            .0
+            .iter()
+            .filter_map(|(n, c)| {
+                if c.allow_signup().as_ref().unwrap_or(
+                    self.oauth
+                        .allow_signup
+                        .as_ref()
+                        .unwrap_or(&self.allow_signup),
+                ) != &Allow::Never
+                {
+                    Some(n.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn oauth_link_providers(&self) -> Vec<String> {
+        self.oauth
+            .clients
+            .0
+            .iter()
+            .filter_map(|(n, c)| {
+                if c.allow_linking().unwrap_or(self.oauth.allow_linking) {
+                    Some(n.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub async fn oauth_refresh_init(
+        self,
+        token: OAuthToken,
+        next: Option<String>,
+    ) -> Result<(Self, RefreshInitResult), (Self, &'static str)> {
+        let Some(client) = self.oauth.clients.0.get(&token.provider_name) else {
+            return Err((self, "Client not found"));
+        };
+
+        match client.refresh_token(token).await {
+            Ok(result) => match result {
+                ClientRefreshResult::Ok(token) => {
+                    self.store.create_or_update_oauth_token(token).await;
+                    Ok((self, RefreshInitResult::Ok))
+                }
+                ClientRefreshResult::NotSupported(token) => {
+                    let path = self.oauth.refresh_path.clone();
+                    let (mut new_self, url) =
+                        self.oauth_init(path, token.provider_name, next).await?;
+
+                    new_self.jar = new_self
+                        .jar
+                        .add(
+                            Cookie::build((USER_ID_KEY, token.user_id.to_string()))
+                                .same_site(SameSite::Lax)
+                                .path("/")
+                                .http_only(true)
+                                .secure(new_self.https_only),
+                        )
+                        .add(
+                            Cookie::build((TOKEN_ID_KEY, token.id.to_string()))
+                                .path("/")
+                                .same_site(SameSite::Lax)
+                                .http_only(true)
+                                .secure(new_self.https_only),
+                        );
+
+                    Ok((new_self, RefreshInitResult::Url(url)))
+                }
+            },
+            Err(err) => {
+                eprintln!("{err:#?}");
+                Err((self, "something went wrong"))
+            }
+        }
+    }
+
     pub async fn oauth_init(
         mut self,
+        path: String,
         provider_name: String,
         next: Option<String>,
     ) -> Result<(Self, Url), (Self, &'static str)> {
@@ -75,7 +260,9 @@ impl<S: AxumUserStore> AxumUser<S> {
             .get_client()
             .set_redirect_uri(RedirectUrl::from_url(
                 self.oauth
-                    .base_redirect_url
+                    .base_url
+                    .join(path.as_str())
+                    .unwrap()
                     .join(provider_name.as_str())
                     .unwrap(),
             ))
@@ -84,18 +271,21 @@ impl<S: AxumUserStore> AxumUser<S> {
             .url();
 
         self.jar = self.jar.add(
-            Cookie::build(("csrf_state", csrf_state.secret().clone()))
+            Cookie::build((CSRF_STATE_KEY, csrf_state.secret().clone()))
+                .path("/")
                 .http_only(true)
                 .same_site(SameSite::Lax)
-                .secure(true)
+                .secure(self.https_only)
                 .build(),
         );
 
         if let Some(next) = next {
             self.jar = self.jar.add(
-                Cookie::build(("next", next))
+                Cookie::build((NEXT_KEY, next))
+                    .path("/")
                     .same_site(SameSite::Lax)
-                    .secure(true)
+                    .secure(self.https_only)
+                    .http_only(true)
                     .build(),
             );
         }
@@ -108,7 +298,8 @@ impl<S: AxumUserStore> AxumUser<S> {
         provider_name: String,
         next: Option<String>,
     ) -> Result<(Self, Url), (Self, &'static str)> {
-        self.oauth_init(provider_name, next).await
+        let path = self.oauth.login_path.clone();
+        self.oauth_init(path, provider_name, next).await
     }
 
     pub async fn oauth_signup_init(
@@ -116,7 +307,8 @@ impl<S: AxumUserStore> AxumUser<S> {
         provider_name: String,
         next: Option<String>,
     ) -> Result<(Self, Url), (Self, &'static str)> {
-        self.oauth_init(provider_name, next).await
+        let path = self.oauth.signup_path.clone();
+        self.oauth_init(path, provider_name, next).await
     }
 
     pub async fn oauth_link_init(
@@ -128,12 +320,15 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err((self, "Not logged in"));
         };
 
-        let (mut new_self, url) = self.oauth_init(provider_name, next).await?;
+        let path = self.oauth.link_path.clone();
+        let (mut new_self, url) = self.oauth_init(path, provider_name, next).await?;
 
         new_self.jar = new_self.jar.add(
-            Cookie::build(("user_id", user.get_id().to_string()))
+            Cookie::build((USER_ID_KEY, user.get_id().to_string()))
+                .path("/")
                 .same_site(SameSite::Lax)
-                .secure(true)
+                .secure(new_self.https_only)
+                .http_only(true)
                 .build(),
         );
 
@@ -150,7 +345,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err("Provider not found");
         };
 
-        let Some(prev_state) = self.jar.get("csrf_state") else {
+        let Some(prev_state) = self.jar.get(CSRF_STATE_KEY) else {
             return Err("No csrf token found");
         };
 
@@ -158,7 +353,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err("Csrf token doesn't match");
         }
 
-        let next = self.jar.get("next").map(|x| x.value().to_string());
+        let next = self.jar.get(NEXT_KEY).map(|x| x.value().to_string());
 
         let Ok(oauth_token) = provider
             .get_client()
@@ -252,7 +447,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err((self, "lkasjdklajsd"));
         };
 
-        let Some(user_id) = self.jar.get("user_id") else {
+        let Some(user_id) = self.jar.get(USER_ID_KEY) else {
             return Err((self, "No user id in cooke"));
         };
 
@@ -286,6 +481,55 @@ impl<S: AxumUserStore> AxumUser<S> {
         ))
     }
 
+    pub async fn oauth_refresh_callback(
+        self,
+        provider_name: String,
+        code: String,
+        state: String,
+    ) -> Result<(Self, Option<String>), (Self, &'static str)> {
+        let Ok((unmatched_token, next)) = self
+            .oauth_callback(provider_name.clone(), code, state)
+            .await
+        else {
+            return Err((self, "lkasjdklajsd"));
+        };
+
+        let Some(user_id) = self.jar.get(USER_ID_KEY) else {
+            return Err((self, "No user id in cooke"));
+        };
+
+        let Ok(user_id) = Uuid::parse_str(user_id.value()) else {
+            return Err((self, "Malformed user id"));
+        };
+
+        let Some(token_id) = self.jar.get(TOKEN_ID_KEY) else {
+            return Err((self, "No token id in cooke"));
+        };
+
+        let Ok(token_id) = Uuid::parse_str(token_id.value()) else {
+            return Err((self, "Malformed token id"));
+        };
+
+        let Some((user, token)) = self.store.get_user_oauth_token(user_id, token_id).await else {
+            return Err((self, "No user or token found"));
+        };
+
+        let new_token = OAuthToken {
+            access_token: unmatched_token.access_token,
+            refresh_token: unmatched_token.refresh_token,
+            expires: unmatched_token.expires,
+            ..token
+        };
+
+        self.store.create_or_update_oauth_token(new_token).await;
+
+        Ok((
+            self.log_in(LoginMethod::OAuth { token_id: token.id }, user.get_id())
+                .await,
+            next,
+        ))
+    }
+
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn oauth_signup_callback(
         self,
@@ -314,4 +558,14 @@ impl<S: AxumUserStore> AxumUser<S> {
             next,
         ))
     }
+}
+
+pub enum ClientRefreshResult {
+    NotSupported(OAuthToken),
+    Ok(OAuthToken),
+}
+
+pub enum RefreshInitResult {
+    Url(Url),
+    Ok,
 }

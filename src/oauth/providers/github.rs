@@ -9,7 +9,7 @@ use super::{
     IncludedProvider,
 };
 
-pub struct SpotifyOAuthProvider {
+pub struct GitHubOAuthProvider {
     scopes: Vec<String>,
     client: BasicClient,
     allow_signup: Option<Allow>,
@@ -17,19 +17,19 @@ pub struct SpotifyOAuthProvider {
     allow_linking: Option<bool>,
 }
 
-impl SpotifyOAuthProvider {
+impl GitHubOAuthProvider {
     pub fn new(client_id: impl Into<String>, client_secret: impl Into<String>) -> Self {
         let client = BasicClient::new(
             ClientId::new(client_id.into()),
             Some(ClientSecret::new(client_secret.into())),
-            AuthUrl::from_url(Url::parse("https://accounts.spotify.com/authorize").unwrap()),
+            AuthUrl::from_url(Url::parse("https://github.com/login/oauth/authorize").unwrap()),
             Some(TokenUrl::from_url(
-                Url::parse("https://accounts.spotify.com/api/token").unwrap(),
+                Url::parse("https://github.com/login/oauth/access_token").unwrap(),
             )),
         );
 
         Self {
-            scopes: vec!["user-read-email".into()],
+            scopes: vec!["user:email".into()],
             client,
             allow_signup: None,
             allow_login: None,
@@ -38,7 +38,7 @@ impl SpotifyOAuthProvider {
     }
 }
 
-impl IncludedProvider for SpotifyOAuthProvider {
+impl IncludedProvider for GitHubOAuthProvider {
     fn with_allow_signup(mut self, allow_signup: Allow) -> Self {
         self.allow_signup = Some(allow_signup);
         self
@@ -61,13 +61,15 @@ impl IncludedProvider for SpotifyOAuthProvider {
 }
 
 #[async_trait]
-impl OAuthProvider for SpotifyOAuthProvider {
+impl OAuthProvider for GitHubOAuthProvider {
     async fn get_provider_user(&self, access_token: AccessToken) -> Result<OAuthProviderUser> {
         let client = reqwest::Client::new();
 
         let res = client
-            .get("https://api.spotify.com/v1/me")
-            .header("Accept", "application/json")
+            .get("https://api.github.com/user")
+            .header("User-Agent", "axum-user")
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
             .bearer_auth(access_token.secret())
             .send()
             .await?
@@ -83,18 +85,18 @@ impl OAuthProvider for SpotifyOAuthProvider {
         let email = res
             .as_object()
             .and_then(|obj| obj.get("email").and_then(|id| id.as_str()))
-            .map(|name| name.to_string());
+            .map(|email| email.to_string());
 
         let name = res
             .as_object()
-            .and_then(|obj| obj.get("display_name").and_then(|id| id.as_str()))
+            .and_then(|obj| obj.get("name").and_then(|id| id.as_str()))
             .map(|name| name.to_string());
 
         Ok(OAuthProviderUser {
             id,
+            email_verified: email.is_some(),
             email,
             name,
-            email_verified: false,
         })
     }
 
