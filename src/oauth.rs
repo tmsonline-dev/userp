@@ -9,7 +9,7 @@ pub use oauth2::{
     RefreshToken, Scope, TokenResponse,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::{collections::HashMap, sync::Arc};
 use url::Url;
 use uuid::Uuid;

@@ -8,7 +8,6 @@ axum-user = { path = "../../"}
 axum = "0.7.7"
 axum-extra = { version = "0.9.4", features = ["cookie-private"] }
 axum-macros = "0.4.2"
-chrono = "0.4.38"
 serde = { version = "1.0.210", features = ["derive"] }
 tokio = { version = "1.40.0", features = ["full"] }
 url = "2.5.2"
