@@ -1,4 +1,5 @@
 - Add require email on signup/login for password/oauth
+- Move oauth2 client out of OAuthProvider, create when necessary
 - Routing modules in askama example
 - Make OAuthToken a trait???
 - All the error handling

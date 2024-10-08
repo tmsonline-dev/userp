@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use axum::async_trait;
-use oauth2::{basic::BasicClient, AccessToken, AuthUrl, ClientId, ClientSecret, TokenUrl};
+use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, TokenUrl};
 use serde_json::Value;
 use url::Url;
 
@@ -62,13 +62,13 @@ impl IncludedProvider for SpotifyOAuthProvider {
 
 #[async_trait]
 impl OAuthProvider for SpotifyOAuthProvider {
-    async fn get_provider_user(&self, access_token: AccessToken) -> Result<OAuthProviderUser> {
+    async fn get_provider_user(&self, access_token: String) -> Result<OAuthProviderUser> {
         let client = reqwest::Client::new();
 
         let res = client
             .get("https://api.spotify.com/v1/me")
             .header("Accept", "application/json")
-            .bearer_auth(access_token.secret())
+            .bearer_auth(access_token)
             .send()
             .await?
             .json::<Value>()

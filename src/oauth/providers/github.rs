@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use axum::async_trait;
-use oauth2::{basic::BasicClient, AccessToken, AuthUrl, ClientId, ClientSecret, TokenUrl};
+use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, TokenUrl};
 use serde_json::Value;
 use url::Url;
 
@@ -62,15 +62,17 @@ impl IncludedProvider for GitHubOAuthProvider {
 
 #[async_trait]
 impl OAuthProvider for GitHubOAuthProvider {
-    async fn get_provider_user(&self, access_token: AccessToken) -> Result<OAuthProviderUser> {
+    async fn get_provider_user(&self, access_token: String) -> Result<OAuthProviderUser> {
         let client = reqwest::Client::new();
+
+        println!("PLease dont say I made it all the way here");
 
         let res = client
             .get("https://api.github.com/user")
             .header("User-Agent", "axum-user")
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
-            .bearer_auth(access_token.secret())
+            .bearer_auth(access_token)
             .send()
             .await?
             .json::<Value>()
@@ -78,7 +80,7 @@ impl OAuthProvider for GitHubOAuthProvider {
 
         let id = res
             .as_object()
-            .and_then(|obj| obj.get("id").and_then(|id| id.as_str()))
+            .and_then(|obj| obj.get("id").and_then(|id| id.as_number()))
             .context("Missing id")?
             .to_string();
 

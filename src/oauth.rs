@@ -4,18 +4,54 @@ use super::{Allow, AxumUser, AxumUserStore, LoginMethod, UserTrait};
 use axum::async_trait;
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{DateTime, Utc};
-use oauth2::{
-    basic::BasicClient, reqwest::async_http_client, AccessToken, AuthorizationCode, CsrfToken,
-    RedirectUrl, RefreshToken, Scope, TokenResponse,
+pub use oauth2::{
+    basic::BasicClient, reqwest::async_http_client, AuthorizationCode, CsrfToken, RedirectUrl,
+    RefreshToken, Scope, TokenResponse,
 };
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::{collections::HashMap, sync::Arc};
 use url::Url;
 use uuid::Uuid;
 
-const NEXT_KEY: &str = "auth:next";
-const USER_ID_KEY: &str = "auth:user_id";
-const TOKEN_ID_KEY: &str = "auth:token_id";
+pub struct OAuthProviderUser {
+    pub id: String,
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub email_verified: bool,
+}
+
+pub enum ClientRefreshResult {
+    NotSupported(OAuthToken),
+    Ok(OAuthToken),
+}
+
+pub enum RefreshInitResult {
+    Redirect(Url),
+    Ok,
+}
+
 const CSRF_STATE_KEY: &str = "auth:csrf_state";
+const OAUTH_FLOW_KEY: &str = "auth:oauth_flow";
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum OAuthFlow {
+    LogIn {
+        next: Option<String>,
+    },
+    SignUp {
+        next: Option<String>,
+    },
+    Link {
+        user_id: Uuid,
+        next: Option<String>,
+    },
+    Refresh {
+        user_id: Uuid,
+        token_id: Uuid,
+        next: Option<String>,
+    },
+}
 
 #[derive(Clone)]
 pub struct OAuthConfig {
@@ -78,22 +114,12 @@ impl OAuthConfig {
     }
 }
 
-pub struct OAuthProviderUser {
-    pub id: String,
-    pub email: Option<String>,
-    pub name: Option<String>,
-    pub email_verified: bool,
-}
-
 #[derive(Clone, Default)]
 pub struct OAuthClients(pub(super) HashMap<String, Arc<dyn OAuthProvider>>);
 
 #[async_trait]
 pub trait OAuthProvider: Sync + Send {
-    async fn get_provider_user(
-        &self,
-        access_token: AccessToken,
-    ) -> anyhow::Result<OAuthProviderUser>;
+    async fn get_provider_user(&self, access_token: String) -> anyhow::Result<OAuthProviderUser>;
     async fn refresh_token(&self, token: OAuthToken) -> anyhow::Result<ClientRefreshResult> {
         match token.refresh_token {
             Some(refresh_token) => {
@@ -216,27 +242,19 @@ impl<S: AxumUserStore> AxumUser<S> {
                 }
                 ClientRefreshResult::NotSupported(token) => {
                     let path = self.oauth.refresh_path.clone();
-                    let (mut new_self, url) =
-                        self.oauth_init(path, token.provider_name, next).await?;
-
-                    new_self.jar = new_self
-                        .jar
-                        .add(
-                            Cookie::build((USER_ID_KEY, token.user_id.to_string()))
-                                .same_site(SameSite::Lax)
-                                .path("/")
-                                .http_only(true)
-                                .secure(new_self.https_only),
+                    let (new_self, url) = self
+                        .oauth_init(
+                            path,
+                            token.provider_name,
+                            OAuthFlow::Refresh {
+                                user_id: token.user_id,
+                                token_id: token.id,
+                                next,
+                            },
                         )
-                        .add(
-                            Cookie::build((TOKEN_ID_KEY, token.id.to_string()))
-                                .path("/")
-                                .same_site(SameSite::Lax)
-                                .http_only(true)
-                                .secure(new_self.https_only),
-                        );
+                        .await?;
 
-                    Ok((new_self, RefreshInitResult::Url(url)))
+                    Ok((new_self, RefreshInitResult::Redirect(url)))
                 }
             },
             Err(err) => {
@@ -246,11 +264,28 @@ impl<S: AxumUserStore> AxumUser<S> {
         }
     }
 
-    pub async fn oauth_init(
+    fn redirect_uri(&self, path: String, provider_name: &str) -> RedirectUrl {
+        let path = if path.ends_with('/') {
+            path
+        } else {
+            format!("{path}/")
+        };
+
+        RedirectUrl::from_url(
+            self.oauth
+                .base_url
+                .join(path.as_str())
+                .unwrap()
+                .join(provider_name)
+                .unwrap(),
+        )
+    }
+
+    async fn oauth_init(
         mut self,
         path: String,
         provider_name: String,
-        next: Option<String>,
+        oauth_flow: OAuthFlow,
     ) -> Result<(Self, Url), (Self, &'static str)> {
         let Some(provider) = self.oauth.clients.0.get(&provider_name) else {
             return Err((self, "Provider not found"));
@@ -258,14 +293,7 @@ impl<S: AxumUserStore> AxumUser<S> {
 
         let (auth_url, csrf_state) = provider
             .get_client()
-            .set_redirect_uri(RedirectUrl::from_url(
-                self.oauth
-                    .base_url
-                    .join(path.as_str())
-                    .unwrap()
-                    .join(provider_name.as_str())
-                    .unwrap(),
-            ))
+            .set_redirect_uri(self.redirect_uri(path, &provider_name))
             .authorize_url(CsrfToken::new_random)
             .add_scopes(provider.get_scopes().into_iter().map(Scope::new))
             .url();
@@ -279,16 +307,14 @@ impl<S: AxumUserStore> AxumUser<S> {
                 .build(),
         );
 
-        if let Some(next) = next {
-            self.jar = self.jar.add(
-                Cookie::build((NEXT_KEY, next))
-                    .path("/")
-                    .same_site(SameSite::Lax)
-                    .secure(self.https_only)
-                    .http_only(true)
-                    .build(),
-            );
-        }
+        self.jar = self.jar.add(
+            Cookie::build((OAUTH_FLOW_KEY, json!(oauth_flow).to_string()))
+                .path("/")
+                .same_site(SameSite::Lax)
+                .secure(self.https_only)
+                .http_only(true)
+                .build(),
+        );
 
         Ok((self, auth_url))
     }
@@ -299,7 +325,8 @@ impl<S: AxumUserStore> AxumUser<S> {
         next: Option<String>,
     ) -> Result<(Self, Url), (Self, &'static str)> {
         let path = self.oauth.login_path.clone();
-        self.oauth_init(path, provider_name, next).await
+        self.oauth_init(path, provider_name, OAuthFlow::LogIn { next })
+            .await
     }
 
     pub async fn oauth_signup_init(
@@ -308,7 +335,8 @@ impl<S: AxumUserStore> AxumUser<S> {
         next: Option<String>,
     ) -> Result<(Self, Url), (Self, &'static str)> {
         let path = self.oauth.signup_path.clone();
-        self.oauth_init(path, provider_name, next).await
+        self.oauth_init(path, provider_name, OAuthFlow::SignUp { next })
+            .await
     }
 
     pub async fn oauth_link_init(
@@ -321,26 +349,25 @@ impl<S: AxumUserStore> AxumUser<S> {
         };
 
         let path = self.oauth.link_path.clone();
-        let (mut new_self, url) = self.oauth_init(path, provider_name, next).await?;
 
-        new_self.jar = new_self.jar.add(
-            Cookie::build((USER_ID_KEY, user.get_id().to_string()))
-                .path("/")
-                .same_site(SameSite::Lax)
-                .secure(new_self.https_only)
-                .http_only(true)
-                .build(),
-        );
-
-        Ok((new_self, url))
+        self.oauth_init(
+            path,
+            provider_name,
+            OAuthFlow::Link {
+                next,
+                user_id: user.get_id(),
+            },
+        )
+        .await
     }
 
     async fn oauth_callback(
         &self,
         provider_name: String,
-        code: String,
-        state: String,
-    ) -> Result<(UnmatchedOAuthToken, Option<String>), &'static str> {
+        code: AuthorizationCode,
+        state: CsrfToken,
+        path: String,
+    ) -> Result<(UnmatchedOAuthToken, OAuthFlow), &'static str> {
         let Some(provider) = self.oauth.clients.0.get(&provider_name) else {
             return Err("Provider not found");
         };
@@ -349,59 +376,98 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err("No csrf token found");
         };
 
-        if state != prev_state.value() {
+        if state.secret() != prev_state.value() {
             return Err("Csrf token doesn't match");
         }
 
-        let next = self.jar.get(NEXT_KEY).map(|x| x.value().to_string());
+        let Some(oauth_flow) = self.jar.get(OAUTH_FLOW_KEY) else {
+            return Err("No oauth flow cookie found");
+        };
 
-        let Ok(oauth_token) = provider
+        let Ok(oauth_flow) = serde_json::from_str::<OAuthFlow>(oauth_flow.value()) else {
+            return Err("Misformed OAuthFlow");
+        };
+
+        let oauth_token = match provider
             .get_client()
-            .exchange_code(AuthorizationCode::new(code))
+            .set_redirect_uri(self.redirect_uri(path, &provider_name))
+            .exchange_code(code)
             .request_async(async_http_client)
             .await
-        else {
-            return Err("token error");
+        {
+            Ok(oauth_token) => oauth_token,
+            Err(err) => {
+                println!("{err:#?}");
+                return Err("token error");
+            }
         };
+
+        let access_token = oauth_token.access_token().secret().to_string();
+        let refresh_token = oauth_token.refresh_token().map(|rt| rt.secret()).cloned();
+        let expires = oauth_token.expires_in().map(|seconds| Utc::now() + seconds);
+        let scopes = oauth_token
+            .scopes()
+            .map(|scopes| {
+                scopes
+                    .iter()
+                    .map(|scope| scope.to_string())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let provider_user = provider
+            .get_provider_user(access_token.clone())
+            .await
+            .unwrap();
 
         let unmatched_token = UnmatchedOAuthToken {
-            access_token: oauth_token.access_token().secret().to_string(),
-            refresh_token: oauth_token.refresh_token().map(|rt| rt.secret()).cloned(),
-
-            expires: oauth_token.expires_in().map(|seconds| Utc::now() + seconds),
-            scopes: oauth_token
-                .scopes()
-                .map(|scopes| {
-                    scopes
-                        .iter()
-                        .map(|scope| scope.to_string())
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default(),
-            provider_user: provider
-                .get_provider_user(oauth_token.access_token().clone())
-                .await
-                .unwrap(),
+            access_token,
+            refresh_token,
+            expires,
+            scopes,
+            provider_user,
         };
 
-        Ok((unmatched_token, next))
+        Ok((unmatched_token, oauth_flow))
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn oauth_login_callback(
         self,
         provider_name: String,
-        code: String,
-        state: String,
+        code: AuthorizationCode,
+        state: CsrfToken,
     ) -> Result<(Self, Option<String>), (Self, &'static str)> {
-        let Ok((unmatched_token, next)) = self
-            .oauth_callback(provider_name.clone(), code, state)
+        let (unmatched_token, flow) = match self
+            .oauth_callback(
+                provider_name.clone(),
+                code,
+                state,
+                self.oauth.login_path.clone(),
+            )
             .await
-        else {
-            return Err((self, "lkasjdklajsd"));
+        {
+            Ok(ok) => ok,
+            Err(err) => {
+                return Err((self, err));
+            }
         };
 
-        let Some((user, current_token)) = self
+        let next = match (
+            flow,
+            self.oauth
+                .allow_signup
+                .as_ref()
+                .unwrap_or(&self.allow_signup),
+        ) {
+            (OAuthFlow::SignUp { next }, _) => next,
+            (OAuthFlow::LogIn { next }, &Allow::OnEither) => next,
+            _ => {
+                return Err((self, "Expected LogIn flow"));
+            }
+        };
+
+        let Some((user, old_token)) = self
             .store
             .get_user_by_oauth_provider_id(provider_name.clone(), unmatched_token.provider_user.id)
             .await
@@ -410,14 +476,11 @@ impl<S: AxumUserStore> AxumUser<S> {
         };
 
         let new_token = OAuthToken {
-            id: current_token.id,
-            user_id: current_token.user_id,
-            provider_name: current_token.provider_name,
-            provider_user_id: current_token.provider_user_id,
             access_token: unmatched_token.access_token,
             refresh_token: unmatched_token.refresh_token,
             expires: unmatched_token.expires,
             scopes: unmatched_token.scopes,
+            ..old_token
         };
 
         self.store.create_or_update_oauth_token(new_token).await;
@@ -425,7 +488,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         Ok((
             self.log_in(
                 LoginMethod::OAuth {
-                    token_id: current_token.id,
+                    token_id: old_token.id,
                 },
                 user.get_id(),
             )
@@ -435,29 +498,33 @@ impl<S: AxumUserStore> AxumUser<S> {
     }
 
     pub async fn oauth_link_callback(
-        self,
+        &self,
         provider_name: String,
-        code: String,
-        state: String,
-    ) -> Result<(Self, Option<String>), (Self, &'static str)> {
-        let Ok((unmatched_token, next)) = self
-            .oauth_callback(provider_name.clone(), code, state)
+        code: AuthorizationCode,
+        state: CsrfToken,
+    ) -> Result<Option<String>, &'static str> {
+        let (unmatched_token, flow) = match self
+            .oauth_callback(
+                provider_name.clone(),
+                code,
+                state,
+                self.oauth.link_path.clone(),
+            )
             .await
-        else {
-            return Err((self, "lkasjdklajsd"));
+        {
+            Ok(ok) => ok,
+            Err(err) => {
+                return Err(err);
+            }
         };
 
-        let Some(user_id) = self.jar.get(USER_ID_KEY) else {
-            return Err((self, "No user id in cooke"));
+        let OAuthFlow::Link { user_id, next } = flow else {
+            return Err("Expected Link flow");
         };
 
-        let Ok(user_id) = Uuid::parse_str(user_id.value()) else {
-            return Err((self, "Malformed user id"));
-        };
-
-        let Some(user) = self.store.get_user(user_id).await else {
-            return Err((self, "No user found"));
-        };
+        // let Some(user) = self.store.get_user(user_id).await else {
+        //     return Err("No user found");
+        // };
 
         let id = Uuid::new_v4();
 
@@ -474,74 +541,106 @@ impl<S: AxumUserStore> AxumUser<S> {
 
         self.store.create_or_update_oauth_token(new_token).await;
 
-        Ok((
-            self.log_in(LoginMethod::OAuth { token_id: id }, user.get_id())
-                .await,
-            next,
-        ))
+        Ok(next)
+
+        // Ok((
+        //     self.log_in(LoginMethod::OAuth { token_id: id }, user.get_id())
+        //         .await,
+        //     next,
+        // ))
     }
 
     pub async fn oauth_refresh_callback(
-        self,
+        &self,
         provider_name: String,
-        code: String,
-        state: String,
-    ) -> Result<(Self, Option<String>), (Self, &'static str)> {
-        let Ok((unmatched_token, next)) = self
-            .oauth_callback(provider_name.clone(), code, state)
+        code: AuthorizationCode,
+        state: CsrfToken,
+    ) -> Result<Option<String>, &'static str> {
+        let (unmatched_token, flow) = match self
+            .oauth_callback(
+                provider_name.clone(),
+                code,
+                state,
+                self.oauth.refresh_path.clone(),
+            )
             .await
+        {
+            Ok(ok) => ok,
+            Err(err) => {
+                return Err(err);
+            }
+        };
+
+        let OAuthFlow::Refresh {
+            user_id,
+            token_id,
+            next,
+        } = flow
         else {
-            return Err((self, "lkasjdklajsd"));
+            return Err("Expected Refresh flow");
         };
 
-        let Some(user_id) = self.jar.get(USER_ID_KEY) else {
-            return Err((self, "No user id in cooke"));
-        };
-
-        let Ok(user_id) = Uuid::parse_str(user_id.value()) else {
-            return Err((self, "Malformed user id"));
-        };
-
-        let Some(token_id) = self.jar.get(TOKEN_ID_KEY) else {
-            return Err((self, "No token id in cooke"));
-        };
-
-        let Ok(token_id) = Uuid::parse_str(token_id.value()) else {
-            return Err((self, "Malformed token id"));
-        };
-
-        let Some((user, token)) = self.store.get_user_oauth_token(user_id, token_id).await else {
-            return Err((self, "No user or token found"));
+        let Some(old_token) = self.store.get_oauth_token(user_id, token_id).await else {
+            return Err("No user or token found");
         };
 
         let new_token = OAuthToken {
             access_token: unmatched_token.access_token,
             refresh_token: unmatched_token.refresh_token,
             expires: unmatched_token.expires,
-            ..token
+            ..old_token
         };
 
         self.store.create_or_update_oauth_token(new_token).await;
 
-        Ok((
-            self.log_in(LoginMethod::OAuth { token_id: token.id }, user.get_id())
-                .await,
-            next,
-        ))
+        Ok(next)
+
+        // Ok((
+        //     self.log_in(
+        //         LoginMethod::OAuth {
+        //             token_id: old_token.id,
+        //         },
+        //         user.get_id(),
+        //     )
+        //     .await,
+        //     next,
+        // ))
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn oauth_signup_callback(
         self,
         provider_name: String,
-        code: String,
-        state: String,
+        code: AuthorizationCode,
+        state: CsrfToken,
     ) -> Result<(Self, Option<String>), (Self, &'static str)> {
-        let Ok((unmatched_token, next)) = self
-            .oauth_callback(provider_name.clone(), code, state)
+        let (unmatched_token, flow) = match self
+            .oauth_callback(
+                provider_name.clone(),
+                code,
+                state,
+                self.oauth.signup_path.clone(),
+            )
             .await
-        else {
-            return Err((self, "lkasjdklajsd"));
+        {
+            Ok(ok) => ok,
+            Err(err) => {
+                return Err((self, err));
+            }
+        };
+
+        let next = match (
+            flow,
+            self.oauth
+                .allow_signup
+                .as_ref()
+                .unwrap_or(&self.allow_signup),
+        ) {
+            (OAuthFlow::SignUp { next }, _) => next,
+            (OAuthFlow::LogIn { next }, &Allow::OnEither) => next,
+            _ => {
+                return Err((self, "Expected SignUp flow"));
+            }
         };
 
         let Some((user, token)) = self
@@ -558,14 +657,4 @@ impl<S: AxumUserStore> AxumUser<S> {
             next,
         ))
     }
-}
-
-pub enum ClientRefreshResult {
-    NotSupported(OAuthToken),
-    Ok(OAuthToken),
-}
-
-pub enum RefreshInitResult {
-    Url(Url),
-    Ok,
 }

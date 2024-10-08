@@ -14,8 +14,9 @@ use axum_extra::extract::cookie::Key;
 use axum_macros::{debug_handler, FromRef};
 use axum_user::{
     providers::{GitHubOAuthProvider, SpotifyOAuthProvider},
-    AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, EmailConfig, EmailPaths, EmailTrait,
-    OAuthConfig, OAuthPaths, PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
+    AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, CsrfToken,
+    EmailConfig, EmailPaths, EmailTrait, OAuthConfig, OAuthPaths, PasswordConfig,
+    RefreshInitResult, SmtpSettings, UserTrait,
 };
 use dotenv::var;
 use serde::Deserialize;
@@ -173,7 +174,7 @@ async fn main() {
         )
         .route("/signup/oauth", post(post_signup_oauth_handler))
         .route(
-            "/signup/oauth/:provier",
+            "/signup/oauth/:provider",
             get(get_signup_oauth_provider_handler),
         )
         .route("/user", get(get_user_handler))
@@ -400,11 +401,11 @@ async fn get_user_oauth_refresh_provider_handler(
     Query(OAuthCallbackQuery { code, state }): Query<OAuthCallbackQuery>,
 ) -> impl IntoResponse {
     match auth.oauth_refresh_callback(provider, code, state).await {
-        Ok((auth, next)) => {
+        Ok(next) => {
             let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
         }
-        Err((auth, err)) => {
+        Err(err) => {
             let next = format!("/signup?error={}", urlencoding::encode(err));
             (auth, Redirect::to(&next)).into_response()
         }
@@ -460,7 +461,7 @@ async fn post_user_oauth_refresh_handler(
             RefreshInitResult::Ok => {
                 (auth, Redirect::to("/user?message=Token refreshed")).into_response()
             }
-            RefreshInitResult::Url(redirect_url) => {
+            RefreshInitResult::Redirect(redirect_url) => {
                 (auth, Redirect::to(redirect_url.as_str())).into_response()
             }
         },
@@ -550,11 +551,11 @@ async fn get_oauth_link_provider_handler(
     Query(OAuthCallbackQuery { code, state }): Query<OAuthCallbackQuery>,
 ) -> impl IntoResponse {
     match auth.oauth_link_callback(provider, code, state).await {
-        Ok((auth, next)) => {
+        Ok(next) => {
             let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
         }
-        Err((auth, err)) => {
+        Err(err) => {
             let next = format!("/signup?error={}", urlencoding::encode(err));
             (auth, Redirect::to(&next)).into_response()
         }
@@ -620,8 +621,8 @@ async fn get_signup_email_handler(
 
 #[derive(Deserialize)]
 struct OAuthCallbackQuery {
-    code: String,
-    state: String,
+    code: AuthorizationCode,
+    state: CsrfToken,
 }
 
 #[derive(Deserialize)]

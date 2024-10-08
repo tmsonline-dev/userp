@@ -11,7 +11,7 @@ const SESSION_ID_KEY: &str = "auth:session_id";
 pub use self::email::{EmailChallenge, EmailConfig, EmailPaths, EmailTrait, SmtpSettings};
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
-    providers, ClientRefreshResult, OAuthClients, OAuthConfig, OAuthPaths, OAuthToken,
+    providers, AuthorizationCode, CsrfToken, OAuthClients, OAuthConfig, OAuthPaths, OAuthToken,
     RefreshInitResult, UnmatchedOAuthToken,
 };
 #[cfg(feature = "password")]
@@ -121,11 +121,7 @@ pub trait AxumUserStore {
         token: UnmatchedOAuthToken,
     ) -> Option<(Self::User, OAuthToken)>;
     #[cfg(feature = "oauth")]
-    async fn get_user_oauth_token(
-        &self,
-        user_id: Uuid,
-        token_id: Uuid,
-    ) -> Option<(Self::User, OAuthToken)>;
+    async fn get_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Option<OAuthToken>;
 }
 
 pub struct AxumUser<S: AxumUserStore> {

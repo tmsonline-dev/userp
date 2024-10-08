@@ -222,23 +222,14 @@ impl AxumUserStore for MemoryStore {
         Some((user, token))
     }
 
-    async fn get_user_oauth_token(
-        &self,
-        user_id: Uuid,
-        token_id: Uuid,
-    ) -> Option<(Self::User, OAuthToken)> {
+    async fn get_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Option<OAuthToken> {
         let token = {
             let tokens = self.oauth_tokens.read().await;
             tokens.get(&token_id)?.clone()
         };
 
-        let user = {
-            let users = self.users.read().await;
-            users.get(&user_id)?.clone()
-        };
-
-        if user.id == token.user_id {
-            Some((user, token))
+        if user_id == token.user_id {
+            Some(token)
         } else {
             None
         }
