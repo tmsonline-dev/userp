@@ -18,9 +18,22 @@ serde_json = { version = "1.0.128", optional = true }
 url = { version = "2.5.2", optional = true }
 reqwest = { version = "0.12.8", features = ["json"], optional = true }
 serde = { version = "1.0.210", features = ["derive"] }
+tokio = { version = "1.40.0", features = ["full"] }
+thiserror = "1.0.64"
 
 [features]
 default = ["email", "password", "oauth"]
-email = ["chrono", "lettre", "url"]
-oauth = ["chrono", "oauth2", "url", "anyhow", "serde_json", "reqwest"]
+email = ["dep:chrono", "dep:lettre", "dep:url"]
+email-login = []
+email-signup = []
+email-verify = []
+email-reset-password = []
+oauth = ["dep:chrono", "dep:oauth2", "dep:url", "dep:anyhow", "dep:serde_json", "dep:reqwest"]
+oauth-login = []
+oauth-signup = []
+oauth-link = []
+oauth-refresh = []
 password = []
+password-login = []
+password-signup = []
+password-email-reset = []

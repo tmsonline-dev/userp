@@ -15,11 +15,13 @@ use axum_macros::{debug_handler, FromRef};
 use axum_user::{
     providers::{GitHubOAuthProvider, SpotifyOAuthProvider},
     AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, CsrfToken,
-    EmailConfig, EmailPaths, EmailTrait, OAuthConfig, OAuthPaths, PasswordConfig,
-    RefreshInitResult, SmtpSettings, UserTrait,
+    CustomOAuthClient, EmailConfig, EmailPaths, EmailTrait, OAuthConfig, OAuthPaths,
+    OAuthProviderUser, OAuthProviderUserResult, PasswordConfig, RefreshInitResult, SmtpSettings,
+    UserTrait,
 };
 use dotenv::var;
 use serde::Deserialize;
+use serde_json::Value;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use url::Url;
@@ -134,19 +136,60 @@ async fn main() {
                     link: "user/oauth/link",
                 },
             )
+            // .with_client(
+            //     NewGithubClient::new(req_var("GITHUB_CLIENT_ID"), req_var("GITHUB_CLIENT_SECRET"))
+            //         .wrapped(),
+            // )
             .with_client(
-                "spotify",
-                SpotifyOAuthProvider::new(
+                CustomOAuthClient::new_with_callback(
+                    "spotify",
+                    "Spotify",
                     req_var("SPOTIFY_CLIENT_ID"),
                     req_var("SPOTIFY_CLIENT_SECRET"),
-                ),
-            )
-            .with_client(
-                "github",
-                GitHubOAuthProvider::new(
-                    req_var("GITHUB_CLIENT_ID"),
-                    req_var("GITHUB_CLIENT_SECRET"),
-                ),
+                    "https://accounts.spotify.com/authorize",
+                    "https://accounts.spotify.com/api/token",
+                    None,
+                    None,
+                    None,
+                    |access_token| async move {
+                        let client = reqwest::Client::new();
+
+                        let res = client
+                            .get("https://api.spotify.com/v1/me")
+                            .header("Accept", "application/json")
+                            .bearer_auth(access_token)
+                            .send()
+                            .await
+                            .unwrap()
+                            .json::<Value>()
+                            .await
+                            .unwrap();
+
+                        let id = res
+                            .as_object()
+                            .and_then(|obj| obj.get("id").and_then(|id| id.as_str()))
+                            .expect("Missing id")
+                            .to_string();
+
+                        let email = res
+                            .as_object()
+                            .and_then(|obj| obj.get("email").and_then(|id| id.as_str()))
+                            .map(|name| name.to_string());
+
+                        let name = res
+                            .as_object()
+                            .and_then(|obj| obj.get("display_name").and_then(|id| id.as_str()))
+                            .map(|name| name.to_string());
+
+                        Ok(OAuthProviderUser {
+                            id,
+                            email,
+                            name,
+                            email_verified: false,
+                        })
+                    },
+                )
+                .expect(""),
             ),
         )
         .with_https_only(false),
@@ -406,7 +449,7 @@ async fn get_user_oauth_refresh_provider_handler(
             (auth, Redirect::to(&next)).into_response()
         }
         Err(err) => {
-            let next = format!("/signup?error={}", urlencoding::encode(err));
+            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
             (auth, Redirect::to(&next)).into_response()
         }
     }
@@ -465,9 +508,9 @@ async fn post_user_oauth_refresh_handler(
                 (auth, Redirect::to(redirect_url.as_str())).into_response()
             }
         },
-        Err((auth, err)) => {
-            let next = format!("/user?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
+        Err(err) => {
+            let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -490,10 +533,10 @@ async fn post_login_oauth_handler(
     Form(OauthLoginForm { provider, next }): Form<OauthLoginForm>,
 ) -> impl IntoResponse {
     match auth.oauth_login_init(provider, next).await {
-        Ok((auth, redirect_url)) => (auth, Redirect::to(redirect_url.as_str())),
-        Err((auth, err)) => {
-            let next = format!("/login?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next))
+        Ok((auth, redirect_url)) => (auth, Redirect::to(redirect_url.as_str())).into_response(),
+        Err(err) => {
+            let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -508,9 +551,9 @@ async fn post_user_oauth_link_handler(
 
     match auth.oauth_link_init(provider, next).await {
         Ok((auth, redirect_url)) => (auth, Redirect::to(redirect_url.as_str())).into_response(),
-        Err((auth, err)) => {
-            let next = format!("/user?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
+        Err(err) => {
+            let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -520,10 +563,10 @@ async fn post_signup_oauth_handler(
     Form(OauthSignUpForm { provider, next }): Form<OauthSignUpForm>,
 ) -> impl IntoResponse {
     match auth.oauth_signup_init(provider, next).await {
-        Ok((auth, redirect_url)) => (auth, Redirect::to(redirect_url.as_str())),
-        Err((auth, err)) => {
-            let next = format!("/signup?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next))
+        Ok((auth, redirect_url)) => (auth, Redirect::to(redirect_url.as_str())).into_response(),
+        Err(err) => {
+            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -538,9 +581,9 @@ async fn get_signup_oauth_provider_handler(
             let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
         }
-        Err((auth, err)) => {
-            let next = format!("/signup?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
+        Err(err) => {
+            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -556,7 +599,7 @@ async fn get_oauth_link_provider_handler(
             (auth, Redirect::to(&next)).into_response()
         }
         Err(err) => {
-            let next = format!("/signup?error={}", urlencoding::encode(err));
+            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
             (auth, Redirect::to(&next)).into_response()
         }
     }
@@ -640,9 +683,9 @@ async fn get_login_oauth_provider_handler(
             let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
         }
-        Err((auth, err)) => {
-            let next = format!("/login?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
+        Err(err) => {
+            let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }

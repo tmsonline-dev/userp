@@ -37,19 +37,19 @@
       <input name="password" id="password" type="password" value="hunter42" />
     </p>
     <input type="submit" value="login" />
+    <a href="/password/send-reset">Forgot password?</a>
   </fieldset>
   {% if let Some(next) = next %}
   <input type="hidden" name="next" value="{{next}}" />
   {% endif %}
 </form>
-<a href="/password/send-reset">Forgot password</a>
 
 <fieldset>
   <legend>OAuth login</legend>
   {% for provider in oauth_providers %}
   <form action="/login/oauth" method="post">
-    <input type="hidden" name="provider" value="{{ provider }}" />
-    <input type="submit" value="{{ provider }}" />
+    <input type="hidden" name="provider" value="{{ provider.name }}" />
+    <input type="submit" value="{{ provider.display_name }}" />
     {% if let Some(next) = next %}
     <input type="hidden" name="next" value="{{next}}" />
     {% endif %}

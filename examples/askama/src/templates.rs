@@ -1,5 +1,5 @@
 use askama::Template;
-use axum_user::{LoginSession, OAuthToken};
+use axum_user::{LoginSession, OAuthProviderNames, OAuthToken};
 
 use crate::MyUserEmail;
 
@@ -45,7 +45,7 @@ pub struct LoginTemplate {
     pub next: Option<String>,
     pub message: Option<String>,
     pub error: Option<String>,
-    pub oauth_providers: Vec<String>,
+    pub oauth_providers: Vec<OAuthProviderNames>,
 }
 
 #[derive(Template)]

@@ -1,11 +1,10 @@
 use anyhow::{Context, Result};
-use axum::async_trait;
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, TokenUrl};
 use serde_json::Value;
 use url::Url;
 
 use super::{
-    super::{Allow, OAuthProvider, OAuthProviderUser},
+    super::{Allow, OAuthProviderUser},
     IncludedProvider,
 };
 
@@ -60,8 +59,7 @@ impl IncludedProvider for GitHubOAuthProvider {
     }
 }
 
-#[async_trait]
-impl OAuthProvider for GitHubOAuthProvider {
+impl GitHubOAuthProvider {
     async fn get_provider_user(&self, access_token: String) -> Result<OAuthProviderUser> {
         let client = reqwest::Client::new();
 
