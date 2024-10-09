@@ -213,7 +213,7 @@ impl AxumUserStore for MemoryStore {
             provider_user_id: token.provider_user.id,
             access_token: token.access_token,
             refresh_token: token.refresh_token,
-            expires: token.expires,
+            expires: token.expires_in,
             scopes: token.scopes,
         };
 
@@ -222,17 +222,9 @@ impl AxumUserStore for MemoryStore {
         Some((user, token))
     }
 
-    async fn get_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Option<OAuthToken> {
-        let token = {
-            let tokens = self.oauth_tokens.read().await;
-            tokens.get(&token_id)?.clone()
-        };
-
-        if user_id == token.user_id {
-            Some(token)
-        } else {
-            None
-        }
+    async fn get_oauth_token(&self, token_id: Uuid) -> Option<OAuthToken> {
+        let tokens = self.oauth_tokens.read().await;
+        tokens.get(&token_id).cloned()
     }
 }
 

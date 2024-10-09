@@ -102,8 +102,8 @@
 
   {% for provider in oauth_providers %}
   <form action="/user/oauth/link" method="post">
-    <input type="hidden" name="provider" value="{{ provider }}" />
-    <input type="submit" value="Link {{ provider }} account" />
+    <input type="hidden" name="provider" value="{{ provider.name }}" />
+    <input type="submit" value="Link {{ provider.display_name }} account" />
   </form>
   {% endfor %}
 </fieldset>

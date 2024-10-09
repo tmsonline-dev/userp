@@ -11,7 +11,7 @@ const SESSION_ID_KEY: &str = "axum-user-session-id";
 pub use self::email::{EmailChallenge, EmailConfig, EmailPaths, EmailTrait, SmtpSettings};
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
-    providers, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthPaths,
+    provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthPaths,
     OAuthProviderNames, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthToken,
     RefreshInitResult, UnmatchedOAuthToken,
 };

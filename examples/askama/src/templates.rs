@@ -30,7 +30,7 @@ pub struct UserTemplate {
     pub has_password: bool,
     pub emails: Vec<MyUserEmail>,
     pub oauth_tokens: Vec<OAuthToken>,
-    pub oauth_providers: Vec<String>,
+    pub oauth_providers: Vec<OAuthProviderNames>,
 }
 
 #[derive(Template)]
@@ -60,5 +60,5 @@ pub struct SignupTemplate {
     pub next: Option<String>,
     pub message: Option<String>,
     pub error: Option<String>,
-    pub oauth_providers: Vec<String>,
+    pub oauth_providers: Vec<OAuthProviderNames>,
 }

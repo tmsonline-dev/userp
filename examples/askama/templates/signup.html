@@ -47,8 +47,8 @@
   <legend>OAuth signup</legend>
   {% for provider in oauth_providers %}
   <form action="/signup/oauth" method="post">
-    <input type="hidden" name="provider" value="{{ provider }}" />
-    <input type="submit" value="{{ provider }}" />
+    <input type="hidden" name="provider" value="{{ provider.name }}" />
+    <input type="submit" value="{{ provider.display_name }}" />
     {% if let Some(next) = next %}
     <input type="hidden" name="next" value="{{next}}" />
     {% endif %}

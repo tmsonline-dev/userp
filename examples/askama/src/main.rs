@@ -13,15 +13,13 @@ use axum::{
 use axum_extra::extract::cookie::Key;
 use axum_macros::{debug_handler, FromRef};
 use axum_user::{
-    providers::{GitHubOAuthProvider, SpotifyOAuthProvider},
+    provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
     AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, CsrfToken,
-    CustomOAuthClient, EmailConfig, EmailPaths, EmailTrait, OAuthConfig, OAuthPaths,
-    OAuthProviderUser, OAuthProviderUserResult, PasswordConfig, RefreshInitResult, SmtpSettings,
-    UserTrait,
+    EmailConfig, EmailPaths, EmailTrait, OAuthConfig, OAuthPaths, PasswordConfig,
+    RefreshInitResult, SmtpSettings, UserTrait,
 };
 use dotenv::var;
 use serde::Deserialize;
-use serde_json::Value;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use url::Url;
@@ -136,67 +134,20 @@ async fn main() {
                     link: "user/oauth/link",
                 },
             )
-            // .with_client(
-            //     NewGithubClient::new(req_var("GITHUB_CLIENT_ID"), req_var("GITHUB_CLIENT_SECRET"))
-            //         .wrapped(),
-            // )
-            .with_client(
-                CustomOAuthClient::new_with_callback(
-                    "spotify",
-                    "Spotify",
-                    req_var("SPOTIFY_CLIENT_ID"),
-                    req_var("SPOTIFY_CLIENT_SECRET"),
-                    "https://accounts.spotify.com/authorize",
-                    "https://accounts.spotify.com/api/token",
-                    None,
-                    None,
-                    None,
-                    |access_token| async move {
-                        let client = reqwest::Client::new();
-
-                        let res = client
-                            .get("https://api.spotify.com/v1/me")
-                            .header("Accept", "application/json")
-                            .bearer_auth(access_token)
-                            .send()
-                            .await
-                            .unwrap()
-                            .json::<Value>()
-                            .await
-                            .unwrap();
-
-                        let id = res
-                            .as_object()
-                            .and_then(|obj| obj.get("id").and_then(|id| id.as_str()))
-                            .expect("Missing id")
-                            .to_string();
-
-                        let email = res
-                            .as_object()
-                            .and_then(|obj| obj.get("email").and_then(|id| id.as_str()))
-                            .map(|name| name.to_string());
-
-                        let name = res
-                            .as_object()
-                            .and_then(|obj| obj.get("display_name").and_then(|id| id.as_str()))
-                            .map(|name| name.to_string());
-
-                        Ok(OAuthProviderUser {
-                            id,
-                            email,
-                            name,
-                            email_verified: false,
-                        })
-                    },
-                )
-                .expect(""),
-            ),
+            .with_client(SpotifyOAuthProvider::new(
+                req_var("SPOTIFY_CLIENT_ID"),
+                req_var("SPOTIFY_CLIENT_SECRET"),
+            ))
+            .with_client(GitHubOAuthProvider::new(
+                req_var("GITHUB_CLIENT_ID"),
+                req_var("GITHUB_CLIENT_SECRET"),
+            )),
         )
         .with_https_only(false),
     };
 
     let app = Router::new()
-        .route("/store", get(x))
+        .route("/store", get(get_store_handler))
         .route("/", get(get_index_handler))
         .route("/login", get(get_login_handler))
         .route("/login/password", post(post_login_password_handler))
@@ -369,42 +320,7 @@ async fn post_password_reset_handler(
     }
 }
 
-// click reset password, goes to GET /password/reset
-// if code
-//   run email_reset_callback
-//     if valid
-//       redirect to /password/set
-//     if not
-//       redirect to /login
-// if !code
-//   display email form
-
-// }
-//
-// post /password/reset
-//   runs email_reset_init
-//
-// user clicks link to /password/reset?code
-//
-// get /password/set
-// if reset-session
-//   show password form
-// else
-//   redirect to /login
-// post /password/set
-// if reset-session
-//   set password, redirect to login
-// else
-//   unauthorized
-//
-// get form to type email
-// post - runs email_reset_init.
-// email should link to user/password/reset
-// get - runs email_reset_callback
-// AND THEN RETURNS THE SET NEW PASSWORD TEMPLATE.
-// post - sets new password if its a valid reset session, clears the session, and redirects to login.
-
-async fn x(State(state): State<AppState>) -> impl IntoResponse {
+async fn get_store_handler(State(state): State<AppState>) -> impl IntoResponse {
     format!("{:#?}", state.store).into_response()
 }
 
@@ -838,7 +754,7 @@ async fn get_user_handler(
             oauth_providers: auth
                 .oauth_link_providers()
                 .into_iter()
-                .filter(|p| !oauth_tokens.iter().any(|t| &t.provider_name == p))
+                .filter(|p| !oauth_tokens.iter().any(|t| t.provider_name == p.name))
                 .collect(),
             oauth_tokens,
         }

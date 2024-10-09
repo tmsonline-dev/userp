@@ -1,20 +1,22 @@
-pub mod providers;
+pub mod provider;
+
+use self::provider::OAuthProvider;
 
 use super::{Allow, AxumUser, AxumUserStore, LoginMethod, UserTrait};
-use anyhow::Context;
-use axum::async_trait;
 use axum_extra::extract::cookie::{Cookie, SameSite};
-use chrono::{DateTime, Duration, Utc};
-pub use oauth2::{
-    basic::BasicClient, reqwest::async_http_client, AuthorizationCode, CsrfToken, RedirectUrl,
-    RefreshToken, Scope, TokenResponse,
-};
+use chrono::{DateTime, Utc};
+use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse};
+pub use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, RefreshToken, TokenResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{fmt::Display, future::Future, sync::Arc};
+use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
+
+pub use provider::custom::*;
+pub use provider::with_user_callback::*;
+pub use provider::*;
 
 pub struct OAuthProviderUser {
     pub id: String,
@@ -125,268 +127,10 @@ impl OAuthProviders {
     }
 }
 
-pub trait OAuthProviderBase: Send + Sync {
-    fn name(&self) -> String;
-
-    fn display_name(&self) -> String {
-        self.name()
-    }
-
-    fn allow_signup(&self) -> Option<Allow>;
-    fn allow_login(&self) -> Option<Allow>;
-    fn allow_linking(&self) -> Option<bool>;
-    fn scopes(&self) -> Vec<Scope>;
-
-    fn get_authorization_url_and_state(
-        &self,
-        base_redirect_url: RedirectUrl,
-        scopes: Vec<Scope>,
-    ) -> (Url, CsrfToken);
-}
-
-#[async_trait]
-pub trait OAuthProvider: OAuthProviderBase + Send + Sync {
-    async fn exchange_authorization_code(
-        &self,
-        redirect_url: RedirectUrl,
-        code: AuthorizationCode,
-    ) -> ExchangeResult;
-
-    async fn exchange_refresh_token(
-        &self,
-        redirect_url: RedirectUrl,
-        refresh_token: RefreshToken,
-    ) -> ExchangeResult;
-}
-
-pub trait OAuthBaseProviderWithBasicClient: OAuthProviderBase + Send + Sync {
-    fn get_oauth2_client(&self) -> BasicClient;
-}
-
-pub struct OAuthProviderBaseWithUserCallback<'a> {
-    base_client: Box<dyn OAuthBaseProviderWithBasicClient + 'a>,
-    get_user: Box<dyn Fn(String) -> OAuthProviderUserResult + Send + Sync + 'a>,
-}
-
-pub struct CustomOAuthClient {
-    client: BasicClient,
-    name: String,
-    display_name: String,
-    allow_signup: Option<Allow>,
-    allow_login: Option<Allow>,
-    allow_linking: Option<bool>,
-}
-
-#[derive(Error, Debug)]
-pub enum NewCustomOAuthClientError {
-    #[error(transparent)]
-    UrlParsing(#[from] url::ParseError),
-}
-
-pub type OAuthProviderUserResult = anyhow::Result<OAuthProviderUser>;
-
-impl CustomOAuthClient {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_with_callback<'a, Fut, F>(
-        name: impl Into<String>,
-        display_name: impl Into<String>,
-        client_id: impl Into<String>,
-        client_secret: impl Into<String>,
-        auth_url: impl Into<String>,
-        token_url: impl Into<String>,
-        allow_login: Option<Allow>,
-        allow_signup: Option<Allow>,
-        allow_linking: Option<bool>,
-        get_user: F,
-    ) -> Result<OAuthProviderBaseWithUserCallback<'a>, NewCustomOAuthClientError>
-    where
-        Fut: Future<Output = OAuthProviderUserResult> + Send + 'a,
-        F: Fn(String) -> Fut + Send + Sync + 'a,
-    {
-        let client = BasicClient::new(
-            ClientId::new(client_id.into()),
-            Some(ClientSecret::new(client_secret.into())),
-            AuthUrl::from_url(Url::parse(&auth_url.into())?),
-            Some(TokenUrl::from_url(Url::parse(&token_url.into())?)),
-        );
-
-        let self_client = Self {
-            allow_login,
-            allow_signup,
-            allow_linking,
-            client,
-            display_name: display_name.into(),
-            name: name.into(),
-        };
-
-        Ok(OAuthProviderBaseWithUserCallback::new(
-            Box::new(self_client),
-            Arc::new(get_user),
-        ))
-    }
-}
-
-impl OAuthProviderBase for OAuthProviderBaseWithUserCallback<'_> {
-    fn name(&self) -> String {
-        self.base_client.name()
-    }
-
-    fn allow_signup(&self) -> Option<Allow> {
-        self.base_client.allow_signup()
-    }
-
-    fn allow_login(&self) -> Option<Allow> {
-        self.base_client.allow_login()
-    }
-
-    fn allow_linking(&self) -> Option<bool> {
-        self.base_client.allow_linking()
-    }
-
-    fn scopes(&self) -> Vec<Scope> {
-        self.base_client.scopes()
-    }
-
-    fn get_authorization_url_and_state(
-        &self,
-        base_redirect_url: RedirectUrl,
-        scopes: Vec<Scope>,
-    ) -> (Url, CsrfToken) {
-        self.base_client
-            .get_authorization_url_and_state(base_redirect_url, scopes)
-    }
-}
-
-#[async_trait]
-impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
-    async fn exchange_authorization_code(
-        &self,
-        redirect_url: RedirectUrl,
-        code: AuthorizationCode,
-    ) -> ExchangeResult {
-        let res = self
-            .base_client
-            .get_oauth2_client()
-            .set_redirect_uri(redirect_url)
-            .exchange_code(code)
-            .request_async(async_http_client)
-            .await
-            .context("Requesting authorization code exchange")?;
-
-        let provider_user = (self.get_user)(res.access_token().secret().to_string())?;
-
-        Ok(UnmatchedOAuthToken::from_standard_token_response(
-            res,
-            provider_user,
-        ))
-    }
-
-    async fn exchange_refresh_token(
-        &self,
-        redirect_url: RedirectUrl,
-        refresh_token: RefreshToken,
-    ) -> ExchangeResult {
-        let res = self
-            .base_client
-            .get_oauth2_client()
-            .set_redirect_uri(redirect_url)
-            .exchange_refresh_token(&refresh_token)
-            .request_async(async_http_client)
-            .await
-            .context("Requesting refresh token exchange")?;
-
-        let provider_user = (self.get_user)(res.access_token().secret().to_string())?;
-
-        Ok(UnmatchedOAuthToken::from_standard_token_response(
-            res,
-            provider_user,
-        ))
-    }
-}
-
-impl OAuthBaseProviderWithBasicClient for CustomOAuthClient {
-    fn get_oauth2_client(&self) -> BasicClient {
-        self.client.clone()
-    }
-}
-
-impl OAuthProviderBase for CustomOAuthClient {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn display_name(&self) -> String {
-        self.display_name.clone()
-    }
-
-    fn scopes(&self) -> Vec<Scope> {
-        todo!()
-    }
-
-    fn get_authorization_url_and_state(
-        &self,
-        redirect_url: RedirectUrl,
-        scopes: Vec<Scope>,
-    ) -> (Url, CsrfToken) {
-        self.client
-            .clone()
-            .set_redirect_uri(redirect_url)
-            .authorize_url(CsrfToken::new_random)
-            .add_scopes(scopes)
-            .url()
-    }
-
-    fn allow_signup(&self) -> Option<Allow> {
-        self.allow_signup.clone()
-    }
-
-    fn allow_login(&self) -> Option<Allow> {
-        self.allow_login.clone()
-    }
-
-    fn allow_linking(&self) -> Option<bool> {
-        self.allow_linking
-    }
-}
-
-impl<'a> OAuthProviderBaseWithUserCallback<'a> {
-    pub fn new<Fut, F>(
-        client: Box<dyn OAuthBaseProviderWithBasicClient + 'a>,
-        ext_get_user: Arc<F>,
-    ) -> Self
-    where
-        Fut: Future<Output = OAuthProviderUserResult> + Send + 'a,
-        F: Fn(String) -> Fut + Send + Sync + 'a,
-    {
-        let get_user = Box::new(move |access_token: String| {
-            let ext_get_user = ext_get_user.clone();
-            let access_token = access_token.clone();
-
-            tokio::task::block_in_place(move || {
-                let access_token = access_token.clone();
-                tokio::runtime::Handle::current()
-                    .block_on(async move { ext_get_user(access_token).await })
-            })
-        });
-
-        Self {
-            get_user,
-            base_client: client,
-        }
-    }
-}
-
-pub type ExchangeResult = anyhow::Result<UnmatchedOAuthToken>;
-
-use oauth2::{
-    basic::BasicTokenType, AuthUrl, ClientId, ClientSecret, EmptyExtraTokenFields,
-    StandardTokenResponse, TokenUrl,
-};
-
 pub struct UnmatchedOAuthToken {
     pub access_token: String,
     pub refresh_token: Option<String>,
-    pub expires_in: Option<Duration>,
+    pub expires_in: Option<DateTime<Utc>>,
     pub scopes: Vec<String>,
     pub provider_user: OAuthProviderUser,
 }
@@ -399,9 +143,7 @@ impl UnmatchedOAuthToken {
         Self {
             access_token: token_response.access_token().secret().into(),
             refresh_token: token_response.refresh_token().map(|rt| rt.secret().into()),
-            expires_in: token_response
-                .expires_in()
-                .map(|d| Duration::seconds(d.as_secs() as i64)),
+            expires_in: token_response.expires_in().map(|d| Utc::now() + d),
             scopes: token_response
                 .scopes()
                 .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
@@ -600,7 +342,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             let token = OAuthToken {
                 access_token: res.access_token,
                 refresh_token: res.refresh_token,
-                expires: res.expires_in.map(|s| (Utc::now() + s)),
+                expires: res.expires_in,
                 scopes: res.scopes,
                 ..token
             };
@@ -767,8 +509,8 @@ impl<S: AxumUserStore> AxumUser<S> {
                 .as_ref()
                 .unwrap_or(&self.allow_signup),
         ) {
-            (OAuthFlow::SignUp { next }, _) => next,
-            (OAuthFlow::LogIn { next }, &Allow::OnEither) => next,
+            (OAuthFlow::LogIn { next }, _) => next,
+            (OAuthFlow::SignUp { next }, &Allow::OnEither) => next,
             (flow, _) => {
                 return Err(OAuthLoginCallbackError::UnexpectedFlow(flow));
             }
@@ -783,7 +525,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         let new_token = OAuthToken {
             access_token: unmatched_token.access_token,
             refresh_token: unmatched_token.refresh_token,
-            expires: unmatched_token.expires_in.map(|s| Utc::now() + s),
+            expires: unmatched_token.expires_in,
             scopes: unmatched_token.scopes,
             ..old_token
         };
@@ -830,7 +572,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             provider_user_id: unmatched_token.provider_user.id,
             access_token: unmatched_token.access_token,
             refresh_token: unmatched_token.refresh_token,
-            expires: unmatched_token.expires_in.map(|s| Utc::now() + s),
+            expires: unmatched_token.expires_in,
             scopes: unmatched_token.scopes,
         };
 
@@ -865,7 +607,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         let new_token = OAuthToken {
             access_token: unmatched_token.access_token,
             refresh_token: unmatched_token.refresh_token,
-            expires: unmatched_token.expires_in.map(|s| Utc::now() + s),
+            expires: unmatched_token.expires_in,
             ..old_token
         };
 
