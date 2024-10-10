@@ -1,10 +1,13 @@
-- Add require email on signup/login for password/oauth
-- Move oauth2 client out of OAuthProvider, create when necessary
-- Routing modules in askama example
-- Make OAuthToken a trait???
 - All the error handling
+- Encrypt email code
+- Extract SMTP config and move reset to password module
+- Add require email on signup/login for password/oauth
+- Routing modules in askama example
+- ~Make OAuthToken a trait???~
+- Make ALL stored structs into traits
 - Service??? (At least consitant use of self returns)
 - Leptos example
 - Code cleanup
-- MFA: Webauthn/passkeys etc
+- Webauthn/passkeys etc
+- MFA
 - Publish on crates.io???

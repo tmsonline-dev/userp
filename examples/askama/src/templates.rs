@@ -18,6 +18,8 @@ pub struct ResetPasswordTemplate;
 pub struct SendResetPasswordTemplate {
     pub sent: bool,
     pub address: Option<String>,
+    pub error: Option<String>,
+    pub message: Option<String>,
 }
 
 #[derive(Template)]

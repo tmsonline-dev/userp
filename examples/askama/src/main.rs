@@ -81,7 +81,14 @@ pub struct CommonQuery {
 #[derive(Deserialize)]
 struct ResetPasswordQuery {
     code: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SendResetPasswordQuery {
     address: Option<String>,
+    message: Option<String>,
+    sent: Option<bool>,
+    error: Option<String>,
 }
 
 #[derive(Clone, FromRef)]
@@ -267,11 +274,13 @@ async fn post_user_email_disable_login(
 }
 
 async fn get_password_send_reset_handler(
-    Query(query): Query<ResetPasswordQuery>,
+    Query(query): Query<SendResetPasswordQuery>,
 ) -> impl IntoResponse {
     SendResetPasswordTemplate {
-        sent: false,
+        sent: query.sent.is_some_and(|sent| sent),
         address: query.address,
+        error: query.error,
+        message: query.message,
     }
     .into_response()
 }
@@ -280,11 +289,18 @@ async fn post_password_send_reset_handler(
     auth: AxumUser,
     Form(EmailResetForm { email, next }): Form<EmailResetForm>,
 ) -> impl IntoResponse {
-    auth.email_reset_init(email.clone(), next).await;
+    if let Err(err) = auth.email_reset_init(email.clone(), next).await {
+        let next = format!(
+            "/password/send-reset?error={}&address={}",
+            urlencoding::encode(&err.to_string()),
+            email
+        );
 
-    SendResetPasswordTemplate {
-        sent: true,
-        address: Some(email),
+        Redirect::to(&next)
+    } else {
+        let next = format!("/password/send-reset?sent=true&address={}", email);
+
+        Redirect::to(&next)
     }
 }
 
@@ -525,9 +541,20 @@ async fn post_signup_email_handler(
     auth: AxumUser,
     Form(EmailSignUpForm { email }): Form<EmailSignUpForm>,
 ) -> impl IntoResponse {
-    auth.email_signup_init(email.clone(), None).await;
+    match auth.email_signup_init(email.clone(), None).await {
+        Ok(()) => {
+            let next = format!(
+                "/signup?message=Signup email sent to {}!",
+                urlencoding::encode(&email)
+            );
 
-    EmailSentTemplate { address: email }.into_response()
+            Redirect::to(&next)
+        }
+        Err(err) => {
+            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next)
+        }
+    }
 }
 
 async fn post_user_verify_email_handler(
@@ -538,9 +565,20 @@ async fn post_user_verify_email_handler(
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    auth.email_verify_init(email.clone(), None).await;
+    match auth.email_verify_init(email.clone(), None).await {
+        Ok(()) => {
+            let next = format!(
+                "/user?message=Verification mail sent to {}",
+                urlencoding::encode(&email)
+            );
 
-    Redirect::to("/user?message=Email sent").into_response()
+            Redirect::to(&next).into_response()
+        }
+        Err(err) => {
+            let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
+        }
+    }
 }
 
 async fn get_user_verify_email_handler(
@@ -571,9 +609,9 @@ async fn get_signup_email_handler(
             let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
         }
-        Err((auth, err)) => {
-            let next = format!("/signup?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
+        Err(err) => {
+            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -611,9 +649,20 @@ async fn post_login_email_handler(
     auth: AxumUser,
     Form(EmailLoginForm { email, next }): Form<EmailLoginForm>,
 ) -> impl IntoResponse {
-    auth.email_login_init(email.clone(), next).await;
+    match auth.email_login_init(email.clone(), next).await {
+        Ok(()) => {
+            let next = format!(
+                "/login?message=Login link sent to {}!",
+                urlencoding::encode(&email)
+            );
 
-    EmailSentTemplate { address: email }.into_response()
+            Redirect::to(&next)
+        }
+        Err(err) => {
+            let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next)
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -630,9 +679,9 @@ async fn get_login_email_handler(
             let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
         }
-        Err((auth, err)) => {
-            let next = format!("/login?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
+        Err(err) => {
+            let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -667,15 +716,15 @@ async fn post_signup_password_handler(
     }
 
     match auth.password_signup(email, password).await {
-        Err((auth, err)) => {
-            // Signup didn't work. Let's give the user the error.
-            let next = format!("/signup?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
-        }
         Ok(auth) => {
             // Hooray! Signup was succesfull. Let's redirect the user to their new User page.
             // Once again, it's very important to pass auth along with the response - this enables the cookie to be set.
             (auth, Redirect::to("/user")).into_response()
+        }
+        Err(err) => {
+            // Signup didn't work. Let's give the user the error.
+            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }
@@ -798,14 +847,14 @@ async fn post_login_password_handler(
     }): Form<PasswordLoginForm>,
 ) -> impl IntoResponse {
     match auth.password_login(email, password).await {
-        Err((auth, err)) => {
-            // Login didn´t work. Let's give the user the error.
-            let next = format!("/login?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
-        }
         Ok(auth) => {
             let next = next.unwrap_or("/user".into());
             (auth, Redirect::to(&next)).into_response()
+        }
+        Err(err) => {
+            // Login didn´t work. Let's give the user the error.
+            let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next).into_response()
         }
     }
 }

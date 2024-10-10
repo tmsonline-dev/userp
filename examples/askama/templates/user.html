@@ -115,18 +115,26 @@
 <a href="/user/logout">Log out</a>
 
 <script>
-  fetch("/user/verify-session").then((res) => {
-    {
-      if (res.ok) {
-        {
-          document.getElementById("status").innerText = "Token verified!"
-        }
-      } else {
-        {
-          location = "/login?next=" + encodeURIComponent(location.pathname + location.search)
+  function verifySession() {
+    fetch("/user/verify-session").then((res) => {
+      {
+        if (res.ok) {
+          {
+            document.getElementById("status").innerText = `Session verified ${new Date().toString().split(" ").find((s) => s.includes(":"))}`
+          }
+        } else {
+          {
+            location = "/login?message=You have been logged out&next=" + encodeURIComponent(location.pathname + location.search)
+          }
         }
       }
-    }
-  })
+    })
+
+    verifySession()
+
+    setInterval(verifySession, 5000)
+  }
+
+
 </script>
 {% endblock %}
