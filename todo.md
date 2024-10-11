@@ -1,6 +1,8 @@
 - All the error handling
 - Encrypt email code
 - Extract SMTP config and move reset to password module
+- Extract paths to main config
+- Routes feature
 - Add require email on signup/login for password/oauth
 - Routing modules in askama example
 - ~Make OAuthToken a trait???~

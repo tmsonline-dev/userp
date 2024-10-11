@@ -470,14 +470,17 @@ async fn get_user_oauth_refresh_provider_handler(
     Path(OAuthCallbackPath { provider }): Path<OAuthCallbackPath>,
     Query(OAuthCallbackQuery { code, state }): Query<OAuthCallbackQuery>,
 ) -> impl IntoResponse {
-    match auth.oauth_refresh_callback(provider, code, state).await {
+    match auth
+        .oauth_refresh_callback(provider.clone(), code, state)
+        .await
+    {
         Ok(next) => {
-            let next = next.unwrap_or("/user".into());
-            (auth, Redirect::to(&next)).into_response()
+            let next = next.unwrap_or(format!("/user?message={} token refreshed!", provider));
+            Redirect::to(&next)
         }
         Err(err) => {
-            let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
-            (auth, Redirect::to(&next)).into_response()
+            let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+            Redirect::to(&next)
         }
     }
 }
@@ -682,15 +685,22 @@ async fn get_user_verify_email_handler(
 ) -> impl IntoResponse {
     match auth.email_verify_callback(code).await {
         Ok((address, next)) => {
-            if let Some(next) = next {
-                (auth, Redirect::to(&next)).into_response()
-            } else {
-                EmailVerifiedTemplate { address }.into_response()
-            }
+            let next = match next {
+                Some(next) => next,
+                None => {
+                    if auth.logged_in().await {
+                        format!("/user?message={} verified!", urlencoding::encode(&address))
+                    } else {
+                        format!("/login?message={} verified!", urlencoding::encode(&address))
+                    }
+                }
+            };
+
+            Redirect::to(&next)
         }
         Err(err) => {
             let next = format!("/login?error={}", urlencoding::encode(err));
-            (auth, Redirect::to(&next)).into_response()
+            Redirect::to(&next)
         }
     }
 }

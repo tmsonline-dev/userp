@@ -4,12 +4,6 @@ use axum_user::OAuthProviderNames;
 use crate::{MyLoginSession, MyOAuthToken, MyUserEmail};
 
 #[derive(Template)]
-#[template(path = "email-verified.html")]
-pub struct EmailVerifiedTemplate {
-    pub address: String,
-}
-
-#[derive(Template)]
 #[template(path = "reset-password.html")]
 pub struct ResetPasswordTemplate;
 
@@ -33,12 +27,6 @@ pub struct UserTemplate {
     pub emails: Vec<MyUserEmail>,
     pub oauth_tokens: Vec<MyOAuthToken>,
     pub oauth_providers: Vec<OAuthProviderNames>,
-}
-
-#[derive(Template)]
-#[template(path = "email-sent.html")]
-pub struct EmailSentTemplate {
-    pub address: String,
 }
 
 #[derive(Template)]

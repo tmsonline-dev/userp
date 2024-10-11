@@ -442,7 +442,6 @@ impl<S: AxumUserStore> AxumUser<S> {
         self.reset_user_session().await.map(|(user, _)| user)
     }
 
-    #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn email_verify_callback(
         &self,
         code: String,
