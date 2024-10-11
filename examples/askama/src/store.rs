@@ -17,7 +17,7 @@ pub struct MemoryStore {
 #[async_trait]
 impl AxumUserStore for MemoryStore {
     type User = MyUser;
-    type Email = MyUserEmail;
+    type UserEmail = MyUserEmail;
     type LoginSession = MyLoginSession;
     type EmailChallenge = MyEmailChallenge;
     type OAuthToken = MyOAuthToken;
@@ -63,7 +63,7 @@ impl AxumUserStore for MemoryStore {
             .cloned()
     }
 
-    async fn get_user_by_email(&self, email: String) -> Option<(Self::User, Self::Email)> {
+    async fn get_user_by_email(&self, email: String) -> Option<(Self::User, Self::UserEmail)> {
         let users = self.users.read().await;
 
         users.values().find_map(|user| {
@@ -143,7 +143,7 @@ impl AxumUserStore for MemoryStore {
         user
     }
 
-    async fn create_email_user(&self, email: String) -> (Self::User, Self::Email) {
+    async fn create_email_user(&self, email: String) -> (Self::User, Self::UserEmail) {
         if self.get_user_by_email(email.clone()).await.is_some() {
             panic!("user conflict");
         };

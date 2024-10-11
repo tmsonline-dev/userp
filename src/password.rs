@@ -1,4 +1,4 @@
-use super::{Allow, AxumUser, AxumUserStore, LoginMethod, UserTrait};
+use super::{Allow, AxumUser, AxumUserStore, LoginMethod, User};
 use thiserror::Error;
 
 #[cfg(feature = "email")]

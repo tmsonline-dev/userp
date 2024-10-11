@@ -1,7 +1,7 @@
 pub mod provider;
 
 use self::provider::OAuthProvider;
-use super::{Allow, AxumUser, AxumUserStore, LoginMethod, UserTrait};
+use super::{Allow, AxumUser, AxumUserStore, LoginMethod, User};
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{DateTime, Utc};
 use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse};

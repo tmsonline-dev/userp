@@ -15,9 +15,9 @@ use axum_macros::{debug_handler, FromRef};
 use axum_user::{
     provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
     AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserExtendedStore,
-    AxumUserStore, CsrfToken, EmailChallenge, EmailConfig, EmailPaths, EmailTrait, LoginMethod,
-    LoginSession, OAuthConfig, OAuthPaths, OAuthToken, PasswordConfig, RefreshInitResult,
-    SmtpSettings, UserTrait,
+    AxumUserStore, CsrfToken, EmailChallenge, EmailConfig, EmailPaths, LoginMethod, LoginSession,
+    OAuthConfig, OAuthPaths, OAuthToken, PasswordConfig, RefreshInitResult, SmtpSettings, User,
+    UserEmail,
 };
 use chrono::{DateTime, Utc};
 use dotenv::var;
@@ -42,7 +42,7 @@ pub struct MyUser {
     emails: Vec<MyUserEmail>,
 }
 
-impl UserTrait for MyUser {
+impl User for MyUser {
     fn get_password_hash(&self) -> Option<String> {
         self.password.clone()
     }
@@ -59,7 +59,7 @@ pub struct MyUserEmail {
     allow_login: bool,
 }
 
-impl EmailTrait for MyUserEmail {
+impl UserEmail for MyUserEmail {
     fn address(&self) -> String {
         self.email.clone()
     }

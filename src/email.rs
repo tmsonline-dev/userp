@@ -3,7 +3,7 @@ use crate::PasswordReset;
 
 #[cfg(feature = "password")]
 use super::LoginSession;
-use super::{Allow, AxumUser, AxumUserStore, LoginMethod, UserTrait};
+use super::{Allow, AxumUser, AxumUserStore, LoginMethod, User};
 use chrono::{DateTime, Duration, Utc};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use thiserror::Error;
@@ -92,7 +92,7 @@ impl SmtpSettings {
     }
 }
 
-pub trait EmailTrait {
+pub trait UserEmail {
     fn address(&self) -> String;
     fn verified(&self) -> bool;
     fn allow_login(&self) -> bool;
@@ -320,7 +320,7 @@ impl<S: AxumUserStore> AxumUser<S> {
     async fn email_login(
         self,
         user: S::User,
-        email: S::Email,
+        email: S::UserEmail,
         next: Option<String>,
     ) -> Result<(Self, Option<String>), EmailLoginError> {
         if !email.allow_login() {
