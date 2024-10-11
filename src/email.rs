@@ -149,8 +149,6 @@ pub enum EmailLoginError {
 
 #[derive(Error, Debug)]
 pub enum EmailLoginCallbackError {
-    #[error(transparent)]
-    EmailLoginError(#[from] EmailLoginError),
     #[error("Email login not allowed")]
     NotAllowed,
     #[error("Challenge expired")]
@@ -160,13 +158,13 @@ pub enum EmailLoginCallbackError {
     #[error("No user found")]
     NoUser,
     #[error(transparent)]
-    SignUp(#[from] EmailSignupError),
+    EmailLoginError(#[from] EmailLoginError),
+    #[error(transparent)]
+    EmailSignupError(#[from] EmailSignupError),
 }
 
 #[derive(Error, Debug)]
 pub enum EmailSignupCallbackError {
-    #[error(transparent)]
-    EmailLoginError(#[from] EmailLoginError),
     #[error("Email signup not allowed")]
     NotAllowed,
     #[error("Challenge expired")]
@@ -176,7 +174,9 @@ pub enum EmailSignupCallbackError {
     #[error("User exists")]
     UserConflict,
     #[error(transparent)]
-    SignUp(#[from] EmailSignupError),
+    EmailLoginError(#[from] EmailLoginError),
+    #[error(transparent)]
+    EmailSignupError(#[from] EmailSignupError),
 }
 
 #[derive(Debug, Error)]
@@ -350,9 +350,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         self,
         code: String,
     ) -> Result<(Self, Option<String>), EmailLoginCallbackError> {
-        let allow = self.email.allow_login.as_ref().unwrap_or(&self.allow_login);
-
-        if allow == &Allow::Never {
+        if self.email.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
             return Err(EmailLoginCallbackError::NotAllowed);
         }
 
@@ -366,14 +364,18 @@ impl<S: AxumUserStore> AxumUser<S> {
 
         if let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await {
             Ok(self.email_login(user, email, challenge.next()).await?)
+        } else if self
+            .email
+            .allow_signup
+            .as_ref()
+            .unwrap_or(&self.allow_signup)
+            == &Allow::OnEither
+        {
+            Ok(self
+                .email_signup(challenge.address(), challenge.next())
+                .await?)
         } else {
-            match allow {
-                Allow::Never => unreachable!(),
-                Allow::OnEither => Ok(self
-                    .email_signup(challenge.address(), challenge.next())
-                    .await?),
-                Allow::OnSelf => Err(EmailLoginCallbackError::NoUser),
-            }
+            Err(EmailLoginCallbackError::NoUser)
         }
     }
 
@@ -489,13 +491,13 @@ impl<S: AxumUserStore> AxumUser<S> {
         self,
         code: String,
     ) -> Result<(Self, Option<String>), EmailSignupCallbackError> {
-        let allow = self
+        if self
             .email
             .allow_signup
             .as_ref()
-            .unwrap_or(&self.allow_signup);
-
-        if allow == &Allow::Never {
+            .unwrap_or(&self.allow_signup)
+            == &Allow::Never
+        {
             return Err(EmailSignupCallbackError::NotAllowed);
         }
 
@@ -508,10 +510,10 @@ impl<S: AxumUserStore> AxumUser<S> {
         }
 
         if let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await {
-            match self.email.allow_login.as_ref().unwrap_or(&self.allow_login) {
-                Allow::Never => unreachable!(),
-                Allow::OnEither => Ok(self.email_login(user, email, challenge.next()).await?),
-                Allow::OnSelf => Err(EmailSignupCallbackError::UserConflict),
+            if self.email.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::OnEither {
+                Ok(self.email_login(user, email, challenge.next()).await?)
+            } else {
+                Err(EmailSignupCallbackError::UserConflict)
             }
         } else {
             Ok(self
