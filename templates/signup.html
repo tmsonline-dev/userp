@@ -1,63 +1,69 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% if let Some(message) = message %}
-<span><strong>{{ message }}</strong></span>
-{% endif %}
-
-{% if let Some(error) = error%}
-<span><strong>Something went wrong: {{ error }}</strong></span>
-{% endif %}
-
-<p>Log in with either an email link, email address and password or OAuth</p>
-
-<form action="/signup/email" method="post">
-  <fieldset>
-    <legend>Magic link signup</legend>
-    <p>
-      <label for="email">email</label>
-      <input name="email" id="email" value="stefan@provai.eu" />
-    </p>
-    <input type="submit" value="Sign up" />
-  </fieldset>
-  {% if let Some(next) = next %}
-  <input type="hidden" name="next" value="{{next}}" />
+<div class="container">
+  {% if let Some(message) = message %}
+  <div class="message" role="alert">
+    <strong>{{ message }}</strong>
+  </div>
   {% endif %}
-</form>
 
-<form action="/signup/password" method="post">
-  <fieldset>
-    <legend>Password signup</legend>
-    <p>
-      <label for="email">email</label>
-      <input name="email" id="email" value="stefan@provai.eu" />
-    </p>
-    <p>
-      <label for="password">Password</label>
-      <input name="password" id="password" type="password" value="hunter42" />
-    </p>
-    <input type="submit" value="Sign up" />
-  </fieldset>
-  {% if let Some(next) = next %}
-  <input type="hidden" name="next" value="{{next}}" />
+  {% if let Some(error) = error %}
+  <div class="error" role="alert">
+    <strong>Something went wrong: {{ error }}</strong>
+  </div>
   {% endif %}
-</form>
 
-<fieldset>
-  <legend>OAuth signup</legend>
-  {% for provider in oauth_providers %}
-  <form action="/signup/oauth" method="post">
-    <input type="hidden" name="provider" value="{{ provider.name }}" />
-    <input type="submit" value="{{ provider.display_name }}" />
+  <p>Sign up with either an email link, email address and password or OAuth</p>
+
+  <div class="card">
+    <h2>Magic link signup</h2>
+    <form action="/signup/email" method="post" class="form">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input name="email" id="email" value="stefan@provai.eu" aria-label="Email for magic link signup" />
+      </div>
+      <input type="submit" value="Sign up" class="button" />
+    </form>
     {% if let Some(next) = next %}
-    <input type="hidden" name="next" value="{{next}}" />
+    <input type="hidden" name="next" value="{{ next }}" />
     {% endif %}
-  </form>
-  {% endfor %}
-</fieldset>
+  </div>
 
-<fieldset>
-  <legend>Already have an account?</legend>
-  <a href="/login">Log in!</a>
-</fieldset>
+  <div class="card">
+    <h2>Password signup</h2>
+    <form action="/signup/password" method="post" class="form">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input name="email" id="email" value="stefan@provai.eu" aria-label="Email for password signup" />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input name="password" id="password" type="password" value="hunter42" aria-label="Password" />
+      </div>
+      <input type="submit" value="Sign up" class="button" />
+    </form>
+    {% if let Some(next) = next %}
+    <input type="hidden" name="next" value="{{ next }}" />
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>OAuth signup</h2>
+    {% for provider in oauth_providers %}
+    <form action="/signup/oauth" method="post" class="form">
+      <input type="hidden" name="provider" value="{{ provider.name }}" />
+      <input type="submit" value="{{ provider.display_name }}" class="button" />
+      {% if let Some(next) = next %}
+      <input type="hidden" name="next" value="{{ next }}" />
+      {% endif %}
+    </form>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>Already have an account?</h2>
+    <a href="/login" class="login-link">Log in!</a>
+  </div>
+</div>
 {% endblock %}

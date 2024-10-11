@@ -1,140 +1,139 @@
 {% extends "base.html" %}
+
 {% block content %}
-
-{% if let Some(message) = message %}
-<span><strong>{{ message }}</strong></span>
-{% endif %}
-
-{% if let Some(error) = error%}
-<span><strong>Something went wrong: {{ error }}</strong></span>
-{% endif %}
-
-<p>Welcome!<span id="status">Verifying token...</span></p>
-
-
-<section>
-  <legend>Password</legend>
-  {% if has_password %}
-  <p>Password login is active</p>
-  <form action="/user/password/delete" method="post">
-    <input type="submit" value="Delete password" />
-  </form>
+<div class="container">
+  {% if let Some(message) = message %}
+  <div class="message" role="alert">
+    <strong>{{ message }}</strong>
+  </div>
   {% endif %}
-  <form action="/user/password/set" method="post">
-    <label for="new_password">New password</label>
-    <input type="password" name="new_password" id="new_password" />
+
+  {% if let Some(error) = error %}
+  <div class="error" role="alert">
+    <strong>Something went wrong: {{ error }}</strong>
+  </div>
+  {% endif %}
+
+  <p>Welcome!<span id="status">Verifying token...</span></p>
+
+  <div class="card">
+    <h2>Password</h2>
     {% if has_password %}
-    <input type="submit" value="Change password" />
-    {% else %}
-    <input type="submit" value="Create password" />
-    {% endif %}
-  </form>
-</section>
-
-<section>
-  <legend>
-    Login sessions
-  </legend>
-  {% for session in sessions %}
-  <div style="border: 1 px dotted gray; padding: 8px; margin: 8px;">
-    <p>{{ session.method }}</p>
-    <form action="/user/session/delete" method="post">
-      <input type="hidden" value="{{ session.id }}" name="id" />
-      <input type="submit" value="Delete session" />
-    </form>
-  </div>
-  {% endfor %}
-</section>
-
-<section>
-  <legend>Emails</legend>
-  {% for email in emails %}
-  <div style="border: 1 px dotted gray; padding: 8px; margin: 8px;">
-    <p>{{ email.email }}</p>
-    {% if email.allow_login %}
-    <p>Magic link login: enabled</p>
-    <form action="/user/email/disable_login" method="post">
-      <input type="hidden" value="{{ email.email }}" name="email" />
-      <input type="submit" value="Disable" />
-    </form>
-    {% else %}
-    <p>Magic link login: disabled</p>
-    <form action="/user/email/enable_login" method="post">
-      <input type="hidden" value="{{ email.email }}" name="email" />
-      <input type="submit" value="enable" />
+    <p>Password login is active</p>
+    <form action="/user/password/delete" method="post" class="form">
+      <input type="submit" value="Delete password" class="button" />
     </form>
     {% endif %}
-    {% if !email.verified %}
-    <form action="/user/email/verify" method="post">
-      <input type="hidden" value="{{ email.email }}" name="email" />
-      <input type="submit" value="Verify email" />
-    </form>
-    {% endif %}
-    <form action="/user/email/delete" method="post">
-      <input type="hidden" value="{{ email.email }}" name="email" />
-      <input type="submit" value="Delete email" />
-    </form>
-  </div>
-  {% endfor %}
-  <form action="/user/email/add" method="post">
-    <input type="email" name="email" />
-    <input type="submit" value="Add email" />
-  </form>
-</section>
-
-
-<fieldset>
-  <legend>OAuth linking</legend>
-
-  {% for token in oauth_tokens %}
-  <div style="border: 1 px dotted gray; padding: 8px; margin: 8px;">
-    <p>{{ token.provider_name }}</p>
-    <form action="/user/oauth/delete" method="post">
-      <input type="hidden" value="{{ token.id }}" name="id">
-      <input type="submit" value="Delete token" />
-    </form>
-    <form action="/user/oauth/refresh" method="post">
-      <input type="hidden" value="{{ token.id }}" name="id">
-      <input type="submit" value="Refresh token" />
+    <form action="/user/password/set" method="post" class="form">
+      <div class="form-group">
+        <label for="new_password">New password</label>
+        <input type="password" name="new_password" id="new_password" aria-label="New password" />
+      </div>
+      {% if has_password %}
+      <input type="submit" value="Change password" class="button" />
+      {% else %}
+      <input type="submit" value="Create password" class="button" />
+      {% endif %}
     </form>
   </div>
-  {% endfor %}
 
-  {% for provider in oauth_providers %}
-  <form action="/user/oauth/link" method="post">
-    <input type="hidden" name="provider" value="{{ provider.name }}" />
-    <input type="submit" value="Link {{ provider.display_name }} account" />
-  </form>
-  {% endfor %}
-</fieldset>
+  <div class="card">
+    <h2>Login sessions</h2>
+    {% for session in sessions %}
+    <div class="session-item">
+      <p>{{ session.method }}</p>
+      <form action="/user/session/delete" method="post" class="form">
+        <input type="hidden" value="{{ session.id }}" name="id" />
+        <input type="submit" value="Delete session" class="button" />
+      </form>
+    </div>
+    {% endfor %}
+  </div>
 
-<form action="/user/delete" method="post">
-  <input type="submit" value="Delete user">
-</form>
-<a href="/">Root</a>
-<a href="/user/logout">Log out</a>
+  <div class="card">
+    <h2>Emails</h2>
+    {% for email in emails %}
+    <div class="email-item">
+      <p>{{ email.email }}</p>
+      {% if email.allow_login %}
+      <p>Magic link login: enabled</p>
+      <form action="/user/email/disable_login" method="post" class="form">
+        <input type="hidden" value="{{ email.email }}" name="email" />
+        <input type="submit" value="Disable" class="button" />
+      </form>
+      {% else %}
+      <p>Magic link login: disabled</p>
+      <form action="/user/email/enable_login" method="post" class="form">
+        <input type="hidden" value="{{ email.email }}" name="email" />
+        <input type="submit" value="Enable" class="button" />
+      </form>
+      {% endif %}
+      {% if !email.verified %}
+      <form action="/user/email/verify" method="post" class="form">
+        <input type="hidden" value="{{ email.email }}" name="email" />
+        <input type="submit" value="Verify email" class="button" />
+      </form>
+      {% endif %}
+      <form action="/user/email/delete" method="post" class="form">
+        <input type="hidden" value="{{ email.email }}" name="email" />
+        <input type="submit" value="Delete email" class="button" />
+      </form>
+    </div>
+    {% endfor %}
+    <form action="/user/email/add" method="post" class="form">
+      <div class="form-group">
+        <input type="email" name="email" aria-label="Add email" />
+      </div>
+      <input type="submit" value="Add email" class="button" />
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>OAuth linking</h2>
+    {% for token in oauth_tokens %}
+    <div class="oauth-item">
+      <p>{{ token.provider_name }}</p>
+      <form action="/user/oauth/delete" method="post" class="form">
+        <input type="hidden" value="{{ token.id }}" name="id" />
+        <input type="submit" value="Delete token" class="button" />
+      </form>
+      <form action="/user/oauth/refresh" method="post" class="form">
+        <input type="hidden" value="{{ token.id }}" name="id" />
+        <input type="submit" value="Refresh token" class="button" />
+      </form>
+    </div>
+    {% endfor %}
+
+    {% for provider in oauth_providers %}
+    <form action="/user/oauth/link" method="post" class="form">
+      <input type="hidden" name="provider" value="{{ provider.name }}" />
+      <input type="submit" value="Link {{ provider.display_name }} account" class="button" />
+    </form>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>Account Actions</h2>
+    <form action="/user/delete" method="post" class="form">
+      <input type="submit" value="Delete user" class="button" />
+    </form>
+    <a href="/" class="link">Root</a>
+    <a href="/user/logout" class="link">Log out</a>
+  </div>
+</div>
 
 <script>
   function verifySession() {
     fetch("/user/verify-session").then((res) => {
-      {
-        if (res.ok) {
-          {
-            document.getElementById("status").innerText = `Session verified ${new Date().toString().split(" ").find((s) => s.includes(":"))}`
-          }
-        } else {
-          {
-            location = "/login?message=You have been logged out&next=" + encodeURIComponent(location.pathname + location.search)
-          }
-        }
+      if (res.ok) {
+        document.getElementById("status").innerText = `Session verified ${new Date().toString().split(" ").find((s) => s.includes(":"))}`;
+      } else {
+        location = "/login?message=You have been logged out&next=" + encodeURIComponent(location.pathname + location.search);
       }
-    })
-
-    verifySession()
-
-    setInterval(verifySession, 5000)
+    });
   }
 
-
+  verifySession();
+  setInterval(verifySession, 5000);
 </script>
 {% endblock %}
