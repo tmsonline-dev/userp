@@ -377,7 +377,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                 )
                 .await?;
 
-            let _ = self.store.create_or_update_oauth_token(token, res).await;
+            let _ = self.store.update_oauth_token(token, res).await;
 
             Ok((self, RefreshInitResult::Ok))
         } else {
@@ -604,7 +604,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             Some((user, old_token)) => {
                 let token = self
                     .store
-                    .create_or_update_oauth_token(old_token, unmatched_token)
+                    .update_oauth_token(old_token, unmatched_token)
                     .await;
 
                 (user, token.id())
@@ -619,7 +619,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                 {
                     let (user, token) = self
                         .store
-                        .create_oauth_user(provider_name.clone(), unmatched_token)
+                        .create_oauth_user(unmatched_token)
                         .await
                         .ok_or(OAuthLoginCallbackError::UserTokenCreationError)?;
 
@@ -683,7 +683,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         };
 
         self.store
-            .create_or_update_oauth_token(old_token, unmatched_token)
+            .update_oauth_token(old_token, unmatched_token)
             .await;
 
         Ok(next)
@@ -760,11 +760,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err(OAuthSignupCallbackError::UnexpectedFlow(flow));
         };
 
-        let (user, token_id) = match self
-            .store
-            .create_oauth_user(provider_name.clone(), unmatched_token.clone())
-            .await
-        {
+        let (user, token_id) = match self.store.create_oauth_user(unmatched_token.clone()).await {
             Some((user, token)) => (user, token.id()),
             None => {
                 if self
@@ -785,7 +781,7 @@ impl<S: AxumUserStore> AxumUser<S> {
 
                     let token = self
                         .store
-                        .create_or_update_oauth_token(old_token, unmatched_token)
+                        .update_oauth_token(old_token, unmatched_token)
                         .await;
 
                     (user, token.id())

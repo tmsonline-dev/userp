@@ -228,7 +228,7 @@ impl AxumUserStore for MemoryStore {
         Some((user, token))
     }
 
-    async fn create_or_update_oauth_token(
+    async fn update_oauth_token(
         &self,
         prev_token: Self::OAuthToken,
         unmatched_token: UnmatchedOAuthToken,
@@ -260,13 +260,12 @@ impl AxumUserStore for MemoryStore {
 
     async fn create_oauth_user(
         &self,
-        provider_name: String,
         token: UnmatchedOAuthToken,
     ) -> Option<(Self::User, Self::OAuthToken)> {
         let mut tokens = self.oauth_tokens.write().await;
 
         if tokens.values().any(|t| {
-            t.provider_name == provider_name && t.provider_user_id == token.provider_user.id
+            t.provider_name == token.provider_name && t.provider_user_id == token.provider_user.id
         }) {
             panic!("In use")
         }
@@ -294,7 +293,7 @@ impl AxumUserStore for MemoryStore {
         let token = Self::OAuthToken {
             id: Uuid::new_v4(),
             user_id: id,
-            provider_name,
+            provider_name: token.provider_name,
             provider_user_id: token.provider_user.id,
             access_token: token.access_token,
             refresh_token: token.refresh_token,
