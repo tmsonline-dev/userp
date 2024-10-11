@@ -141,7 +141,6 @@ impl UnmatchedOAuthToken {
     pub fn from_standard_token_response(
         token_response: StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
         provider_name: String,
-
         provider_user: OAuthProviderUser,
     ) -> Self {
         Self {
