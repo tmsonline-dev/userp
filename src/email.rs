@@ -418,19 +418,19 @@ impl<S: AxumUserStore> AxumUser<S> {
     }
 
     #[cfg(feature = "password")]
-    pub async fn reset_session(&self) -> Option<LoginSession> {
+    pub async fn reset_session(&self) -> Option<S::LoginSession> {
         let session_id = self.session_id_cookie()?;
         self.store
             .get_session(session_id)
             .await
-            .filter(|s| matches!(s.method, LoginMethod::PasswordReset { address: _ }))
+            .filter(|s| matches!(s.get_method(), LoginMethod::PasswordReset { address: _ }))
     }
 
     #[cfg(feature = "password")]
-    pub async fn reset_user_session(&self) -> Option<(S::User, LoginSession)> {
+    pub async fn reset_user_session(&self) -> Option<(S::User, S::LoginSession)> {
         let session = self.reset_session().await?;
         self.store
-            .get_user(session.user_id)
+            .get_user(session.get_user_id())
             .await
             .map(|user| (user, session))
     }

@@ -15,8 +15,8 @@ use axum_macros::{debug_handler, FromRef};
 use axum_user::{
     provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
     AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, CsrfToken,
-    EmailConfig, EmailPaths, EmailTrait, OAuthConfig, OAuthPaths, PasswordConfig,
-    RefreshInitResult, SmtpSettings, UserTrait,
+    EmailConfig, EmailPaths, EmailTrait, LoginMethod, LoginSession, OAuthConfig, OAuthPaths,
+    PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
 };
 use dotenv::var;
 use serde::Deserialize;
@@ -68,6 +68,27 @@ impl EmailTrait for MyUserEmail {
 
     fn allow_login(&self) -> bool {
         self.allow_login
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MyLoginSession {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub method: LoginMethod,
+}
+
+impl LoginSession for MyLoginSession {
+    fn get_id(&self) -> Uuid {
+        self.id
+    }
+
+    fn get_user_id(&self) -> Uuid {
+        self.user_id
+    }
+
+    fn get_method(&self) -> LoginMethod {
+        self.method.clone()
     }
 }
 

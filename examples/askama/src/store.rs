@@ -1,15 +1,13 @@
-use crate::{MyUser, MyUserEmail};
+use crate::{MyLoginSession, MyUser, MyUserEmail};
 use axum::async_trait;
-use axum_user::{
-    AxumUserStore, EmailChallenge, LoginMethod, LoginSession, OAuthToken, UnmatchedOAuthToken,
-};
+use axum_user::{AxumUserStore, EmailChallenge, LoginMethod, OAuthToken, UnmatchedOAuthToken};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 #[derive(Clone, Default, Debug)]
 pub struct MemoryStore {
-    sessions: Arc<RwLock<HashMap<Uuid, LoginSession>>>,
+    sessions: Arc<RwLock<HashMap<Uuid, MyLoginSession>>>,
     users: Arc<RwLock<HashMap<Uuid, MyUser>>>,
     challenges: Arc<RwLock<HashMap<String, EmailChallenge>>>,
     oauth_tokens: Arc<RwLock<HashMap<Uuid, OAuthToken>>>,
@@ -19,8 +17,9 @@ pub struct MemoryStore {
 impl AxumUserStore for MemoryStore {
     type User = MyUser;
     type Email = MyUserEmail;
+    type LoginSession = MyLoginSession;
 
-    async fn get_session(&self, session_id: Uuid) -> Option<LoginSession> {
+    async fn get_session(&self, session_id: Uuid) -> Option<Self::LoginSession> {
         let sessions = self.sessions.read().await;
 
         sessions.get(&session_id).cloned()
@@ -32,10 +31,18 @@ impl AxumUserStore for MemoryStore {
         sessions.remove(&session_id);
     }
 
-    async fn create_session(&self, session: LoginSession) {
+    async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession {
+        let session = MyLoginSession {
+            id: Uuid::new_v4(),
+            user_id,
+            method,
+        };
+
         let mut sessions = self.sessions.write().await;
 
-        sessions.insert(session.id, session);
+        sessions.insert(session.id, session.clone());
+
+        session
     }
 
     async fn get_user(&self, user_id: Uuid) -> Option<MyUser> {
@@ -229,7 +236,7 @@ impl AxumUserStore for MemoryStore {
 }
 
 impl MemoryStore {
-    pub async fn get_sessions(&self, user_id: Uuid) -> Vec<LoginSession> {
+    pub async fn get_sessions(&self, user_id: Uuid) -> Vec<MyLoginSession> {
         let sessions = self.sessions.read().await;
 
         sessions

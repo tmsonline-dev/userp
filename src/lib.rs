@@ -30,11 +30,10 @@ use axum_extra::extract::cookie::{Cookie, Expiration, Key, PrivateCookieJar, Sam
 use std::{convert::Infallible, fmt::Display};
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
-pub struct LoginSession {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub method: LoginMethod,
+pub trait LoginSession {
+    fn get_id(&self) -> Uuid;
+    fn get_user_id(&self) -> Uuid;
+    fn get_method(&self) -> LoginMethod;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,10 +78,11 @@ pub trait AxumUserStore {
     type User: UserTrait;
     #[cfg(feature = "email")]
     type Email: EmailTrait;
+    type LoginSession: LoginSession;
 
     // session store
-    async fn create_session(&self, session: LoginSession);
-    async fn get_session(&self, session_id: Uuid) -> Option<LoginSession>;
+    async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession;
+    async fn get_session(&self, session_id: Uuid) -> Option<Self::LoginSession>;
     async fn delete_session(&self, session_id: Uuid);
 
     // user store
@@ -141,22 +141,10 @@ pub struct AxumUser<S: AxumUserStore> {
 
 impl<S: AxumUserStore> AxumUser<S> {
     async fn log_in(mut self, method: LoginMethod, user_id: Uuid) -> Self {
-        let session_id = Uuid::new_v4();
-
-        let session = LoginSession {
-            id: session_id,
-            user_id,
-            method,
-        };
-
-        println!("Before create_session");
-
-        self.store.create_session(session).await;
-
-        println!("Before cookie add");
+        let session = self.store.create_session(user_id, method).await;
 
         self.jar = self.jar.add(
-            Cookie::build((SESSION_ID_KEY, session_id.to_string()))
+            Cookie::build((SESSION_ID_KEY, session.get_id().to_string()))
                 .same_site(SameSite::Lax)
                 .http_only(true)
                 .expires(Expiration::Session)
@@ -164,8 +152,6 @@ impl<S: AxumUserStore> AxumUser<S> {
                 .path("/")
                 .build(),
         );
-
-        println!("After cookie add");
 
         self
     }
@@ -196,9 +182,12 @@ impl<S: AxumUserStore> AxumUser<S> {
         Some(session_id)
     }
 
-    fn is_login_session(#[allow(unused)] session: &LoginSession) -> bool {
+    fn is_login_session(session: &S::LoginSession) -> bool {
         #[cfg(all(feature = "password", feature = "email"))]
-        return !matches!(session.method, LoginMethod::PasswordReset { address: _ });
+        return !matches!(
+            session.get_method(),
+            LoginMethod::PasswordReset { address: _ }
+        );
 
         #[cfg(not(all(feature = "password", feature = "email")))]
         return true;
@@ -208,7 +197,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         self.session().await.is_some()
     }
 
-    pub async fn session(&self) -> Option<LoginSession> {
+    pub async fn session(&self) -> Option<S::LoginSession> {
         let session_id = self.session_id_cookie()?;
         println!("Finding session by id: {session_id:#?}");
         self.store
@@ -217,11 +206,11 @@ impl<S: AxumUserStore> AxumUser<S> {
             .filter(Self::is_login_session)
     }
 
-    pub async fn user_session(&self) -> Option<(S::User, LoginSession)> {
+    pub async fn user_session(&self) -> Option<(S::User, S::LoginSession)> {
         let session = self.session().await?;
-        println!("Finding user by id: {:#?}", session.user_id);
+        println!("Finding user by id: {:#?}", session.get_user_id());
         self.store
-            .get_user(session.user_id)
+            .get_user(session.get_user_id())
             .await
             .map(|user| (user, session))
     }
