@@ -76,9 +76,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         password_id: String,
         password_hash: String,
     ) -> Result<Self, PasswordSignupError> {
-        let allow = self.pass.allow_login.as_ref().unwrap_or(&self.allow_login);
-
-        if allow == &Allow::Never {
+        if self.pass.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
             return Err(PasswordSignupError::NotAllowed);
         }
 
@@ -87,16 +85,25 @@ impl<S: AxumUserStore> AxumUser<S> {
             .get_user_by_password_id(password_id.clone())
             .await
         {
-            Some(user) => match allow {
-                Allow::Never => unreachable!(),
-                Allow::OnEither => match user.validate_password_hash(password_hash) {
-                    true => Ok(self.log_in(LoginMethod::Password, user.get_id()).await),
-                    false => Err(PasswordSignupError::LoginError(
-                        PasswordLoginError::WrongPassword,
-                    )),
-                },
-                Allow::OnSelf => Err(PasswordSignupError::UserExists),
-            },
+            Some(user) => {
+                if self
+                    .email
+                    .allow_login
+                    .as_ref()
+                    .unwrap_or(&self.allow_signup)
+                    == &Allow::OnEither
+                {
+                    if user.validate_password_hash(password_hash) {
+                        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
+                    } else {
+                        Err(PasswordSignupError::LoginError(
+                            PasswordLoginError::WrongPassword,
+                        ))
+                    }
+                } else {
+                    Err(PasswordSignupError::UserExists)
+                }
+            }
             None => {
                 let user = self
                     .store
@@ -114,9 +121,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         password_id: String,
         password_hash: String,
     ) -> Result<Self, PasswordLoginError> {
-        let allow = self.pass.allow_login.as_ref().unwrap_or(&self.allow_login);
-
-        if allow == &Allow::Never {
+        if self.pass.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
             return Err(PasswordLoginError::NotAllowed);
         };
 
@@ -132,19 +137,24 @@ impl<S: AxumUserStore> AxumUser<S> {
                     Err(PasswordLoginError::WrongPassword)
                 }
             }
-
-            None => match allow {
-                Allow::Never => unreachable!(),
-                Allow::OnEither => {
+            None => {
+                if self
+                    .email
+                    .allow_signup
+                    .as_ref()
+                    .unwrap_or(&self.allow_signup)
+                    == &Allow::OnEither
+                {
                     let user = self
                         .store
                         .create_password_user(password_id, password_hash)
                         .await;
 
                     Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
+                } else {
+                    Err(PasswordLoginError::NoUser)
                 }
-                Allow::OnSelf => Err(PasswordLoginError::NoUser),
-            },
+            }
         }
     }
 }
