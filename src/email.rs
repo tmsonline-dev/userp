@@ -98,12 +98,11 @@ pub trait EmailTrait {
     fn allow_login(&self) -> bool;
 }
 
-#[derive(Debug)]
-pub struct EmailChallenge {
-    pub address: String,
-    pub code: String,
-    pub next: Option<String>,
-    pub expires: DateTime<Utc>,
+pub trait EmailChallenge {
+    fn address(&self) -> String;
+    fn code(&self) -> String;
+    fn next(&self) -> Option<String>;
+    fn expires(&self) -> DateTime<Utc>;
 }
 
 #[derive(Debug, Error)]
@@ -190,26 +189,29 @@ impl<S: AxumUserStore> AxumUser<S> {
     async fn send_email_challenge(
         &self,
         path: String,
-        email: String,
+        address: String,
         message: String,
         next: Option<String>,
     ) -> Result<(), SendEmailError> {
         let code = Uuid::new_v4().to_string().replace('-', "");
 
-        self.store
-            .save_email_challenge(EmailChallenge {
-                address: email.clone(),
-                code: code.clone(),
+        let challenge = self
+            .store
+            .save_email_challenge(
+                address,
+                code,
                 next,
-                expires: Utc::now() + self.email.challenge_lifetime,
-            })
+                Utc::now() + self.email.challenge_lifetime,
+            )
             .await;
+
+        let code = challenge.code();
 
         let url = self.email.base_url.join(&format!("{path}?code={code}"))?;
 
         let email = Message::builder()
             .from(self.email.smtp.from.parse()?)
-            .to(email.parse().unwrap())
+            .to(challenge.address().parse()?)
             .subject("Login link")
             .header(ContentType::TEXT_HTML)
             .body(format!("<a href=\"{url}\">{message}</a>"))?;
@@ -354,26 +356,22 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err(EmailLoginCallbackError::NotAllowed);
         }
 
-        let Some(EmailChallenge {
-            address: email,
-            next,
-            expires,
-            ..
-        }) = self.store.consume_email_challenge(code).await
-        else {
+        let Some(challenge) = self.store.consume_email_challenge(code).await else {
             return Err(EmailLoginCallbackError::ChallengeNotFound);
         };
 
-        if expires < Utc::now() {
+        if challenge.expires() < Utc::now() {
             return Err(EmailLoginCallbackError::ChallengeExpired);
         }
 
-        if let Some((user, email)) = self.store.get_user_by_email(email.clone()).await {
-            Ok(self.email_login(user, email, next).await?)
+        if let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await {
+            Ok(self.email_login(user, email, challenge.next()).await?)
         } else {
             match allow {
                 Allow::Never => unreachable!(),
-                Allow::OnEither => Ok(self.email_signup(email, next).await?),
+                Allow::OnEither => Ok(self
+                    .email_signup(challenge.address(), challenge.next())
+                    .await?),
                 Allow::OnSelf => Err(EmailLoginCallbackError::NoUser),
             }
         }
@@ -388,18 +386,15 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err((self, "Forbidden"));
         }
 
-        let Some(EmailChallenge {
-            address, expires, ..
-        }) = self.store.consume_email_challenge(code).await
-        else {
+        let Some(challenge) = self.store.consume_email_challenge(code).await else {
             return Err((self, "Code not found"));
         };
 
-        if expires < Utc::now() {
+        if challenge.expires() < Utc::now() {
             return Err((self, "Challenge expired"));
         }
 
-        let Some((user, email)) = self.store.get_user_by_email(address.clone()).await else {
+        let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await else {
             return Err((self, "No such user"));
         };
 
@@ -408,7 +403,12 @@ impl<S: AxumUserStore> AxumUser<S> {
         };
 
         Ok(self
-            .log_in(LoginMethod::PasswordReset { address }, user.get_id())
+            .log_in(
+                LoginMethod::PasswordReset {
+                    address: challenge.address(),
+                },
+                user.get_id(),
+            )
             .await)
     }
 
@@ -445,21 +445,15 @@ impl<S: AxumUserStore> AxumUser<S> {
         &self,
         code: String,
     ) -> Result<(String, Option<String>), &'static str> {
-        let Some(EmailChallenge {
-            address: email,
-            next,
-            expires,
-            ..
-        }) = self.store.consume_email_challenge(code).await
-        else {
+        let Some(challenge) = self.store.consume_email_challenge(code).await else {
             return Err("Code not found");
         };
 
-        let Some((user, email)) = self.store.get_user_by_email(email.clone()).await else {
+        let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await else {
             return Err("No such user");
         };
 
-        if expires < Utc::now() {
+        if challenge.expires() < Utc::now() {
             return Err("Challenge expired");
         }
 
@@ -469,7 +463,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                 .await;
         }
 
-        Ok((email.address(), next))
+        Ok((email.address(), challenge.next()))
     }
 
     async fn email_signup(
@@ -505,28 +499,24 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err(EmailSignupCallbackError::NotAllowed);
         }
 
-        let Some(EmailChallenge {
-            address: email,
-            next,
-            expires,
-            ..
-        }) = self.store.consume_email_challenge(code).await
-        else {
+        let Some(challenge) = self.store.consume_email_challenge(code).await else {
             return Err(EmailSignupCallbackError::ChallengeNotFound);
         };
 
-        if expires < Utc::now() {
+        if challenge.expires() < Utc::now() {
             return Err(EmailSignupCallbackError::ChallengeExpired);
         }
 
-        if let Some((user, email)) = self.store.get_user_by_email(email.clone()).await {
+        if let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await {
             match self.email.allow_login.as_ref().unwrap_or(&self.allow_login) {
                 Allow::Never => unreachable!(),
-                Allow::OnEither => Ok(self.email_login(user, email, next).await?),
+                Allow::OnEither => Ok(self.email_login(user, email, challenge.next()).await?),
                 Allow::OnSelf => Err(EmailSignupCallbackError::UserConflict),
             }
         } else {
-            Ok(self.email_signup(email, next).await?)
+            Ok(self
+                .email_signup(challenge.address(), challenge.next())
+                .await?)
         }
     }
 }

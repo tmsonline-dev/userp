@@ -15,9 +15,10 @@ use axum_macros::{debug_handler, FromRef};
 use axum_user::{
     provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
     AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, CsrfToken,
-    EmailConfig, EmailPaths, EmailTrait, LoginMethod, LoginSession, OAuthConfig, OAuthPaths,
-    PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
+    EmailChallenge, EmailConfig, EmailPaths, EmailTrait, LoginMethod, LoginSession, OAuthConfig,
+    OAuthPaths, PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
 };
+use chrono::{DateTime, Utc};
 use dotenv::var;
 use serde::Deserialize;
 use tokio::net::TcpListener;
@@ -97,6 +98,32 @@ pub struct CommonQuery {
     next: Option<String>,
     message: Option<String>,
     error: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MyEmailChallenge {
+    pub address: String,
+    pub code: String,
+    pub next: Option<String>,
+    pub expires: DateTime<Utc>,
+}
+
+impl EmailChallenge for MyEmailChallenge {
+    fn address(&self) -> String {
+        self.address.clone()
+    }
+
+    fn code(&self) -> String {
+        self.code.clone()
+    }
+
+    fn next(&self) -> Option<String> {
+        self.next.clone()
+    }
+
+    fn expires(&self) -> DateTime<Utc> {
+        self.expires
+    }
 }
 
 #[derive(Deserialize)]

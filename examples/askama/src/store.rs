@@ -1,6 +1,7 @@
-use crate::{MyLoginSession, MyUser, MyUserEmail};
+use crate::{MyEmailChallenge, MyLoginSession, MyUser, MyUserEmail};
 use axum::async_trait;
-use axum_user::{AxumUserStore, EmailChallenge, LoginMethod, OAuthToken, UnmatchedOAuthToken};
+use axum_user::{AxumUserStore, LoginMethod, OAuthToken, UnmatchedOAuthToken};
+use chrono::{DateTime, Utc};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -9,7 +10,7 @@ use uuid::Uuid;
 pub struct MemoryStore {
     sessions: Arc<RwLock<HashMap<Uuid, MyLoginSession>>>,
     users: Arc<RwLock<HashMap<Uuid, MyUser>>>,
-    challenges: Arc<RwLock<HashMap<String, EmailChallenge>>>,
+    challenges: Arc<RwLock<HashMap<String, MyEmailChallenge>>>,
     oauth_tokens: Arc<RwLock<HashMap<Uuid, OAuthToken>>>,
 }
 
@@ -18,6 +19,7 @@ impl AxumUserStore for MemoryStore {
     type User = MyUser;
     type Email = MyUserEmail;
     type LoginSession = MyLoginSession;
+    type EmailChallenge = MyEmailChallenge;
 
     async fn get_session(&self, session_id: Uuid) -> Option<Self::LoginSession> {
         let sessions = self.sessions.read().await;
@@ -71,12 +73,28 @@ impl AxumUserStore for MemoryStore {
         })
     }
 
-    async fn save_email_challenge(&self, challenge: EmailChallenge) {
+    async fn save_email_challenge(
+        &self,
+
+        address: String,
+        code: String,
+        next: Option<String>,
+        expires: DateTime<Utc>,
+    ) -> Self::EmailChallenge {
+        let challenge = MyEmailChallenge {
+            address,
+            code,
+            next,
+            expires,
+        };
+
         let mut challenges = self.challenges.write().await;
-        challenges.insert(challenge.code.clone(), challenge);
+        challenges.insert(challenge.code.clone(), challenge.clone());
+
+        challenge
     }
 
-    async fn consume_email_challenge(&self, code: String) -> Option<EmailChallenge> {
+    async fn consume_email_challenge(&self, code: String) -> Option<Self::EmailChallenge> {
         let challenge = {
             let mut challenges = self.challenges.write().await;
             challenges.remove(&code)

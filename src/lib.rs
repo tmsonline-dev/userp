@@ -6,6 +6,7 @@ mod oauth;
 mod password;
 
 const SESSION_ID_KEY: &str = "axum-user-session-id";
+use chrono::{DateTime, Utc};
 
 #[cfg(feature = "email")]
 pub use self::email::{EmailChallenge, EmailConfig, EmailPaths, EmailTrait, SmtpSettings};
@@ -79,6 +80,7 @@ pub trait AxumUserStore {
     #[cfg(feature = "email")]
     type Email: EmailTrait;
     type LoginSession: LoginSession;
+    type EmailChallenge: EmailChallenge;
 
     // session store
     async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession;
@@ -98,9 +100,15 @@ pub trait AxumUserStore {
     #[cfg(feature = "email")]
     async fn get_user_by_email(&self, email: String) -> Option<(Self::User, Self::Email)>;
     #[cfg(feature = "email")]
-    async fn save_email_challenge(&self, challenge: EmailChallenge);
+    async fn save_email_challenge(
+        &self,
+        address: String,
+        code: String,
+        next: Option<String>,
+        expires: DateTime<Utc>,
+    ) -> Self::EmailChallenge;
     #[cfg(feature = "email")]
-    async fn consume_email_challenge(&self, code: String) -> Option<EmailChallenge>;
+    async fn consume_email_challenge(&self, code: String) -> Option<Self::EmailChallenge>;
     #[cfg(feature = "email")]
     async fn set_user_email_verified(&self, user_id: Uuid, email: String);
     #[cfg(feature = "email")]
