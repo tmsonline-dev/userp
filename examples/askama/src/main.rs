@@ -14,9 +14,10 @@ use axum_extra::extract::cookie::Key;
 use axum_macros::{debug_handler, FromRef};
 use axum_user::{
     provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
-    AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, CsrfToken,
-    EmailChallenge, EmailConfig, EmailPaths, EmailTrait, LoginMethod, LoginSession, OAuthConfig,
-    OAuthPaths, OAuthToken, PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
+    AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserExtendedStore,
+    AxumUserStore, CsrfToken, EmailChallenge, EmailConfig, EmailPaths, EmailTrait, LoginMethod,
+    LoginSession, OAuthConfig, OAuthPaths, OAuthToken, PasswordConfig, RefreshInitResult,
+    SmtpSettings, UserTrait,
 };
 use chrono::{DateTime, Utc};
 use dotenv::var;
@@ -500,11 +501,11 @@ async fn post_user_oauth_delete_handler(
     State(state): State<AppState>,
     Form(IdForm { id }): Form<IdForm>,
 ) -> impl IntoResponse {
-    let Some(user) = auth.user().await else {
+    if !auth.logged_in().await {
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    state.store.delete_oauth_token(user.id, id).await;
+    state.store.delete_oauth_token(id).await;
 
     Redirect::to("/user?message=Token deleted").into_response()
 }
@@ -512,13 +513,13 @@ async fn post_user_oauth_delete_handler(
 async fn post_user_oauth_refresh_handler(
     auth: AxumUser,
     State(state): State<AppState>,
-    Form(IdForm { id }): Form<IdForm>,
+    Form(IdForm { id: token_id }): Form<IdForm>,
 ) -> impl IntoResponse {
-    let Some(user) = auth.user().await else {
+    if !auth.logged_in().await {
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    let Some(token) = state.store.get_oauth_token(user.id, id).await else {
+    let Some(token) = state.store.get_oauth_token(token_id).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
 
