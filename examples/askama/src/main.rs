@@ -16,7 +16,7 @@ use axum_user::{
     provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
     AuthorizationCode, AxumUser as BaseAxumUser, AxumUserConfig, AxumUserStore, CsrfToken,
     EmailChallenge, EmailConfig, EmailPaths, EmailTrait, LoginMethod, LoginSession, OAuthConfig,
-    OAuthPaths, PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
+    OAuthPaths, OAuthToken, PasswordConfig, RefreshInitResult, SmtpSettings, UserTrait,
 };
 use chrono::{DateTime, Utc};
 use dotenv::var;
@@ -123,6 +123,52 @@ impl EmailChallenge for MyEmailChallenge {
 
     fn expires(&self) -> DateTime<Utc> {
         self.expires
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MyOAuthToken {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub provider_name: String,
+    pub provider_user_id: String,
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub expires: Option<DateTime<Utc>>,
+    pub scopes: Vec<String>,
+}
+
+impl OAuthToken for MyOAuthToken {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
+    fn user_id(&self) -> Uuid {
+        self.user_id
+    }
+
+    fn provider_name(&self) -> String {
+        self.provider_name.clone()
+    }
+
+    fn provider_user_id(&self) -> String {
+        self.provider_user_id.clone()
+    }
+
+    fn access_token(&self) -> String {
+        self.access_token.clone()
+    }
+
+    fn refresh_token(&self) -> Option<String> {
+        self.refresh_token.clone()
+    }
+
+    fn expires(&self) -> Option<DateTime<Utc>> {
+        self.expires
+    }
+
+    fn scopes(&self) -> Vec<String> {
+        self.scopes.clone()
     }
 }
 

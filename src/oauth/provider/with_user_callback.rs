@@ -111,6 +111,7 @@ impl OAuthProviderBase for OAuthProviderBaseWithUserCallback<'_> {
 impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
     async fn exchange_authorization_code(
         &self,
+        provider_name: String,
         redirect_url: RedirectUrl,
         code: AuthorizationCode,
     ) -> ExchangeResult {
@@ -127,12 +128,14 @@ impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
             res,
+            provider_name,
             provider_user,
         ))
     }
 
     async fn exchange_refresh_token(
         &self,
+        provider_name: String,
         redirect_url: RedirectUrl,
         refresh_token: RefreshToken,
     ) -> ExchangeResult {
@@ -149,6 +152,7 @@ impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
             res,
+            provider_name,
             provider_user,
         ))
     }

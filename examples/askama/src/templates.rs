@@ -1,7 +1,7 @@
 use askama::Template;
-use axum_user::{OAuthProviderNames, OAuthToken};
+use axum_user::OAuthProviderNames;
 
-use crate::{MyLoginSession, MyUserEmail};
+use crate::{MyLoginSession, MyOAuthToken, MyUserEmail};
 
 #[derive(Template)]
 #[template(path = "email-verified.html")]
@@ -31,7 +31,7 @@ pub struct UserTemplate {
     pub sessions: Vec<MyLoginSession>,
     pub has_password: bool,
     pub emails: Vec<MyUserEmail>,
-    pub oauth_tokens: Vec<OAuthToken>,
+    pub oauth_tokens: Vec<MyOAuthToken>,
     pub oauth_providers: Vec<OAuthProviderNames>,
 }
 

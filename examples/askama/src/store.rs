@@ -1,6 +1,6 @@
-use crate::{MyEmailChallenge, MyLoginSession, MyUser, MyUserEmail};
+use crate::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
 use axum::async_trait;
-use axum_user::{AxumUserStore, LoginMethod, OAuthToken, UnmatchedOAuthToken};
+use axum_user::{AxumUserStore, LoginMethod, UnmatchedOAuthToken};
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
@@ -11,7 +11,7 @@ pub struct MemoryStore {
     sessions: Arc<RwLock<HashMap<Uuid, MyLoginSession>>>,
     users: Arc<RwLock<HashMap<Uuid, MyUser>>>,
     challenges: Arc<RwLock<HashMap<String, MyEmailChallenge>>>,
-    oauth_tokens: Arc<RwLock<HashMap<Uuid, OAuthToken>>>,
+    oauth_tokens: Arc<RwLock<HashMap<Uuid, MyOAuthToken>>>,
 }
 
 #[async_trait]
@@ -20,6 +20,7 @@ impl AxumUserStore for MemoryStore {
     type Email = MyUserEmail;
     type LoginSession = MyLoginSession;
     type EmailChallenge = MyEmailChallenge;
+    type OAuthToken = MyOAuthToken;
 
     async fn get_session(&self, session_id: Uuid) -> Option<Self::LoginSession> {
         let sessions = self.sessions.read().await;
@@ -169,11 +170,45 @@ impl AxumUserStore for MemoryStore {
         (user, email)
     }
 
+    async fn link_oauth_token(
+        &self,
+        user_id: Uuid,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Self::OAuthToken {
+        let UnmatchedOAuthToken {
+            access_token,
+            refresh_token,
+            expires,
+            scopes,
+            provider_name,
+            provider_user,
+        } = unmatched_token;
+
+        let token = MyOAuthToken {
+            id: Uuid::new_v4(),
+            user_id,
+            provider_name,
+            provider_user_id: provider_user.id,
+            access_token,
+            refresh_token,
+            expires,
+            scopes,
+        };
+
+        let mut oauth_tokens = self.oauth_tokens.write().await;
+
+        oauth_tokens.insert(token.id, token.clone());
+
+        token
+    }
+
+    // async fn create_oauth_token(&self, unmatched_token: UnmatchedOAuthToken) -> Self::OAuthToken {}
+
     async fn get_user_by_oauth_provider_id(
         &self,
         provider_name: String,
         provider_user_id: String,
-    ) -> Option<(Self::User, OAuthToken)> {
+    ) -> Option<(Self::User, Self::OAuthToken)> {
         let token = {
             let tokens = self.oauth_tokens.read().await;
 
@@ -193,16 +228,41 @@ impl AxumUserStore for MemoryStore {
         Some((user, token))
     }
 
-    async fn create_or_update_oauth_token(&self, token: OAuthToken) {
+    async fn create_or_update_oauth_token(
+        &self,
+        prev_token: Self::OAuthToken,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Self::OAuthToken {
+        let UnmatchedOAuthToken {
+            access_token,
+            refresh_token,
+            expires,
+            scopes,
+            provider_name,
+            provider_user,
+        } = unmatched_token;
+
+        let token = MyOAuthToken {
+            access_token,
+            refresh_token,
+            expires,
+            scopes,
+            provider_name,
+            provider_user_id: provider_user.id,
+            ..prev_token
+        };
+
         let mut tokens = self.oauth_tokens.write().await;
-        tokens.insert(token.id, token);
+        tokens.insert(token.id, token.clone());
+
+        token
     }
 
     async fn create_oauth_user(
         &self,
         provider_name: String,
         token: UnmatchedOAuthToken,
-    ) -> Option<(Self::User, OAuthToken)> {
+    ) -> Option<(Self::User, Self::OAuthToken)> {
         let mut tokens = self.oauth_tokens.write().await;
 
         if tokens.values().any(|t| {
@@ -231,14 +291,14 @@ impl AxumUserStore for MemoryStore {
 
         users.insert(id, user.clone());
 
-        let token = OAuthToken {
+        let token = Self::OAuthToken {
             id: Uuid::new_v4(),
             user_id: id,
             provider_name,
             provider_user_id: token.provider_user.id,
             access_token: token.access_token,
             refresh_token: token.refresh_token,
-            expires: token.expires_in,
+            expires: token.expires,
             scopes: token.scopes,
         };
 
@@ -247,7 +307,7 @@ impl AxumUserStore for MemoryStore {
         Some((user, token))
     }
 
-    async fn get_oauth_token(&self, token_id: Uuid) -> Option<OAuthToken> {
+    async fn get_oauth_token(&self, token_id: Uuid) -> Option<Self::OAuthToken> {
         let tokens = self.oauth_tokens.read().await;
         tokens.get(&token_id).cloned()
     }
@@ -264,7 +324,7 @@ impl MemoryStore {
             .collect()
     }
 
-    pub async fn get_oauth_tokens(&self, user_id: Uuid) -> Vec<OAuthToken> {
+    pub async fn get_oauth_tokens(&self, user_id: Uuid) -> Vec<MyOAuthToken> {
         let tokens = self.oauth_tokens.read().await;
 
         tokens
@@ -274,7 +334,7 @@ impl MemoryStore {
             .collect()
     }
 
-    pub async fn get_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Option<OAuthToken> {
+    pub async fn get_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Option<MyOAuthToken> {
         let tokens = self.oauth_tokens.read().await;
 
         tokens

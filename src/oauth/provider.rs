@@ -38,12 +38,14 @@ pub trait OAuthProviderBase: Send + Sync {
 pub trait OAuthProvider: OAuthProviderBase + Send + Sync {
     async fn exchange_authorization_code(
         &self,
+        provider_name: String,
         redirect_url: RedirectUrl,
         code: AuthorizationCode,
     ) -> ExchangeResult;
 
     async fn exchange_refresh_token(
         &self,
+        provider_name: String,
         redirect_url: RedirectUrl,
         refresh_token: RefreshToken,
     ) -> ExchangeResult;

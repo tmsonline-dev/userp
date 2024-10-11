@@ -81,6 +81,7 @@ pub trait AxumUserStore {
     type Email: EmailTrait;
     type LoginSession: LoginSession;
     type EmailChallenge: EmailChallenge;
+    type OAuthToken: OAuthToken;
 
     // session store
     async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession;
@@ -120,17 +121,29 @@ pub trait AxumUserStore {
         &self,
         provider_name: String,
         provider_user_id: String,
-    ) -> Option<(Self::User, OAuthToken)>;
+    ) -> Option<(Self::User, Self::OAuthToken)>;
     #[cfg(feature = "oauth")]
-    async fn create_or_update_oauth_token(&self, token: OAuthToken);
+    async fn create_or_update_oauth_token(
+        &self,
+        prev_token: Self::OAuthToken,
+        new_token: UnmatchedOAuthToken,
+    ) -> Self::OAuthToken;
+    #[cfg(feature = "oauth")]
+    async fn link_oauth_token(
+        &self,
+        user_id: Uuid,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Self::OAuthToken;
+    // #[cfg(feature = "oauth")]
+    // async fn create_oauth_token(&self, unmatched_token: UnmatchedOAuthToken) -> Self::OAuthToken;
     #[cfg(feature = "oauth")]
     async fn create_oauth_user(
         &self,
         provider_name: String,
         token: UnmatchedOAuthToken,
-    ) -> Option<(Self::User, OAuthToken)>;
+    ) -> Option<(Self::User, Self::OAuthToken)>;
     #[cfg(feature = "oauth")]
-    async fn get_oauth_token(&self, token_id: Uuid) -> Option<OAuthToken>;
+    async fn get_oauth_token(&self, token_id: Uuid) -> Option<Self::OAuthToken>;
 }
 
 pub struct AxumUser<S: AxumUserStore> {

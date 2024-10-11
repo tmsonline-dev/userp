@@ -131,40 +131,42 @@ impl OAuthProviders {
 pub struct UnmatchedOAuthToken {
     pub access_token: String,
     pub refresh_token: Option<String>,
-    pub expires_in: Option<DateTime<Utc>>,
+    pub expires: Option<DateTime<Utc>>,
     pub scopes: Vec<String>,
+    pub provider_name: String,
     pub provider_user: OAuthProviderUser,
 }
 
 impl UnmatchedOAuthToken {
     pub fn from_standard_token_response(
         token_response: StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
+        provider_name: String,
+
         provider_user: OAuthProviderUser,
     ) -> Self {
         Self {
             access_token: token_response.access_token().secret().into(),
             refresh_token: token_response.refresh_token().map(|rt| rt.secret().into()),
-            expires_in: token_response.expires_in().map(|d| Utc::now() + d),
+            expires: token_response.expires_in().map(|d| Utc::now() + d),
             scopes: token_response
                 .scopes()
                 .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
                 .unwrap_or_default(),
+            provider_name,
             provider_user,
         }
     }
 }
 
-#[derive(Clone, Debug)]
-#[allow(unused)]
-pub struct OAuthToken {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub provider_name: String,
-    pub provider_user_id: String,
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub expires: Option<DateTime<Utc>>,
-    pub scopes: Vec<String>,
+pub trait OAuthToken {
+    fn id(&self) -> Uuid;
+    fn user_id(&self) -> Uuid;
+    fn provider_name(&self) -> String;
+    fn provider_user_id(&self) -> String;
+    fn access_token(&self) -> String;
+    fn refresh_token(&self) -> Option<String>;
+    fn expires(&self) -> Option<DateTime<Utc>>;
+    fn scopes(&self) -> Vec<String>;
 }
 
 #[derive(Error, Debug)]
@@ -354,35 +356,28 @@ impl<S: AxumUserStore> AxumUser<S> {
 
     pub async fn oauth_refresh_init(
         self,
-        token: OAuthToken,
+        token: S::OAuthToken,
         next: Option<String>,
     ) -> Result<(Self, RefreshInitResult), OAuthRefreshInitError> {
         let provider = self
             .oauth
             .providers
-            .get(&token.provider_name)
+            .get(&token.provider_name())
             .ok_or(OAuthRefreshInitError::ProviderNotFound(
-                token.provider_name.clone(),
+                token.provider_name(),
             ))
             .cloned()?;
 
-        if let Some(refresh_token) = token.refresh_token {
+        if let Some(refresh_token) = token.refresh_token() {
             let res = provider
                 .exchange_refresh_token(
+                    provider.name(),
                     self.redirect_uri(self.oauth.refresh_path.clone(), &provider.name()),
                     RefreshToken::new(refresh_token),
                 )
                 .await?;
 
-            let token = OAuthToken {
-                access_token: res.access_token,
-                refresh_token: res.refresh_token,
-                expires: res.expires_in,
-                scopes: res.scopes,
-                ..token
-            };
-
-            self.store.create_or_update_oauth_token(token).await;
+            let _ = self.store.create_or_update_oauth_token(token, res).await;
 
             Ok((self, RefreshInitResult::Ok))
         } else {
@@ -392,7 +387,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                     path,
                     provider,
                     OAuthFlow::Refresh {
-                        token_id: token.id,
+                        token_id: token.id(),
                         next,
                     },
                 )
@@ -558,7 +553,11 @@ impl<S: AxumUserStore> AxumUser<S> {
         }
 
         let unmatched_token = provider
-            .exchange_authorization_code(self.redirect_uri(path, &provider_name), code)
+            .exchange_authorization_code(
+                provider.name(),
+                self.redirect_uri(path, &provider_name),
+                code,
+            )
             .await?;
 
         Ok((unmatched_token, oauth_flow))
@@ -603,17 +602,12 @@ impl<S: AxumUserStore> AxumUser<S> {
             .await
         {
             Some((user, old_token)) => {
-                let new_token = OAuthToken {
-                    access_token: unmatched_token.access_token,
-                    refresh_token: unmatched_token.refresh_token,
-                    expires: unmatched_token.expires_in,
-                    scopes: unmatched_token.scopes,
-                    ..old_token
-                };
+                let token = self
+                    .store
+                    .create_or_update_oauth_token(old_token, unmatched_token)
+                    .await;
 
-                self.store.create_or_update_oauth_token(new_token).await;
-
-                (user, old_token.id)
+                (user, token.id())
             }
             None => {
                 if self
@@ -629,7 +623,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                         .await
                         .ok_or(OAuthLoginCallbackError::UserTokenCreationError)?;
 
-                    (user, token.id)
+                    (user, token.id())
                 } else {
                     return Err(OAuthLoginCallbackError::NoUser);
                 }
@@ -645,7 +639,6 @@ impl<S: AxumUserStore> AxumUser<S> {
 
     pub async fn oauth_link_callback_inner(
         &self,
-        provider_name: String,
         unmatched_token: UnmatchedOAuthToken,
         flow: OAuthFlow,
     ) -> Result<Option<String>, OAuthLinkCallbackError> {
@@ -653,20 +646,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err(OAuthLinkCallbackError::UnexpectedFlow(flow));
         };
 
-        let id = Uuid::new_v4();
-
-        let new_token = OAuthToken {
-            id,
-            user_id,
-            provider_name,
-            provider_user_id: unmatched_token.provider_user.id,
-            access_token: unmatched_token.access_token,
-            refresh_token: unmatched_token.refresh_token,
-            expires: unmatched_token.expires_in,
-            scopes: unmatched_token.scopes,
-        };
-
-        self.store.create_or_update_oauth_token(new_token).await;
+        self.store.link_oauth_token(user_id, unmatched_token).await;
 
         Ok(next)
     }
@@ -686,8 +666,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             )
             .await?;
 
-        self.oauth_link_callback_inner(provider_name, unmatched_token, flow)
-            .await
+        self.oauth_link_callback_inner(unmatched_token, flow).await
     }
 
     async fn oauth_refresh_callback_inner(
@@ -703,14 +682,9 @@ impl<S: AxumUserStore> AxumUser<S> {
             return Err(OAuthRefreshCallbackError::TokenNotFound);
         };
 
-        let new_token = OAuthToken {
-            access_token: unmatched_token.access_token,
-            refresh_token: unmatched_token.refresh_token,
-            expires: unmatched_token.expires_in,
-            ..old_token
-        };
-
-        self.store.create_or_update_oauth_token(new_token).await;
+        self.store
+            .create_or_update_oauth_token(old_token, unmatched_token)
+            .await;
 
         Ok(next)
     }
@@ -761,7 +735,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             }
             OAuthFlow::Link { .. } => {
                 let next = self
-                    .oauth_link_callback_inner(provider_name, unmatched_token, flow)
+                    .oauth_link_callback_inner(unmatched_token, flow)
                     .await?;
 
                 (self, next)
@@ -791,7 +765,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             .create_oauth_user(provider_name.clone(), unmatched_token.clone())
             .await
         {
-            Some((user, token)) => (user, token.id),
+            Some((user, token)) => (user, token.id()),
             None => {
                 if self
                     .oauth
@@ -809,17 +783,12 @@ impl<S: AxumUserStore> AxumUser<S> {
                         .await
                         .ok_or(OAuthSignupCallbackError::NoUser)?;
 
-                    let new_token = OAuthToken {
-                        access_token: unmatched_token.access_token,
-                        refresh_token: unmatched_token.refresh_token,
-                        expires: unmatched_token.expires_in,
-                        scopes: unmatched_token.scopes,
-                        ..old_token
-                    };
+                    let token = self
+                        .store
+                        .create_or_update_oauth_token(old_token, unmatched_token)
+                        .await;
 
-                    self.store.create_or_update_oauth_token(new_token).await;
-
-                    (user, old_token.id)
+                    (user, token.id())
                 } else {
                     return Err(OAuthSignupCallbackError::UserTokenCreationError);
                 }
