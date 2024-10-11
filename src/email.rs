@@ -92,13 +92,13 @@ impl SmtpSettings {
     }
 }
 
-pub trait UserEmail {
+pub trait UserEmail: Send + Sync {
     fn address(&self) -> String;
     fn verified(&self) -> bool;
     fn allow_login(&self) -> bool;
 }
 
-pub trait EmailChallenge {
+pub trait EmailChallenge: Send + Sync {
     fn address(&self) -> String;
     fn code(&self) -> String;
     fn next(&self) -> Option<String>;

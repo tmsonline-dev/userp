@@ -202,6 +202,7 @@ checksum = "504e3947307ac8326a5437504c517c4b56716c9d98fac0028c2acc7ca47d70ae"
 dependencies = [
  "async-trait",
  "axum-core",
+ "axum-macros",
  "bytes",
  "futures-util",
  "http 1.1.0",
@@ -288,6 +289,8 @@ name = "axum-user"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "askama",
+ "askama_axum",
  "axum",
  "axum-extra",
  "chrono",
@@ -299,6 +302,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
+ "urlencoding",
  "uuid",
 ]
 

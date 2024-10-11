@@ -129,7 +129,6 @@ impl AxumUserStore for MemoryStore {
 
         let user = MyUser {
             id,
-            name: "".into(),
             password: Some(password_hash),
             emails: vec![MyUserEmail {
                 email,
@@ -160,7 +159,6 @@ impl AxumUserStore for MemoryStore {
 
         let user = MyUser {
             id,
-            name: "".into(),
             password: None,
             emails: vec![email.clone()],
         };
@@ -276,7 +274,6 @@ impl AxumUserStore for MemoryStore {
 
         let user = MyUser {
             id,
-            name: token.provider_user.name.unwrap_or("".into()),
             password: None,
             emails: match token.provider_user.email {
                 Some(email) => vec![MyUserEmail {
@@ -314,6 +311,15 @@ impl AxumUserStore for MemoryStore {
 
 #[async_trait]
 impl AxumUserExtendedStore for MemoryStore {
+    async fn get_user_emails(&self, user_id: Uuid) -> Vec<MyUserEmail> {
+        let users = self.users.read().await;
+
+        users
+            .get(&user_id)
+            .map(|u| u.emails.clone())
+            .unwrap_or_default()
+    }
+
     async fn get_sessions(&self, user_id: Uuid) -> Vec<MyLoginSession> {
         let sessions = self.sessions.read().await;
 

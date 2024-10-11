@@ -157,7 +157,7 @@ impl UnmatchedOAuthToken {
     }
 }
 
-pub trait OAuthToken {
+pub trait OAuthToken: Send + Sync {
     fn id(&self) -> Uuid;
     fn user_id(&self) -> Uuid;
     fn provider_name(&self) -> String;
@@ -238,20 +238,6 @@ pub enum OAuthRefreshCallbackError {
     TokenNotFound,
 }
 
-pub struct OAuthProviderNames {
-    pub name: String,
-    pub display_name: String,
-}
-
-impl From<&Arc<dyn OAuthProvider>> for OAuthProviderNames {
-    fn from(value: &Arc<dyn OAuthProvider>) -> Self {
-        Self {
-            name: value.name(),
-            display_name: value.display_name(),
-        }
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum OAuthInitError {}
 
@@ -297,59 +283,43 @@ pub enum OAuthLinkInitError {
 }
 
 impl<S: AxumUserStore> AxumUser<S> {
-    pub fn oauth_login_providers(&self) -> Vec<OAuthProviderNames> {
+    pub fn oauth_login_providers(&self) -> Vec<&Arc<dyn OAuthProvider>> {
         self.oauth
             .providers
             .0
             .iter()
-            .filter_map(|provider| {
-                if provider
+            .filter(|provider| {
+                provider
                     .allow_login()
                     .as_ref()
                     .unwrap_or(self.oauth.allow_login.as_ref().unwrap_or(&self.allow_login))
                     != &Allow::Never
-                {
-                    Some(provider.into())
-                } else {
-                    None
-                }
             })
             .collect()
     }
 
-    pub fn oauth_signup_providers(&self) -> Vec<OAuthProviderNames> {
+    pub fn oauth_signup_providers(&self) -> Vec<&Arc<dyn OAuthProvider>> {
         self.oauth
             .providers
             .0
             .iter()
-            .filter_map(|provider| {
-                if provider.allow_signup().as_ref().unwrap_or(
+            .filter(|provider| {
+                provider.allow_signup().as_ref().unwrap_or(
                     self.oauth
                         .allow_signup
                         .as_ref()
                         .unwrap_or(&self.allow_signup),
                 ) != &Allow::Never
-                {
-                    Some(provider.into())
-                } else {
-                    None
-                }
             })
             .collect()
     }
 
-    pub fn oauth_link_providers(&self) -> Vec<OAuthProviderNames> {
+    pub fn oauth_link_providers(&self) -> Vec<&Arc<dyn OAuthProvider>> {
         self.oauth
             .providers
             .0
             .iter()
-            .filter_map(|provider| {
-                if provider.allow_linking().unwrap_or(self.oauth.allow_linking) {
-                    Some(provider.into())
-                } else {
-                    None
-                }
-            })
+            .filter(|provider| provider.allow_linking().unwrap_or(self.oauth.allow_linking))
             .collect()
     }
 

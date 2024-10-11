@@ -5,6 +5,8 @@ mod oauth;
 #[cfg(feature = "password")]
 mod password;
 
+mod routes;
+
 const SESSION_ID_KEY: &str = "axum-user-session-id";
 use chrono::{DateTime, Utc};
 
@@ -13,13 +15,20 @@ pub use self::email::{EmailChallenge, EmailConfig, EmailPaths, SmtpSettings, Use
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
     provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthPaths,
-    OAuthProviderNames, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthToken,
-    RefreshInitResult, UnmatchedOAuthToken,
+    OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthToken, RefreshInitResult,
+    UnmatchedOAuthToken,
 };
 #[cfg(feature = "password")]
 pub use self::password::PasswordConfig;
 #[cfg(all(feature = "password", feature = "email"))]
 pub use self::password::PasswordReset;
+
+pub use axum_extra::{self, extract::cookie::Key};
+pub use chrono;
+pub use url;
+pub use uuid;
+
+use uuid::Uuid;
 
 use axum::{
     async_trait,
@@ -27,11 +36,10 @@ use axum::{
     http::{request::Parts, StatusCode},
     response::IntoResponseParts,
 };
-use axum_extra::extract::cookie::{Cookie, Expiration, Key, PrivateCookieJar, SameSite};
+use axum_extra::extract::cookie::{Cookie, Expiration, PrivateCookieJar, SameSite};
 use std::{convert::Infallible, fmt::Display};
-use uuid::Uuid;
 
-pub trait LoginSession {
+pub trait LoginSession: Send + Sync {
     fn get_id(&self) -> Uuid;
     fn get_user_id(&self) -> Uuid;
     fn get_method(&self) -> LoginMethod;
@@ -62,7 +70,7 @@ pub enum Allow {
     OnEither,
 }
 
-pub trait User {
+pub trait User: Send + Sync {
     fn get_id(&self) -> Uuid;
 
     #[cfg(feature = "password")]
@@ -150,6 +158,7 @@ pub trait AxumUserExtendedStore: AxumUserStore {
     async fn delete_oauth_token(&self, token_id: Uuid);
     async fn delete_user(&self, id: Uuid);
     async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid);
+    async fn get_user_emails(&self, user_id: Uuid) -> Vec<Self::UserEmail>;
     async fn set_user_password(&self, user_id: Uuid, password: String, session_id: Uuid);
     async fn set_user_email_allow_login(&self, user_id: Uuid, address: String, allow_login: bool);
     async fn add_user_email(&self, user_id: Uuid, address: String);
