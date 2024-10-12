@@ -185,12 +185,6 @@ pub enum EmailVerifyError<StoreError: std::error::Error> {
     Store(#[from] StoreError),
 }
 
-// #[derive(Debug, Error)]
-// pub enum EmailLoginError {
-//     #[error("Login not allowed for address {0}")]
-//     NotAllowed(String),
-// }
-
 #[derive(Error, Debug)]
 pub enum EmailLoginCallbackError<StoreError: std::error::Error> {
     #[error("Email login not allowed")]

@@ -1,8 +1,7 @@
-- All the error handling
 - Encrypt email code
-- Extract SMTP config and move reset to password module
+- ~Extract SMTP config and move reset to password module~ Stays due to emailchallenge logic
 - Routes feature
-- Add require email on signup/login for password/oauth
+- ~Add require email on signup/login for password/oauth~ Part of MFA "epic"
 - ~Make OAuthToken a trait???~
 - Service??? (At least consitant use of self returns)
 - Leptos example

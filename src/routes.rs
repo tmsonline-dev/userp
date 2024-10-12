@@ -29,16 +29,6 @@ use crate::{
     LoginSession, OAuthToken, PasswordLoginError, PasswordSignupError, RefreshInitResult, User,
 };
 
-async fn get_index<St>(auth: AxumUser<St>) -> Result<impl IntoResponse, St::Error>
-where
-    St: AxumUserExtendedStore,
-    St::Error: IntoResponse,
-{
-    let logged_in = auth.logged_in().await?;
-
-    Ok(IndexTemplate { logged_in })
-}
-
 async fn get_login<St>(
     auth: AxumUser<St>,
     Query(NextMessageErrorQuery {
@@ -836,7 +826,6 @@ impl AxumUserConfig {
         St::Error: IntoResponse,
     {
         Router::new()
-            .route("/", get(get_index::<St>))
             .route("/login", get(get_login::<St>))
             .route("/login/password", post(post_login_password::<St>))
             .route(

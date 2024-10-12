@@ -1,5 +1,5 @@
 [package]
-name = "askama-example"
+name = "memory-store-example"
 version = "0.1.0"
 edition = "2021"
 

@@ -1,7 +1,7 @@
 mod store;
 
 use self::store::MemoryStore;
-
+use askama::Template;
 use askama_axum::IntoResponse;
 use axum::{extract::State, response::Redirect, routing::get, serve, Router};
 use axum_macros::FromRef;
@@ -17,6 +17,19 @@ use axum_user::{
 use dotenv::var;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
+
+#[derive(Template)]
+#[template(path = "index.html")]
+pub struct IndexTemplate {
+    pub logged_in: bool,
+}
+
+#[derive(Template)]
+#[template(path = "protected.html")]
+pub struct ProtectedTemplate {
+    pub user: String,
+    pub session: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct MyUser {
@@ -217,8 +230,9 @@ async fn main() {
 
     let app = Router::new()
         .merge(routes)
-        .route("/store", get(get_store_handler))
-        .route("/protected", get(get_protected_handler))
+        .route("/store", get(get_store))
+        .route("/", get(get_index))
+        .route("/protected", get(get_protected))
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 
@@ -226,11 +240,17 @@ async fn main() {
     serve(tcp, app.into_make_service()).await.unwrap();
 }
 
-async fn get_store_handler(State(state): State<AppState>) -> impl IntoResponse {
+async fn get_index(auth: AxumUser<MemoryStore>) -> impl IntoResponse {
+    let logged_in = auth.logged_in().await.unwrap();
+
+    IndexTemplate { logged_in }
+}
+
+async fn get_store(State(state): State<AppState>) -> impl IntoResponse {
     format!("{:#?}", state.store).into_response()
 }
 
-async fn get_protected_handler(auth: AxumUser<MemoryStore>) -> impl IntoResponse {
+async fn get_protected(auth: AxumUser<MemoryStore>) -> impl IntoResponse {
     let Some((user, session)) = auth.user_session().await.unwrap() else {
         return Redirect::to(&format!(
             "/login?next={}",
@@ -239,9 +259,9 @@ async fn get_protected_handler(auth: AxumUser<MemoryStore>) -> impl IntoResponse
         .into_response();
     };
 
-    format!(
-        "You are logged in as {:#?} using session {:#?}",
-        user, session
-    )
+    ProtectedTemplate {
+        user: format!("{user:#?}"),
+        session: format!("{session:#?}"),
+    }
     .into_response()
 }

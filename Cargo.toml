@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = ["examples/askama"]
+members = ["examples/memory-store"]
 
 [dependencies]
 axum = { version = "0.7.7", features = ["macros"] }

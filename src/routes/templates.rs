@@ -98,12 +98,6 @@ pub struct LoginTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "index.html")]
-pub struct IndexTemplate {
-    pub logged_in: bool,
-}
-
-#[derive(Template)]
 #[template(path = "signup.html")]
 pub struct SignupTemplate {
     pub next: Option<String>,
