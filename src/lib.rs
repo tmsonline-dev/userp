@@ -18,10 +18,10 @@ pub use self::oauth::{
     OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthToken, RefreshInitResult,
     UnmatchedOAuthToken,
 };
-#[cfg(feature = "password")]
-pub use self::password::PasswordConfig;
 #[cfg(all(feature = "password", feature = "email"))]
 pub use self::password::PasswordReset;
+#[cfg(feature = "password")]
+pub use self::password::{PasswordConfig, PasswordLoginError, PasswordSignupError};
 
 pub use axum_extra::{self, extract::cookie::Key};
 pub use chrono;
@@ -90,6 +90,7 @@ pub trait AxumUserStore {
     type LoginSession: LoginSession;
     type EmailChallenge: EmailChallenge;
     type OAuthToken: OAuthToken;
+    type Error: std::error::Error;
 
     // session store
     async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession;
@@ -101,9 +102,18 @@ pub trait AxumUserStore {
 
     // password user store
     #[cfg(feature = "password")]
-    async fn get_user_by_password_id(&self, password_id: String) -> Option<Self::User>;
-    #[cfg(feature = "password")]
-    async fn create_password_user(&self, password_id: String, password_hash: String) -> Self::User;
+    async fn password_login(
+        &self,
+        password_id: String,
+        password_hash: String,
+        allow_signup: bool,
+    ) -> Result<Self::User, PasswordLoginError<Self::Error>>;
+    async fn password_signup(
+        &self,
+        password_id: String,
+        password_hash: String,
+        allow_login: bool,
+    ) -> Result<Self::User, PasswordSignupError<Self::Error>>;
 
     // email user store
     #[cfg(feature = "email")]

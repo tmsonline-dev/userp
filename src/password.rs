@@ -50,23 +50,27 @@ impl Default for PasswordConfig {
 }
 
 #[derive(Error, Debug)]
-pub enum PasswordLoginError {
+pub enum PasswordLoginError<T: std::error::Error> {
     #[error("Password login not allowed")]
     NotAllowed,
     #[error("User doesn't exists")]
     NoUser,
     #[error("Wrong password")]
     WrongPassword,
+    #[error(transparent)]
+    StoreError(#[from] T),
 }
 
 #[derive(Error, Debug)]
-pub enum PasswordSignupError {
+pub enum PasswordSignupError<T: std::error::Error> {
     #[error("Password signup not allowed")]
     NotAllowed,
     #[error("User already exists")]
     UserExists,
     #[error(transparent)]
-    LoginError(#[from] PasswordLoginError),
+    LoginError(#[from] PasswordLoginError<T>),
+    #[error(transparent)]
+    StoreError(#[from] T),
 }
 
 impl<S: AxumUserStore> AxumUser<S> {
@@ -75,44 +79,31 @@ impl<S: AxumUserStore> AxumUser<S> {
         self,
         password_id: String,
         password_hash: String,
-    ) -> Result<Self, PasswordSignupError> {
-        if self.pass.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
+    ) -> Result<Self, PasswordSignupError<S::Error>> {
+        if self
+            .pass
+            .allow_signup
+            .as_ref()
+            .unwrap_or(&self.allow_signup)
+            == &Allow::Never
+        {
             return Err(PasswordSignupError::NotAllowed);
         }
 
-        match self
+        let user = self
             .store
-            .get_user_by_password_id(password_id.clone())
-            .await
-        {
-            Some(user) => {
-                if self
-                    .email
+            .password_signup(
+                password_id,
+                password_hash,
+                self.email
                     .allow_login
                     .as_ref()
                     .unwrap_or(&self.allow_signup)
-                    == &Allow::OnEither
-                {
-                    if user.validate_password_hash(password_hash) {
-                        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
-                    } else {
-                        Err(PasswordSignupError::LoginError(
-                            PasswordLoginError::WrongPassword,
-                        ))
-                    }
-                } else {
-                    Err(PasswordSignupError::UserExists)
-                }
-            }
-            None => {
-                let user = self
-                    .store
-                    .create_password_user(password_id, password_hash)
-                    .await;
+                    == &Allow::OnEither,
+            )
+            .await?;
 
-                Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
-            }
-        }
+        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
@@ -120,41 +111,24 @@ impl<S: AxumUserStore> AxumUser<S> {
         self,
         password_id: String,
         password_hash: String,
-    ) -> Result<Self, PasswordLoginError> {
+    ) -> Result<Self, PasswordLoginError<S::Error>> {
         if self.pass.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
             return Err(PasswordLoginError::NotAllowed);
         };
 
-        match self
+        let user = self
             .store
-            .get_user_by_password_id(password_id.clone())
-            .await
-        {
-            Some(user) => {
-                if user.validate_password_hash(password_hash) {
-                    Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
-                } else {
-                    Err(PasswordLoginError::WrongPassword)
-                }
-            }
-            None => {
-                if self
-                    .email
+            .password_login(
+                password_id,
+                password_hash,
+                self.email
                     .allow_signup
                     .as_ref()
                     .unwrap_or(&self.allow_signup)
-                    == &Allow::OnEither
-                {
-                    let user = self
-                        .store
-                        .create_password_user(password_id, password_hash)
-                        .await;
+                    == &Allow::OnEither,
+            )
+            .await?;
 
-                    Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
-                } else {
-                    Err(PasswordLoginError::NoUser)
-                }
-            }
-        }
+        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
     }
 }
