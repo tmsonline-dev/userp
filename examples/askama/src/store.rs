@@ -2,8 +2,8 @@ use crate::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail}
 use axum::async_trait;
 use axum_user::{
     AxumUserExtendedStore, AxumUserStore, EmailLoginError, EmailResetError, EmailSignupError,
-    EmailVerifyError, LoginMethod, PasswordLoginError, PasswordSignupError, UnmatchedOAuthToken,
-    User,
+    EmailVerifyError, LoginMethod, OAuthLoginError, OAuthSignupError, PasswordLoginError,
+    PasswordSignupError, UnmatchedOAuthToken, User,
 };
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
@@ -295,11 +295,11 @@ impl AxumUserStore for MemoryStore {
         Ok(challenge)
     }
 
-    async fn link_oauth_token(
+    async fn oauth_link(
         &self,
         user_id: Uuid,
         unmatched_token: UnmatchedOAuthToken,
-    ) -> Self::OAuthToken {
+    ) -> Result<Self::OAuthToken, Self::Error> {
         let UnmatchedOAuthToken {
             access_token,
             refresh_token,
@@ -324,40 +324,134 @@ impl AxumUserStore for MemoryStore {
 
         oauth_tokens.insert(token.id, token.clone());
 
-        token
+        Ok(token)
     }
 
     // async fn create_oauth_token(&self, unmatched_token: UnmatchedOAuthToken) -> Self::OAuthToken {}
 
-    async fn get_user_by_oauth_provider_id(
+    async fn oauth_signup(
         &self,
-        provider_name: String,
-        provider_user_id: String,
-    ) -> Option<(Self::User, Self::OAuthToken)> {
-        let token = {
-            let tokens = self.oauth_tokens.read().await;
+        unmatched_token: UnmatchedOAuthToken,
+        allow_login: bool,
+    ) -> Result<(Self::User, Self::OAuthToken), OAuthSignupError<Self::Error>> {
+        let mut tokens = self.oauth_tokens.write().await;
+        let mut users = self.users.write().await;
 
-            tokens
-                .values()
-                .find(|t| {
-                    t.provider_name == provider_name && t.provider_user_id == provider_user_id
-                })
-                .cloned()
-        }?;
+        let user_token = tokens
+            .values()
+            .find(|t| {
+                t.provider_name == unmatched_token.provider_name
+                    && t.provider_user_id == unmatched_token.provider_user.id
+            })
+            .and_then(|t| users.get(&t.user_id).map(|u| (u, t)));
 
-        let user = {
-            let users = self.users.read().await;
-            users.get(&token.user_id).cloned()
-        }?;
+        if let Some((user, token)) = user_token {
+            if allow_login {
+                Ok((user.clone(), token.clone()))
+            } else {
+                Err(OAuthSignupError::UserExists)
+            }
+        } else {
+            let user_id = Uuid::new_v4();
+            let user = MyUser {
+                id: user_id,
+                password: None,
+                emails: unmatched_token
+                    .provider_user
+                    .email
+                    .map(|e| {
+                        vec![MyUserEmail {
+                            email: e,
+                            verified: unmatched_token.provider_user.email_verified,
+                            allow_link_login: unmatched_token.provider_user.email_verified,
+                        }]
+                    })
+                    .unwrap_or_default(),
+            };
 
-        Some((user, token))
+            let token_id = Uuid::new_v4();
+
+            let token = MyOAuthToken {
+                id: token_id,
+                user_id,
+                provider_name: unmatched_token.provider_name,
+                provider_user_id: unmatched_token.provider_user.id,
+                access_token: unmatched_token.access_token,
+                refresh_token: unmatched_token.refresh_token,
+                expires: unmatched_token.expires,
+                scopes: unmatched_token.scopes,
+            };
+
+            users.insert(user_id, user.clone());
+            tokens.insert(token_id, token.clone());
+
+            Ok((user, token))
+        }
     }
 
-    async fn update_oauth_token(
+    async fn oauth_login(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+        allow_signup: bool,
+    ) -> Result<(Self::User, Self::OAuthToken), OAuthLoginError<Self::Error>> {
+        let mut tokens = self.oauth_tokens.write().await;
+        let mut users = self.users.write().await;
+
+        let user_token = tokens
+            .values()
+            .find(|t| {
+                t.provider_name == unmatched_token.provider_name
+                    && t.provider_user_id == unmatched_token.provider_user.id
+            })
+            .and_then(|t| users.get(&t.user_id).map(|u| (u, t)));
+
+        if let Some((user, token)) = user_token {
+            Ok((user.clone(), token.clone()))
+        } else if allow_signup {
+            let user_id = Uuid::new_v4();
+            let user = MyUser {
+                id: user_id,
+                password: None,
+                emails: unmatched_token
+                    .provider_user
+                    .email
+                    .map(|e| {
+                        vec![MyUserEmail {
+                            email: e,
+                            verified: unmatched_token.provider_user.email_verified,
+                            allow_link_login: unmatched_token.provider_user.email_verified,
+                        }]
+                    })
+                    .unwrap_or_default(),
+            };
+
+            let token_id = Uuid::new_v4();
+
+            let token = MyOAuthToken {
+                id: token_id,
+                user_id,
+                provider_name: unmatched_token.provider_name,
+                provider_user_id: unmatched_token.provider_user.id,
+                access_token: unmatched_token.access_token,
+                refresh_token: unmatched_token.refresh_token,
+                expires: unmatched_token.expires,
+                scopes: unmatched_token.scopes,
+            };
+
+            users.insert(user_id, user.clone());
+            tokens.insert(token_id, token.clone());
+
+            Ok((user, token))
+        } else {
+            Err(OAuthLoginError::NoUser)
+        }
+    }
+
+    async fn oauth_update_token(
         &self,
         prev_token: Self::OAuthToken,
         unmatched_token: UnmatchedOAuthToken,
-    ) -> Self::OAuthToken {
+    ) -> Result<Self::OAuthToken, Self::Error> {
         let UnmatchedOAuthToken {
             access_token,
             refresh_token,
@@ -380,59 +474,15 @@ impl AxumUserStore for MemoryStore {
         let mut tokens = self.oauth_tokens.write().await;
         tokens.insert(token.id, token.clone());
 
-        token
+        Ok(token)
     }
 
-    async fn create_oauth_user(
+    async fn oauth_get_token(
         &self,
-        token: UnmatchedOAuthToken,
-    ) -> Option<(Self::User, Self::OAuthToken)> {
-        let mut tokens = self.oauth_tokens.write().await;
-
-        if tokens.values().any(|t| {
-            t.provider_name == token.provider_name && t.provider_user_id == token.provider_user.id
-        }) {
-            panic!("In use")
-        }
-
-        let mut users = self.users.write().await;
-
-        let id = Uuid::new_v4();
-
-        let user = MyUser {
-            id,
-            password: None,
-            emails: match token.provider_user.email {
-                Some(email) => vec![MyUserEmail {
-                    email,
-                    allow_link_login: token.provider_user.email_verified,
-                    verified: token.provider_user.email_verified,
-                }],
-                None => vec![],
-            },
-        };
-
-        users.insert(id, user.clone());
-
-        let token = Self::OAuthToken {
-            id: Uuid::new_v4(),
-            user_id: id,
-            provider_name: token.provider_name,
-            provider_user_id: token.provider_user.id,
-            access_token: token.access_token,
-            refresh_token: token.refresh_token,
-            expires: token.expires,
-            scopes: token.scopes,
-        };
-
-        tokens.insert(token.id, token.clone());
-
-        Some((user, token))
-    }
-
-    async fn get_oauth_token(&self, token_id: Uuid) -> Option<Self::OAuthToken> {
+        token_id: Uuid,
+    ) -> Result<Option<Self::OAuthToken>, Self::Error> {
         let tokens = self.oauth_tokens.read().await;
-        tokens.get(&token_id).cloned()
+        Ok(tokens.get(&token_id).cloned())
     }
 }
 

@@ -341,8 +341,15 @@ impl AxumUserConfig {
                         return StatusCode::UNAUTHORIZED.into_response();
                     };
 
-                    let Some(token) = auth.store.get_oauth_token(token_id).await else {
-                        return StatusCode::NOT_FOUND.into_response();
+                    let token = match auth.store.oauth_get_token(token_id).await {
+                        Ok(Some(token)) => token,
+                        Ok(None) => {
+                            return StatusCode::NOT_FOUND.into_response();
+                        },
+                        Err(err) => {
+                            eprintln!("{err:#?}");
+                            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                        },
                     };
 
                     match auth

@@ -17,9 +17,9 @@ pub use self::email::{
 };
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
-    provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthPaths,
-    OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthToken, RefreshInitResult,
-    UnmatchedOAuthToken,
+    provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthLoginError,
+    OAuthPaths, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthSignupError,
+    OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
 };
 #[cfg(all(feature = "password", feature = "email"))]
 pub use self::password::PasswordReset;
@@ -156,30 +156,34 @@ pub trait AxumUserStore {
 
     // oauth token store
     #[cfg(feature = "oauth")]
-    async fn get_user_by_oauth_provider_id(
+    async fn oauth_signup(
         &self,
-        provider_name: String,
-        provider_user_id: String,
-    ) -> Option<(Self::User, Self::OAuthToken)>;
-    #[cfg(feature = "oauth")]
-    async fn update_oauth_token(
-        &self,
-        token: Self::OAuthToken,
         unmatched_token: UnmatchedOAuthToken,
-    ) -> Self::OAuthToken;
+        allow_login: bool,
+    ) -> Result<(Self::User, Self::OAuthToken), OAuthSignupError<Self::Error>>;
     #[cfg(feature = "oauth")]
-    async fn link_oauth_token(
+    async fn oauth_login(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+        allow_signup: bool,
+    ) -> Result<(Self::User, Self::OAuthToken), OAuthLoginError<Self::Error>>;
+    #[cfg(feature = "oauth")]
+    async fn oauth_link(
         &self,
         user_id: Uuid,
         unmatched_token: UnmatchedOAuthToken,
-    ) -> Self::OAuthToken;
+    ) -> Result<Self::OAuthToken, Self::Error>;
     #[cfg(feature = "oauth")]
-    async fn create_oauth_user(
+    async fn oauth_update_token(
         &self,
+        token: Self::OAuthToken,
         unmatched_token: UnmatchedOAuthToken,
-    ) -> Option<(Self::User, Self::OAuthToken)>;
+    ) -> Result<Self::OAuthToken, Self::Error>;
     #[cfg(feature = "oauth")]
-    async fn get_oauth_token(&self, token_id: Uuid) -> Option<Self::OAuthToken>;
+    async fn oauth_get_token(
+        &self,
+        token_id: Uuid,
+    ) -> Result<Option<Self::OAuthToken>, Self::Error>;
 }
 
 #[async_trait]
