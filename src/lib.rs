@@ -96,12 +96,19 @@ pub trait AxumUserStore {
     type Error: std::error::Error + Send;
 
     // session store
-    async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession;
-    async fn get_session(&self, session_id: Uuid) -> Option<Self::LoginSession>;
-    async fn delete_session(&self, session_id: Uuid);
+    async fn create_session(
+        &self,
+        user_id: Uuid,
+        method: LoginMethod,
+    ) -> Result<Self::LoginSession, Self::Error>;
+    async fn get_session(
+        &self,
+        session_id: Uuid,
+    ) -> Result<Option<Self::LoginSession>, Self::Error>;
+    async fn delete_session(&self, session_id: Uuid) -> Result<(), Self::Error>;
 
     // user store
-    async fn get_user(&self, user_id: Uuid) -> Option<Self::User>;
+    async fn get_user(&self, user_id: Uuid) -> Result<Option<Self::User>, Self::Error>;
 
     // password user store
     #[cfg(feature = "password")]
@@ -215,8 +222,8 @@ pub struct AxumUser<S: AxumUserStore> {
 }
 
 impl<S: AxumUserStore> AxumUser<S> {
-    async fn log_in(mut self, method: LoginMethod, user_id: Uuid) -> Self {
-        let session = self.store.create_session(user_id, method).await;
+    async fn log_in(mut self, method: LoginMethod, user_id: Uuid) -> Result<Self, S::Error> {
+        let session = self.store.create_session(user_id, method).await?;
 
         self.jar = self.jar.add(
             Cookie::build((SESSION_ID_KEY, session.get_id().to_string()))
@@ -228,19 +235,20 @@ impl<S: AxumUserStore> AxumUser<S> {
                 .build(),
         );
 
-        self
+        Ok(self)
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
-    pub async fn log_out(mut self) -> Self {
+    pub async fn log_out(mut self) -> Result<Self, S::Error> {
         if let Some(session) = self.jar.get(SESSION_ID_KEY) {
+            self.jar = self.jar.remove(SESSION_ID_KEY);
+
             if let Ok(session_id) = Uuid::parse_str(session.value()) {
-                self.store.delete_session(session_id).await;
-                self.jar = self.jar.remove(SESSION_ID_KEY)
+                self.store.delete_session(session_id).await?;
             }
         }
 
-        self
+        Ok(self)
     }
 
     fn session_id_cookie(&self) -> Option<Uuid> {
@@ -268,30 +276,36 @@ impl<S: AxumUserStore> AxumUser<S> {
         return true;
     }
 
-    pub async fn logged_in(&self) -> bool {
-        self.session().await.is_some()
+    pub async fn logged_in(&self) -> Result<bool, S::Error> {
+        Ok(self.session().await?.is_some())
     }
 
-    pub async fn session(&self) -> Option<S::LoginSession> {
-        let session_id = self.session_id_cookie()?;
-        println!("Finding session by id: {session_id:#?}");
-        self.store
+    pub async fn session(&self) -> Result<Option<S::LoginSession>, S::Error> {
+        let Some(session_id) = self.session_id_cookie() else {
+            return Ok(None);
+        };
+
+        Ok(self
+            .store
             .get_session(session_id)
-            .await
-            .filter(Self::is_login_session)
+            .await?
+            .filter(Self::is_login_session))
     }
 
-    pub async fn user_session(&self) -> Option<(S::User, S::LoginSession)> {
-        let session = self.session().await?;
-        println!("Finding user by id: {:#?}", session.get_user_id());
-        self.store
+    pub async fn user_session(&self) -> Result<Option<(S::User, S::LoginSession)>, S::Error> {
+        let Some(session) = self.session().await? else {
+            return Ok(None);
+        };
+
+        Ok(self
+            .store
             .get_user(session.get_user_id())
-            .await
-            .map(|user| (user, session))
+            .await?
+            .map(|user| (user, session)))
     }
 
-    pub async fn user(&self) -> Option<S::User> {
-        self.user_session().await.map(|(user, _)| user)
+    pub async fn user(&self) -> Result<Option<S::User>, S::Error> {
+        Ok(self.user_session().await?.map(|(user, _)| user))
     }
 }
 

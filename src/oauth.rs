@@ -190,6 +190,8 @@ pub enum OAuthLoginCallbackError<StoreError: std::error::Error> {
     UnexpectedFlow(OAuthFlow),
     #[error(transparent)]
     Login(#[from] OAuthLoginError<StoreError>),
+    #[error(transparent)]
+    Store(StoreError),
 }
 
 #[derive(Error, Debug)]
@@ -214,6 +216,8 @@ pub enum OAuthSignupCallbackError<StoreError: std::error::Error> {
     UnexpectedFlow(OAuthFlow),
     #[error(transparent)]
     SignupError(#[from] OAuthSignupError<StoreError>),
+    #[error(transparent)]
+    Store(StoreError),
 }
 
 #[derive(Error, Debug)]
@@ -273,7 +277,7 @@ pub enum OAuthSignupInitError {
     OAuthInitError(#[from] OAuthInitError),
 }
 #[derive(Debug, Error)]
-pub enum OAuthLinkInitError {
+pub enum OAuthLinkInitError<StoreError: std::error::Error> {
     #[error("Linking not allowed")]
     NotAllowed,
     #[error("No provider found with name: {0}")]
@@ -282,6 +286,8 @@ pub enum OAuthLinkInitError {
     NoUser,
     #[error(transparent)]
     OAuthInitError(#[from] OAuthInitError),
+    #[error(transparent)]
+    Store(StoreError),
 }
 
 #[derive(Error, Debug)]
@@ -486,8 +492,12 @@ impl<S: AxumUserStore> AxumUser<S> {
         self,
         provider_name: String,
         next: Option<String>,
-    ) -> Result<(Self, Url), OAuthLinkInitError> {
-        let user = self.user().await.ok_or(OAuthLinkInitError::NoUser)?;
+    ) -> Result<(Self, Url), OAuthLinkInitError<S::Error>> {
+        let user = self
+            .user()
+            .await
+            .map_err(OAuthLinkInitError::Store)?
+            .ok_or(OAuthLinkInitError::NoUser)?;
 
         let provider = self
             .oauth
@@ -604,7 +614,8 @@ impl<S: AxumUserStore> AxumUser<S> {
                 },
                 user.get_id(),
             )
-            .await,
+            .await
+            .map_err(OAuthLoginCallbackError::Store)?,
             next,
         ))
     }
@@ -765,7 +776,8 @@ impl<S: AxumUserStore> AxumUser<S> {
                 },
                 user.get_id(),
             )
-            .await,
+            .await
+            .map_err(OAuthSignupCallbackError::Store)?,
             next,
         ))
     }

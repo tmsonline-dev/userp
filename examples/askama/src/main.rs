@@ -231,7 +231,7 @@ async fn get_store_handler(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 async fn get_protected_handler(auth: AxumUser<MemoryStore>) -> impl IntoResponse {
-    let Some((user, session)) = auth.user_session().await else {
+    let Some((user, session)) = auth.user_session().await.unwrap() else {
         return Redirect::to(&format!(
             "/login?next={}",
             urlencoding::encode("/protected")

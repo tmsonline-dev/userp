@@ -201,6 +201,8 @@ pub enum EmailLoginCallbackError<StoreError: std::error::Error> {
     ChallengeNotFound,
     #[error(transparent)]
     EmailLoginError(#[from] EmailLoginError<StoreError>),
+    #[error(transparent)]
+    Store(#[from] StoreError),
 }
 
 #[derive(Error, Debug)]
@@ -213,6 +215,8 @@ pub enum EmailSignupCallbackError<StoreError: std::error::Error> {
     ChallengeNotFound,
     #[error(transparent)]
     EmailSignupError(#[from] EmailSignupError<StoreError>),
+    #[error(transparent)]
+    Store(#[from] StoreError),
 }
 
 #[derive(Debug, Error)]
@@ -225,6 +229,8 @@ pub enum EmailResetCallbackError<StoreError: std::error::Error> {
     ChallengeNotFound,
     #[error(transparent)]
     EmailResetError(#[from] EmailResetError<StoreError>),
+    #[error(transparent)]
+    Store(#[from] StoreError),
 }
 
 #[derive(Debug, Error)]
@@ -235,6 +241,8 @@ pub enum EmailVerifyCallbackError<StoreError: std::error::Error> {
     ChallengeNotFound,
     #[error(transparent)]
     EmailVerifyError(#[from] EmailVerifyError<StoreError>),
+    #[error(transparent)]
+    Store(#[from] StoreError),
 }
 
 impl<S: AxumUserStore> AxumUser<S> {
@@ -427,7 +435,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                 },
                 user.get_id(),
             )
-            .await,
+            .await?,
             challenge.next(),
         ))
     }
@@ -472,35 +480,43 @@ impl<S: AxumUserStore> AxumUser<S> {
                 },
                 user.get_id(),
             )
-            .await)
+            .await?)
     }
 
     #[cfg(feature = "password")]
-    pub async fn is_reset_session(&self) -> bool {
-        self.reset_session().await.is_some()
+    pub async fn is_reset_session(&self) -> Result<bool, S::Error> {
+        Ok(self.reset_session().await?.is_some())
     }
 
     #[cfg(feature = "password")]
-    pub async fn reset_session(&self) -> Option<S::LoginSession> {
-        let session_id = self.session_id_cookie()?;
-        self.store
+    pub async fn reset_session(&self) -> Result<Option<S::LoginSession>, S::Error> {
+        let Some(session_id) = self.session_id_cookie() else {
+            return Ok(None);
+        };
+
+        Ok(self
+            .store
             .get_session(session_id)
-            .await
-            .filter(|s| matches!(s.get_method(), LoginMethod::PasswordReset { address: _ }))
+            .await?
+            .filter(|s| matches!(s.get_method(), LoginMethod::PasswordReset { address: _ })))
     }
 
     #[cfg(feature = "password")]
-    pub async fn reset_user_session(&self) -> Option<(S::User, S::LoginSession)> {
-        let session = self.reset_session().await?;
-        self.store
+    pub async fn reset_user_session(&self) -> Result<Option<(S::User, S::LoginSession)>, S::Error> {
+        let Some(session) = self.reset_session().await? else {
+            return Ok(None);
+        };
+
+        Ok(self
+            .store
             .get_user(session.get_user_id())
-            .await
-            .map(|user| (user, session))
+            .await?
+            .map(|user| (user, session)))
     }
 
     #[cfg(feature = "password")]
-    pub async fn reset_user(&self) -> Option<S::User> {
-        self.reset_user_session().await.map(|(user, _)| user)
+    pub async fn reset_user(&self) -> Result<Option<S::User>, S::Error> {
+        Ok(self.reset_user_session().await?.map(|(user, _)| user))
     }
 
     pub async fn email_verify_callback(
@@ -567,7 +583,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                 },
                 user.get_id(),
             )
-            .await,
+            .await?,
             challenge.next(),
         ))
     }

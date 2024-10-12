@@ -103,7 +103,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             )
             .await?;
 
-        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
+        Ok(self.log_in(LoginMethod::Password, user.get_id()).await?)
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
@@ -129,6 +129,6 @@ impl<S: AxumUserStore> AxumUser<S> {
             )
             .await?;
 
-        Ok(self.log_in(LoginMethod::Password, user.get_id()).await)
+        Ok(self.log_in(LoginMethod::Password, user.get_id()).await?)
     }
 }

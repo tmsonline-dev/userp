@@ -27,19 +27,28 @@ impl AxumUserStore for MemoryStore {
     type OAuthToken = MyOAuthToken;
     type Error = Infallible;
 
-    async fn get_session(&self, session_id: Uuid) -> Option<Self::LoginSession> {
+    async fn get_session(
+        &self,
+        session_id: Uuid,
+    ) -> Result<Option<Self::LoginSession>, Self::Error> {
         let sessions = self.sessions.read().await;
 
-        sessions.get(&session_id).cloned()
+        Ok(sessions.get(&session_id).cloned())
     }
 
-    async fn delete_session(&self, session_id: Uuid) {
+    async fn delete_session(&self, session_id: Uuid) -> Result<(), Self::Error> {
         let mut sessions = self.sessions.write().await;
 
         sessions.remove(&session_id);
+
+        Ok(())
     }
 
-    async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession {
+    async fn create_session(
+        &self,
+        user_id: Uuid,
+        method: LoginMethod,
+    ) -> Result<Self::LoginSession, Self::Error> {
         let session = MyLoginSession {
             id: Uuid::new_v4(),
             user_id,
@@ -50,14 +59,15 @@ impl AxumUserStore for MemoryStore {
 
         sessions.insert(session.id, session.clone());
 
-        session
+        Ok(session)
     }
 
-    async fn get_user(&self, user_id: Uuid) -> Option<MyUser> {
+    async fn get_user(&self, user_id: Uuid) -> Result<Option<MyUser>, Self::Error> {
         let users = self.users.read().await;
 
-        users.get(&user_id).cloned()
+        Ok(users.get(&user_id).cloned())
     }
+
     async fn password_login(
         &self,
         password_id: String,
