@@ -82,15 +82,15 @@ pub struct MyUserEmail {
 }
 
 impl UserEmail for MyUserEmail {
-    fn address(&self) -> String {
+    fn get_address(&self) -> String {
         self.email.clone()
     }
 
-    fn verified(&self) -> bool {
+    fn get_verified(&self) -> bool {
         self.verified
     }
 
-    fn allow_link_login(&self) -> bool {
+    fn get_allow_link_login(&self) -> bool {
         self.allow_link_login
     }
 }
@@ -125,19 +125,19 @@ pub struct MyEmailChallenge {
 }
 
 impl EmailChallenge for MyEmailChallenge {
-    fn address(&self) -> String {
+    fn get_address(&self) -> String {
         self.address.clone()
     }
 
-    fn code(&self) -> String {
+    fn get_code(&self) -> String {
         self.code.clone()
     }
 
-    fn next(&self) -> Option<String> {
+    fn get_next(&self) -> Option<String> {
         self.next.clone()
     }
 
-    fn expires(&self) -> DateTime<Utc> {
+    fn get_expires(&self) -> DateTime<Utc> {
         self.expires
     }
 }

@@ -1,9 +1,16 @@
+mod login;
 #[cfg(feature = "password")]
-use crate::PasswordReset;
+mod reset;
+mod signup;
+mod verify;
 
+pub use login::*;
 #[cfg(feature = "password")]
-use super::LoginSession;
-use super::{Allow, AxumUser, AxumUserStore, LoginMethod, User};
+pub use reset::*;
+pub use signup::*;
+pub use verify::*;
+
+use super::{Allow, AxumUser, AxumUserStore};
 use chrono::{DateTime, Duration, Utc};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use thiserror::Error;
@@ -93,16 +100,16 @@ impl SmtpSettings {
 }
 
 pub trait UserEmail: Send + Sync {
-    fn address(&self) -> String;
-    fn verified(&self) -> bool;
-    fn allow_link_login(&self) -> bool;
+    fn get_address(&self) -> String;
+    fn get_verified(&self) -> bool;
+    fn get_allow_link_login(&self) -> bool;
 }
 
 pub trait EmailChallenge: Send + Sync {
-    fn address(&self) -> String;
-    fn code(&self) -> String;
-    fn next(&self) -> Option<String>;
-    fn expires(&self) -> DateTime<Utc>;
+    fn get_address(&self) -> String;
+    fn get_code(&self) -> String;
+    fn get_next(&self) -> Option<String>;
+    fn get_expires(&self) -> DateTime<Utc>;
 }
 
 #[derive(Debug, Error)]
@@ -115,126 +122,6 @@ pub enum SendEmailChallengeError<StoreError: std::error::Error> {
     MessageBuilding(lettre::error::Error),
     #[error(transparent)]
     Transport(lettre::transport::smtp::Error),
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Debug, Error)]
-pub enum EmailLoginInitError<StoreError: std::error::Error> {
-    #[error(transparent)]
-    SendingEmail(#[from] SendEmailChallengeError<StoreError>),
-    #[error("Login not allowed")]
-    NotAllowed,
-}
-
-#[derive(Debug, Error)]
-pub enum EmailSignupInitError<StoreError: std::error::Error> {
-    #[error(transparent)]
-    SendingEmail(#[from] SendEmailChallengeError<StoreError>),
-    #[error("Signup not allowed")]
-    NotAllowed,
-}
-
-#[derive(Debug, Error)]
-pub enum EmailResetInitError<StoreError: std::error::Error> {
-    #[error(transparent)]
-    SendingEmail(#[from] SendEmailChallengeError<StoreError>),
-    #[error("Reset not allowed")]
-    NotAllowed,
-}
-
-#[derive(Error, Debug)]
-pub enum EmailLoginError<StoreError: std::error::Error> {
-    #[error("Email login not allowed")]
-    NotAllowed,
-    #[error("Address not verified")]
-    NotVerified,
-    #[error("Email user not found")]
-    NoUser,
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Error, Debug)]
-pub enum EmailSignupError<StoreError: std::error::Error> {
-    #[error("Email signup not allowed")]
-    NotAllowed,
-    #[error("User already exists")]
-    UserExists,
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Error, Debug)]
-pub enum EmailResetError<StoreError: std::error::Error> {
-    #[error("Email reset not allowed")]
-    NotAllowed,
-    #[error("Address not verified")]
-    NotVerified,
-    #[error("Email user not found")]
-    NoUser,
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Error, Debug)]
-pub enum EmailVerifyError<StoreError: std::error::Error> {
-    #[error("Email user not found")]
-    NoUser,
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Error, Debug)]
-pub enum EmailLoginCallbackError<StoreError: std::error::Error> {
-    #[error("Email login not allowed")]
-    NotAllowed,
-    #[error("Challenge expired")]
-    ChallengeExpired,
-    #[error("Challenge not found")]
-    ChallengeNotFound,
-    #[error(transparent)]
-    EmailLoginError(#[from] EmailLoginError<StoreError>),
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Error, Debug)]
-pub enum EmailSignupCallbackError<StoreError: std::error::Error> {
-    #[error("Email signup not allowed")]
-    NotAllowed,
-    #[error("Challenge expired")]
-    ChallengeExpired,
-    #[error("Challenge not found")]
-    ChallengeNotFound,
-    #[error(transparent)]
-    EmailSignupError(#[from] EmailSignupError<StoreError>),
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Debug, Error)]
-pub enum EmailResetCallbackError<StoreError: std::error::Error> {
-    #[error("Email reset not allowed")]
-    NotAllowed,
-    #[error("Challenge expired")]
-    ChallengeExpired,
-    #[error("Challenge not found")]
-    ChallengeNotFound,
-    #[error(transparent)]
-    EmailResetError(#[from] EmailResetError<StoreError>),
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Debug, Error)]
-pub enum EmailVerifyCallbackError<StoreError: std::error::Error> {
-    #[error("Challenge expired")]
-    ChallengeExpired,
-    #[error("Challenge not found")]
-    ChallengeNotFound,
-    #[error(transparent)]
-    EmailVerifyError(#[from] EmailVerifyError<StoreError>),
     #[error(transparent)]
     Store(#[from] StoreError),
 }
@@ -259,7 +146,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             )
             .await?;
 
-        let code = challenge.code();
+        let code = challenge.get_code();
 
         let url = self
             .email
@@ -276,7 +163,7 @@ impl<S: AxumUserStore> AxumUser<S> {
                     .map_err(SendEmailChallengeError::Address)?,
             )
             .to(challenge
-                .address()
+                .get_address()
                 .parse()
                 .map_err(SendEmailChallengeError::Address)?)
             .subject("Login link")
@@ -303,282 +190,5 @@ impl<S: AxumUserStore> AxumUser<S> {
             .map_err(SendEmailChallengeError::Transport)?;
 
         Ok(())
-    }
-
-    pub async fn email_login_init(
-        &self,
-        email: String,
-        next: Option<String>,
-    ) -> Result<(), EmailLoginInitError<S::Error>> {
-        if self.email.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
-            return Err(EmailLoginInitError::NotAllowed);
-        }
-
-        self.send_email_challenge(
-            self.email.login_path.clone(),
-            email,
-            "Click here to log in".into(),
-            next,
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    #[cfg(feature = "password")]
-    pub async fn email_reset_init(
-        &self,
-        email: String,
-        next: Option<String>,
-    ) -> Result<(), EmailResetInitError<S::Error>> {
-        if self.pass.allow_reset == PasswordReset::Never {
-            return Err(EmailResetInitError::NotAllowed);
-        }
-
-        self.send_email_challenge(
-            self.email.reset_pw_path.clone(),
-            email,
-            "Click here to reset password".into(),
-            next,
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn email_verify_init(
-        &self,
-        email: String,
-        next: Option<String>,
-    ) -> Result<(), SendEmailChallengeError<S::Error>> {
-        self.send_email_challenge(
-            self.email.verify_path.clone(),
-            email,
-            "Click here to verify email".into(),
-            next,
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn email_signup_init(
-        &self,
-        email: String,
-        next: Option<String>,
-    ) -> Result<(), EmailSignupInitError<S::Error>> {
-        if self
-            .email
-            .allow_signup
-            .as_ref()
-            .unwrap_or(&self.allow_signup)
-            == &Allow::Never
-        {
-            return Err(EmailSignupInitError::NotAllowed);
-        }
-
-        self.send_email_challenge(
-            self.email.signup_path.clone(),
-            email,
-            "Click here to sign up".into(),
-            next,
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    #[must_use = "Don't forget to return the auth session as part of the response!"]
-    pub async fn email_login_callback(
-        self,
-        code: String,
-    ) -> Result<(Self, Option<String>), EmailLoginCallbackError<S::Error>> {
-        if self.email.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
-            return Err(EmailLoginCallbackError::NotAllowed);
-        }
-
-        let Some(challenge) = self
-            .store
-            .email_consume_challenge(code)
-            .await
-            .map_err(EmailLoginError::Store)?
-        else {
-            return Err(EmailLoginCallbackError::ChallengeNotFound);
-        };
-
-        if challenge.expires() < Utc::now() {
-            return Err(EmailLoginCallbackError::ChallengeExpired);
-        }
-
-        let user = self
-            .store
-            .email_login(
-                challenge.address(),
-                self.email
-                    .allow_signup
-                    .as_ref()
-                    .unwrap_or(&self.allow_signup)
-                    == &Allow::OnEither,
-            )
-            .await?;
-
-        Ok((
-            self.log_in(
-                LoginMethod::Email {
-                    address: challenge.address(),
-                },
-                user.get_id(),
-            )
-            .await?,
-            challenge.next(),
-        ))
-    }
-
-    #[cfg(feature = "password")]
-    #[must_use = "Don't forget to return the auth session as part of the response!"]
-    pub async fn email_reset_callback(
-        self,
-        code: String,
-    ) -> Result<Self, EmailResetCallbackError<S::Error>> {
-        use crate::password::PasswordReset;
-
-        if self.pass.allow_reset == PasswordReset::Never {
-            return Err(EmailResetCallbackError::NotAllowed);
-        }
-
-        let Some(challenge) = self
-            .store
-            .email_consume_challenge(code)
-            .await
-            .map_err(EmailResetError::Store)?
-        else {
-            return Err(EmailResetCallbackError::ChallengeNotFound);
-        };
-
-        if challenge.expires() < Utc::now() {
-            return Err(EmailResetCallbackError::ChallengeExpired);
-        }
-
-        let user = self
-            .store
-            .email_reset(
-                challenge.address(),
-                self.pass.allow_reset == PasswordReset::VerifiedEmailOnly,
-            )
-            .await?;
-
-        Ok(self
-            .log_in(
-                LoginMethod::PasswordReset {
-                    address: challenge.address(),
-                },
-                user.get_id(),
-            )
-            .await?)
-    }
-
-    #[cfg(feature = "password")]
-    pub async fn is_reset_session(&self) -> Result<bool, S::Error> {
-        Ok(self.reset_session().await?.is_some())
-    }
-
-    #[cfg(feature = "password")]
-    pub async fn reset_session(&self) -> Result<Option<S::LoginSession>, S::Error> {
-        let Some(session_id) = self.session_id_cookie() else {
-            return Ok(None);
-        };
-
-        Ok(self
-            .store
-            .get_session(session_id)
-            .await?
-            .filter(|s| matches!(s.get_method(), LoginMethod::PasswordReset { address: _ })))
-    }
-
-    #[cfg(feature = "password")]
-    pub async fn reset_user_session(&self) -> Result<Option<(S::User, S::LoginSession)>, S::Error> {
-        let Some(session) = self.reset_session().await? else {
-            return Ok(None);
-        };
-
-        Ok(self
-            .store
-            .get_user(session.get_user_id())
-            .await?
-            .map(|user| (user, session)))
-    }
-
-    #[cfg(feature = "password")]
-    pub async fn reset_user(&self) -> Result<Option<S::User>, S::Error> {
-        Ok(self.reset_user_session().await?.map(|(user, _)| user))
-    }
-
-    pub async fn email_verify_callback(
-        &self,
-        code: String,
-    ) -> Result<(String, Option<String>), EmailVerifyCallbackError<S::Error>> {
-        let Some(challenge) = self
-            .store
-            .email_consume_challenge(code)
-            .await
-            .map_err(EmailVerifyError::Store)?
-        else {
-            return Err(EmailVerifyCallbackError::ChallengeNotFound);
-        };
-
-        if challenge.expires() < Utc::now() {
-            return Err(EmailVerifyCallbackError::ChallengeExpired);
-        }
-
-        self.store.email_verify(challenge.address()).await?;
-
-        Ok((challenge.address(), challenge.next()))
-    }
-
-    pub async fn email_signup_callback(
-        self,
-        code: String,
-    ) -> Result<(Self, Option<String>), EmailSignupCallbackError<S::Error>> {
-        if self
-            .email
-            .allow_signup
-            .as_ref()
-            .unwrap_or(&self.allow_signup)
-            == &Allow::Never
-        {
-            return Err(EmailSignupCallbackError::NotAllowed);
-        }
-
-        let Some(challenge) = self
-            .store
-            .email_consume_challenge(code)
-            .await
-            .map_err(EmailSignupError::Store)?
-        else {
-            return Err(EmailSignupCallbackError::ChallengeNotFound);
-        };
-
-        if challenge.expires() < Utc::now() {
-            return Err(EmailSignupCallbackError::ChallengeExpired);
-        }
-
-        let user = self
-            .store
-            .email_signup(
-                challenge.address(),
-                self.email.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::OnEither,
-            )
-            .await?;
-
-        Ok((
-            self.log_in(
-                LoginMethod::Email {
-                    address: challenge.address(),
-                },
-                user.get_id(),
-            )
-            .await?,
-            challenge.next(),
-        ))
     }
 }

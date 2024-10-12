@@ -26,9 +26,9 @@ pub struct TemplateUserEmail {
 impl<T: UserEmail> From<T> for TemplateUserEmail {
     fn from(value: T) -> Self {
         Self {
-            email: value.address(),
-            verified: value.verified(),
-            allow_link_login: value.allow_link_login(),
+            email: value.get_address(),
+            verified: value.get_verified(),
+            allow_link_login: value.get_allow_link_login(),
         }
     }
 }
