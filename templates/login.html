@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
+<div class="form-container">
+  <h1>Login</h1>
+
   {% if let Some(message) = message %}
   <div class="message" role="alert">
     <strong>{{ message }}</strong>
@@ -14,47 +16,50 @@
   </div>
   {% endif %}
 
-  <p>Log in with either an email link, email address and password or OAuth</p>
-
-  <div class="card">
-    <h2>Magic link login</h2>
+  <div class="magic-login">
     <form action="/login/email" method="post" class="form">
       <div class="form-group">
-        <label for="email">Email</label>
-        <input name="email" id="email" value="stefan@provai.eu" aria-label="Email for magic link login" />
+        <label for="magic-email">Email for Magic Link</label>
+        <input type="email" id="magic-email" name="email" required>
       </div>
-      <input type="submit" value="Login" class="button" />
+      <button type="submit">Send Magic Link</button>
+      {% if let Some(next) = next %}
+      <input type="hidden" name="next" value="{{ next }}" />
+      {% endif %}
     </form>
+  </div>
+
+  <div class="or-divider">
+    <span>or</span>
+  </div>
+
+  <form action="/login/password" method="post" id="login-form">
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required>
+    </div>
+    <button type="submit">Log In</button>
+    <div class="forgot-password">
+      <a href="/password/send-reset">Forgot password?</a>
+    </div>
     {% if let Some(next) = next %}
     <input type="hidden" name="next" value="{{ next }}" />
     {% endif %}
+  </form>
+
+  <div class="or-divider">
+    <span>or</span>
   </div>
 
-  <div class="card">
-    <h2>Password login</h2>
-    <form action="/login/password" method="post" class="form">
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input name="email" id="email" value="stefan@provai.eu" aria-label="Email for password login" />
-      </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input name="password" id="password" type="password" value="hunter42" aria-label="Password" />
-      </div>
-      <input type="submit" value="Login" class="button" />
-      <a href="/password/send-reset" class="forgot-password">Forgot password?</a>
-    </form>
-    {% if let Some(next) = next %}
-    <input type="hidden" name="next" value="{{ next }}" />
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>OAuth login</h2>
+  <div class="social-login">
     {% for provider in oauth_providers %}
     <form action="/login/oauth" method="post" class="form">
       <input type="hidden" name="provider" value="{{ provider.name }}" />
-      <input type="submit" value="{{ provider.display_name }}" class="button" />
+      <button type="submit" class="social-button">Login with {{ provider.display_name }}</button>
       {% if let Some(next) = next %}
       <input type="hidden" name="next" value="{{ next }}" />
       {% endif %}
@@ -62,9 +67,8 @@
     {% endfor %}
   </div>
 
-  <div class="card">
-    <h2>No account yet?</h2>
-    <a href="/signup" class="signup-link">Sign up!</a>
+  <div class="links">
+    <a href="/signup">Don't have an account? Sign up</a>
   </div>
 </div>
 {% endblock %}

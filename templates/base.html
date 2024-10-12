@@ -4,56 +4,50 @@
 <head>
   <title>Axum-User Askama example</title>
   <style>
+    :root {
+      --primary-color: #3498db;
+      --primary-dark: #2980b9;
+      --secondary-color: #2ecc71;
+      --danger-color: #e74c3c;
+      --background-color: #f4f7f9;
+      --card-background: #ffffff;
+      --text-color: #333333;
+      --text-muted: #7f8c8d;
+    }
+
     body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
-      color: #333;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: var(--text-color);
+      background-color: var(--background-color);
       margin: 0;
-      padding: 0;
+      padding: 20px;
     }
 
     .container {
-      max-width: 600px;
-      margin: 50px auto;
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    h1,
+    h2 {
+      color: var(--primary-color);
+    }
+
+    h1 {
+      display: flex;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .form-container {
+      max-width: 400px;
+      margin: 0 auto;
       padding: 20px;
-      background-color: #fff;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      background-color: var(--card-background);
       border-radius: 8px;
-    }
-
-    .message,
-    .error {
-      padding: 10px;
-      margin-bottom: 20px;
-      border-radius: 4px;
-    }
-
-    .message {
-      background-color: #d4edda;
-      color: #155724;
-    }
-
-    .error {
-      background-color: #f8d7da;
-      color: #721c24;
-    }
-
-    .card {
-      background-color: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-
-    .card h2 {
-      margin-bottom: 15px;
-      font-size: 1.5em;
-    }
-
-    .form {
-      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
     .form-group {
@@ -63,7 +57,7 @@
     label {
       display: block;
       margin-bottom: 5px;
-      font-weight: bold;
+      font-weight: 600;
     }
 
     input[type="text"],
@@ -71,38 +65,260 @@
     input[type="password"] {
       width: 100%;
       padding: 10px;
-      border: 1px solid #ccc;
+      border: 1px solid #ddd;
       border-radius: 4px;
+      font-size: 16px;
+      box-sizing: border-box;
     }
 
-    .button {
-      display: inline-block;
-      padding: 10px 20px;
-      background-color: #007bff;
-      color: #fff;
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 10px 15px;
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      transition: background-color 0.3s ease;
+      font-size: 16px;
+      width: 100%;
+    }
+
+    button:hover {
+      background-color: var(--primary-dark);
+    }
+
+    .social-login {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .social-button {
+      background-color: #fff;
+      border: 1px solid #ddd;
+      color: var(--text-color);
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      font-size: 14px;
+    }
+
+    .social-button:hover {
+      background-color: #f1f1f1;
+    }
+
+    .links {
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    .links a {
+      color: var(--primary-color);
       text-decoration: none;
     }
 
-    .button:hover {
-      background-color: #0056b3;
-    }
-
-    .forgot-password,
-    .signup-link,
-    .login-link {
-      display: block;
-      margin-top: 10px;
-      color: #007bff;
-      text-decoration: none;
-    }
-
-    .forgot-password:hover,
-    .signup-link:hover,
-    .login-link:hover {
+    .links a:hover {
       text-decoration: underline;
+    }
+
+    .or-divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .or-divider::before,
+    .or-divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .or-divider span {
+      padding: 0 10px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .forgot-password {
+      text-align: right;
+      margin-top: 5px;
+    }
+
+    .forgot-password a {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .forgot-password a:hover {
+      text-decoration: underline;
+    }
+
+    .tab {
+      display: none;
+    }
+
+    .tab-active {
+      display: block;
+    }
+
+    .tabs {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      background-color: var(--card-background);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .tab-button {
+      background-color: transparent;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      padding: 12px 20px;
+      transition: all 0.3s ease;
+      flex-grow: 1;
+      font-weight: 600;
+      color: var(--text-color);
+    }
+
+    .tab-button:hover {
+      background-color: rgba(52, 152, 219, 0.1);
+    }
+
+    .tab-button.active {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .section {
+      background-color: var(--card-background);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .section:hover {
+      box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .session-item,
+    .email-item,
+    .social-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .session-item:hover,
+    .email-item:hover,
+    .social-item:hover {
+      background-color: #e9ecef;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 7px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-right: 5px;
+    }
+
+    .badge-verified {
+      background-color: var(--secondary-color);
+      color: white;
+    }
+
+    .badge-current {
+      background-color: var(--secondary-color);
+      color: white;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+      margin-top: 4px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider {
+      background-color: var(--primary-color);
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(26px);
+    }
+
+    .single-field-form {
+      display: flex;
+    }
+
+    .single-field-form button {
+      width: 200px;
+    }
+
+    .home-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .home-link:hover {
+      text-decoration: underline;
+    }
+
+    .danger {
+      background-color: var(--danger-color);
+    }
+
+    .danger:hover {
+      background-color: #c0392b;
     }
   </style>
 </head>
