@@ -349,9 +349,9 @@ where
     St::Error: IntoResponse,
 {
     Ok(if let Some(user) = auth.user().await? {
-        let sessions = auth.store.get_sessions(user.get_id()).await;
-        let oauth_tokens = auth.store.get_oauth_tokens(user.get_id()).await;
-        let emails = auth.store.get_user_emails(user.get_id()).await;
+        let sessions = auth.store.get_user_sessions(user.get_id()).await?;
+        let oauth_tokens = auth.store.get_user_oauth_tokens(user.get_id()).await?;
+        let emails = auth.store.get_user_emails(user.get_id()).await?;
 
         UserTemplate {
             message,
@@ -380,7 +380,7 @@ where
     St::Error: IntoResponse,
 {
     Ok(if let Some(user) = auth.user().await? {
-        auth.store.delete_user(user.get_id()).await;
+        auth.store.delete_user(user.get_id()).await?;
 
         let auth = auth.log_out().await?;
 
@@ -432,7 +432,7 @@ where
 
     auth.store
         .set_user_password(user.get_id(), new_password, session.get_id())
-        .await;
+        .await?;
 
     Ok(Redirect::to("/user?message=The password has been set!").into_response())
 }
@@ -448,7 +448,7 @@ where
 
     auth.store
         .clear_user_password(user.get_id(), session.get_id())
-        .await;
+        .await?;
 
     Ok((auth, Redirect::to("/user?message=Password cleared")).into_response())
 }
@@ -601,7 +601,7 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
-    auth.store.delete_oauth_token(id).await;
+    auth.store.delete_oauth_token(id).await?;
 
     Ok(Redirect::to("/user?message=Token deleted").into_response())
 }
@@ -682,7 +682,7 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
-    auth.store.add_user_email(user.get_id(), email).await;
+    auth.store.add_user_email(user.get_id(), email).await?;
 
     Ok(Redirect::to("/user?message=Email added").into_response())
 }
@@ -699,7 +699,7 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
-    auth.store.delete_user_email(user.get_id(), email).await;
+    auth.store.delete_user_email(user.get_id(), email).await?;
 
     Ok(Redirect::to("/user?message=Email deleted").into_response())
 }
@@ -717,8 +717,8 @@ where
     };
 
     auth.store
-        .set_user_email_allow_login(user.get_id(), email.clone(), true)
-        .await;
+        .set_user_email_allow_link_login(user.get_id(), email.clone(), true)
+        .await?;
 
     Ok(Redirect::to(&format!(
         "/user?message={}",
@@ -740,8 +740,8 @@ where
     };
 
     auth.store
-        .set_user_email_allow_login(user.get_id(), email.clone(), false)
-        .await;
+        .set_user_email_allow_link_login(user.get_id(), email.clone(), false)
+        .await?;
 
     Ok(Redirect::to(&format!(
         "/user?message={}",
@@ -820,7 +820,7 @@ where
     if let Some((user, session)) = auth.reset_user_session().await? {
         auth.store
             .set_user_password(user.get_id(), new_password, session.get_id())
-            .await;
+            .await?;
         Ok(Redirect::to("/login?message=Password has been reset").into_response())
     } else {
         Ok(StatusCode::UNAUTHORIZED.into_response())

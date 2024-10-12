@@ -195,16 +195,33 @@ pub trait AxumUserStore {
 
 #[async_trait]
 pub trait AxumUserExtendedStore: AxumUserStore {
-    async fn get_sessions(&self, user_id: Uuid) -> Vec<Self::LoginSession>;
-    async fn get_oauth_tokens(&self, user_id: Uuid) -> Vec<Self::OAuthToken>;
-    async fn delete_oauth_token(&self, token_id: Uuid);
-    async fn delete_user(&self, id: Uuid);
-    async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid);
-    async fn get_user_emails(&self, user_id: Uuid) -> Vec<Self::UserEmail>;
-    async fn set_user_password(&self, user_id: Uuid, password: String, session_id: Uuid);
-    async fn set_user_email_allow_login(&self, user_id: Uuid, address: String, allow_login: bool);
-    async fn add_user_email(&self, user_id: Uuid, address: String);
-    async fn delete_user_email(&self, user_id: Uuid, address: String);
+    async fn get_user_sessions(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<Self::LoginSession>, Self::Error>;
+    async fn get_user_oauth_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<Self::OAuthToken>, Self::Error>;
+    async fn delete_oauth_token(&self, token_id: Uuid) -> Result<(), Self::Error>;
+    async fn delete_user(&self, id: Uuid) -> Result<(), Self::Error>;
+    async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid)
+        -> Result<(), Self::Error>;
+    async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<Self::UserEmail>, Self::Error>;
+    async fn set_user_password(
+        &self,
+        user_id: Uuid,
+        password: String,
+        session_id: Uuid,
+    ) -> Result<(), Self::Error>;
+    async fn set_user_email_allow_link_login(
+        &self,
+        user_id: Uuid,
+        address: String,
+        allow_login: bool,
+    ) -> Result<(), Self::Error>;
+    async fn add_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
+    async fn delete_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
 }
 
 pub struct AxumUser<S: AxumUserStore> {

@@ -498,50 +498,56 @@ impl AxumUserStore for MemoryStore {
 
 #[async_trait]
 impl AxumUserExtendedStore for MemoryStore {
-    async fn get_user_emails(&self, user_id: Uuid) -> Vec<MyUserEmail> {
+    async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<MyUserEmail>, Self::Error> {
         let users = self.users.read().await;
 
-        users
+        Ok(users
             .get(&user_id)
             .map(|u| u.emails.clone())
-            .unwrap_or_default()
+            .unwrap_or_default())
     }
 
-    async fn get_sessions(&self, user_id: Uuid) -> Vec<MyLoginSession> {
+    async fn get_user_sessions(&self, user_id: Uuid) -> Result<Vec<MyLoginSession>, Self::Error> {
         let sessions = self.sessions.read().await;
 
-        sessions
+        Ok(sessions
             .values()
             .filter(|s| s.user_id == user_id)
             .cloned()
-            .collect()
+            .collect())
     }
 
-    async fn get_oauth_tokens(&self, user_id: Uuid) -> Vec<MyOAuthToken> {
+    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<MyOAuthToken>, Self::Error> {
         let tokens = self.oauth_tokens.read().await;
 
-        tokens
+        Ok(tokens
             .values()
             .filter(|s| s.user_id == user_id)
             .cloned()
-            .collect()
+            .collect())
     }
 
-    async fn delete_oauth_token(&self, token_id: Uuid) {
+    async fn delete_oauth_token(&self, token_id: Uuid) -> Result<(), Self::Error> {
         let mut tokens = self.oauth_tokens.write().await;
 
         tokens.retain(|_, token| token.id != token_id);
+        Ok(())
     }
 
-    async fn delete_user(&self, id: Uuid) {
+    async fn delete_user(&self, id: Uuid) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
         let mut sessions = self.sessions.write().await;
 
         users.remove(&id);
         sessions.retain(|_, session| session.user_id != id);
+        Ok(())
     }
 
-    async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid) {
+    async fn clear_user_password(
+        &self,
+        user_id: Uuid,
+        session_id: Uuid,
+    ) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
 
         if let Some(user) = users.get_mut(&user_id) {
@@ -554,9 +560,15 @@ impl AxumUserExtendedStore for MemoryStore {
 
             user.password = None
         }
+        Ok(())
     }
 
-    async fn set_user_password(&self, user_id: Uuid, password: String, session_id: Uuid) {
+    async fn set_user_password(
+        &self,
+        user_id: Uuid,
+        password: String,
+        session_id: Uuid,
+    ) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
 
         if let Some(user) = users.get_mut(&user_id) {
@@ -569,9 +581,15 @@ impl AxumUserExtendedStore for MemoryStore {
 
             user.password = Some(password)
         };
+        Ok(())
     }
 
-    async fn set_user_email_allow_login(&self, user_id: Uuid, address: String, allow_login: bool) {
+    async fn set_user_email_allow_link_login(
+        &self,
+        user_id: Uuid,
+        address: String,
+        allow_login: bool,
+    ) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
 
         users.get_mut(&user_id).map(|u| {
@@ -580,9 +598,10 @@ impl AxumUserExtendedStore for MemoryStore {
                 .find(|e| e.email == address)
                 .map(|e| e.allow_link_login = allow_login)
         });
+        Ok(())
     }
 
-    async fn add_user_email(&self, user_id: Uuid, address: String) {
+    async fn add_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
 
         if users
@@ -601,9 +620,10 @@ impl AxumUserExtendedStore for MemoryStore {
                 allow_link_login: false,
             });
         }
+        Ok(())
     }
 
-    async fn delete_user_email(&self, user_id: Uuid, address: String) {
+    async fn delete_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
 
         users
@@ -611,5 +631,6 @@ impl AxumUserExtendedStore for MemoryStore {
             .expect("User not found")
             .emails
             .retain(|e| e.email != address);
+        Ok(())
     }
 }
