@@ -3,7 +3,7 @@ mod store;
 use self::store::MemoryStore;
 use askama::Template;
 use askama_axum::IntoResponse;
-use axum::{extract::State, response::Redirect, routing::get, serve, Router};
+use axum::{async_trait, extract::State, response::Redirect, routing::get, serve, Router};
 use axum_macros::FromRef;
 use axum_user::{
     chrono::{DateTime, Utc},
@@ -15,9 +15,25 @@ use axum_user::{
     UserEmail,
 };
 use dotenv::var;
-use password_auth::verify_password;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
+
+mod password {
+    use password_auth::{generate_hash, verify_password};
+    use tokio::task;
+
+    pub async fn verify(password: String, hash: String) -> bool {
+        task::spawn_blocking(move || verify_password(password, hash.as_str()).is_ok())
+            .await
+            .expect("Join error")
+    }
+
+    pub async fn hash(password: String) -> String {
+        task::spawn_blocking(|| generate_hash(password))
+            .await
+            .expect("Join error")
+    }
+}
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -39,6 +55,7 @@ pub struct MyUser {
     emails: Vec<MyUserEmail>,
 }
 
+#[async_trait]
 impl User for MyUser {
     fn has_password(&self) -> bool {
         self.password_hash.is_some()
@@ -48,10 +65,12 @@ impl User for MyUser {
         self.id
     }
 
-    fn validate_password(&self, password: String) -> bool {
-        self.password_hash
-            .as_ref()
-            .is_some_and(|hash| verify_password(password, hash).is_ok())
+    async fn validate_password(&self, password: String) -> bool {
+        if let Some(hash) = self.password_hash.as_ref() {
+            password::verify(password, hash.clone()).await
+        } else {
+            false
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::password::hash;
 use crate::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
 use axum::async_trait;
 use axum_user::{
@@ -6,7 +7,6 @@ use axum_user::{
     UnmatchedOAuthToken, User,
 };
 use chrono::{DateTime, Utc};
-use password_auth::generate_hash;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -83,7 +83,7 @@ impl AxumUserStore for MemoryStore {
 
         match user {
             Some(user) => {
-                if user.validate_password(password) {
+                if user.validate_password(password).await {
                     Ok(user.clone())
                 } else {
                     Err(PasswordLoginError::WrongPassword)
@@ -94,7 +94,7 @@ impl AxumUserStore for MemoryStore {
                     let id = Uuid::new_v4();
                     let user = MyUser {
                         id,
-                        password_hash: Some(generate_hash(password)),
+                        password_hash: Some(hash(password).await),
                         emails: vec![MyUserEmail {
                             email: password_id,
                             verified: false,
@@ -127,7 +127,7 @@ impl AxumUserStore for MemoryStore {
         match user {
             Some(user) => {
                 if allow_login {
-                    if user.validate_password(password) {
+                    if user.validate_password(password).await {
                         Ok(user.clone())
                     } else {
                         Err(PasswordSignupError::WrongPassword)
@@ -140,7 +140,7 @@ impl AxumUserStore for MemoryStore {
                 let id = Uuid::new_v4();
                 let user = MyUser {
                     id,
-                    password_hash: Some(generate_hash(password)),
+                    password_hash: Some(hash(password).await),
                     emails: vec![MyUserEmail {
                         email: password_id,
                         verified: false,
@@ -577,7 +577,7 @@ impl AxumUserStore for MemoryStore {
                     || session.id == session_id
             });
 
-            user.password_hash = Some(generate_hash(password))
+            user.password_hash = Some(hash(password).await)
         };
         Ok(())
     }

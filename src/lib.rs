@@ -72,13 +72,14 @@ pub enum Allow {
     OnEither,
 }
 
+#[async_trait]
 pub trait User: Send + Sync {
     fn get_id(&self) -> Uuid;
 
     #[cfg(feature = "password")]
     fn has_password(&self) -> bool;
     #[cfg(feature = "password")]
-    fn validate_password(&self, password: String) -> bool;
+    async fn validate_password(&self, password: String) -> bool;
 }
 
 #[async_trait]
