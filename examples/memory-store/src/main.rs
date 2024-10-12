@@ -221,7 +221,7 @@ async fn main() {
     )
     .with_https_only(false);
 
-    let routes = auth.routes::<MemoryStore, AppState>();
+    let routes = auth.routes::<MemoryStore, AppState>(Default::default());
 
     let state = AppState {
         store: MemoryStore::default(),

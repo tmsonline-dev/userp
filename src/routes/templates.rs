@@ -1,7 +1,6 @@
-use std::sync::Arc;
-
 use crate::{provider::OAuthProvider, LoginMethod, LoginSession, OAuthToken, UserEmail};
 use askama::Template;
+use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct TemplateLoginSession {

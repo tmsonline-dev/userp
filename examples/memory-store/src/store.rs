@@ -1,9 +1,9 @@
 use crate::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
 use axum::async_trait;
 use axum_user::{
-    AxumUserExtendedStore, AxumUserStore, EmailLoginError, EmailResetError, EmailSignupError,
-    EmailVerifyError, LoginMethod, OAuthLoginError, OAuthSignupError, PasswordLoginError,
-    PasswordSignupError, UnmatchedOAuthToken, User,
+    AxumUserStore, EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError,
+    LoginMethod, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
+    UnmatchedOAuthToken, User,
 };
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
@@ -494,10 +494,7 @@ impl AxumUserStore for MemoryStore {
         let tokens = self.oauth_tokens.read().await;
         Ok(tokens.get(&token_id).cloned())
     }
-}
 
-#[async_trait]
-impl AxumUserExtendedStore for MemoryStore {
     async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<MyUserEmail>, Self::Error> {
         let users = self.users.read().await;
 

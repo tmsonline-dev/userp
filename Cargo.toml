@@ -25,7 +25,7 @@ askama = { version = "0.12.1", features = ["with-axum"] }
 askama_axum = "0.4.0"
 
 [features]
-default = ["email", "password", "oauth", "routes", "templates"]
+default = ["email", "password", "oauth", "routes", "templates", "extended"]
 email = ["dep:chrono", "dep:lettre", "dep:url"]
 email-login = []
 email-signup = []
@@ -42,3 +42,4 @@ password-signup = []
 password-email-reset = []
 routes = []
 templates = ["routes"]
+extended = []

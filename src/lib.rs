@@ -190,36 +190,43 @@ pub trait AxumUserStore {
         &self,
         token_id: Uuid,
     ) -> Result<Option<Self::OAuthToken>, Self::Error>;
-}
 
-#[async_trait]
-pub trait AxumUserExtendedStore: AxumUserStore {
+    #[cfg(feature = "extended")]
     async fn get_user_sessions(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<Self::LoginSession>, Self::Error>;
+    #[cfg(feature = "extended")]
     async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<Self::OAuthToken>, Self::Error>;
+    #[cfg(feature = "extended")]
     async fn delete_oauth_token(&self, token_id: Uuid) -> Result<(), Self::Error>;
+    #[cfg(feature = "extended")]
     async fn delete_user(&self, id: Uuid) -> Result<(), Self::Error>;
+    #[cfg(feature = "extended")]
     async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid)
         -> Result<(), Self::Error>;
+    #[cfg(feature = "extended")]
     async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<Self::UserEmail>, Self::Error>;
+    #[cfg(feature = "extended")]
     async fn set_user_password(
         &self,
         user_id: Uuid,
         password: String,
         session_id: Uuid,
     ) -> Result<(), Self::Error>;
+    #[cfg(feature = "extended")]
     async fn set_user_email_allow_link_login(
         &self,
         user_id: Uuid,
         address: String,
         allow_login: bool,
     ) -> Result<(), Self::Error>;
+    #[cfg(feature = "extended")]
     async fn add_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
+    #[cfg(feature = "extended")]
     async fn delete_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
 }
 
