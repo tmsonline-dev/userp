@@ -185,6 +185,30 @@ pub enum EmailSignupError {
     AddressConflict(String),
 }
 
+#[derive(Debug, Error)]
+pub enum EmailResetCallbackError {
+    #[error("Email reset not allowed")]
+    NotAllowed,
+    #[error("Challenge expired")]
+    ChallengeExpired,
+    #[error("Challenge not found")]
+    ChallengeNotFound,
+    #[error("No user found")]
+    NoUser,
+    #[error("Address not previously verified")]
+    NotVerified,
+}
+
+#[derive(Debug, Error)]
+pub enum EmailVerifyCallbackError {
+    #[error("Challenge expired")]
+    ChallengeExpired,
+    #[error("Challenge not found")]
+    ChallengeNotFound,
+    #[error("No user found")]
+    NoUser,
+}
+
 impl<S: AxumUserStore> AxumUser<S> {
     async fn send_email_challenge(
         &self,
@@ -381,27 +405,27 @@ impl<S: AxumUserStore> AxumUser<S> {
 
     #[cfg(feature = "password")]
     #[must_use = "Don't forget to return the auth session as part of the response!"]
-    pub async fn email_reset_callback(self, code: String) -> Result<Self, (Self, &'static str)> {
+    pub async fn email_reset_callback(self, code: String) -> Result<Self, EmailResetCallbackError> {
         use crate::password::PasswordReset;
 
         if self.pass.allow_reset == PasswordReset::Never {
-            return Err((self, "Forbidden"));
+            return Err(EmailResetCallbackError::NotAllowed);
         }
 
         let Some(challenge) = self.store.consume_email_challenge(code).await else {
-            return Err((self, "Code not found"));
+            return Err(EmailResetCallbackError::ChallengeNotFound);
         };
 
         if challenge.expires() < Utc::now() {
-            return Err((self, "Challenge expired"));
+            return Err(EmailResetCallbackError::ChallengeExpired);
         }
 
         let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await else {
-            return Err((self, "No such user"));
+            return Err(EmailResetCallbackError::NoUser);
         };
 
         if !email.verified() && self.pass.allow_reset == PasswordReset::VerifiedEmailOnly {
-            return Err((self, "Email not previously verified"));
+            return Err(EmailResetCallbackError::NotVerified);
         };
 
         Ok(self
@@ -445,18 +469,18 @@ impl<S: AxumUserStore> AxumUser<S> {
     pub async fn email_verify_callback(
         &self,
         code: String,
-    ) -> Result<(String, Option<String>), &'static str> {
+    ) -> Result<(String, Option<String>), EmailVerifyCallbackError> {
         let Some(challenge) = self.store.consume_email_challenge(code).await else {
-            return Err("Code not found");
-        };
-
-        let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await else {
-            return Err("No such user");
+            return Err(EmailVerifyCallbackError::ChallengeNotFound);
         };
 
         if challenge.expires() < Utc::now() {
-            return Err("Challenge expired");
+            return Err(EmailVerifyCallbackError::ChallengeExpired);
         }
+
+        let Some((user, email)) = self.store.get_user_by_email(challenge.address()).await else {
+            return Err(EmailVerifyCallbackError::NoUser);
+        };
 
         if !email.verified() {
             self.store

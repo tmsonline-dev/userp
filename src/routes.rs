@@ -413,7 +413,7 @@ impl AxumUserConfig {
                             Redirect::to(&next)
                         }
                         Err(err) => {
-                            let next = format!("/login?error={}", urlencoding::encode(err));
+                            let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
                             Redirect::to(&next)
                         }
                     }
@@ -519,8 +519,8 @@ impl AxumUserConfig {
                 get(|auth: AxumUser<St>, Query(query): Query<CodeQuery>| async move {
                     match auth.email_reset_callback(query.code).await {
                         Ok(auth) => (auth, ResetPasswordTemplate).into_response(),
-                        Err((auth, err)) => {
-                            (auth, Redirect::to(&format!("/login?err={}", encode(err)))).into_response()
+                        Err(err) => {
+                             Redirect::to(&format!("/login?err={}", encode(&err.to_string()))).into_response()
                         }
                     }
                 })

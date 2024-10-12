@@ -33,7 +33,7 @@ use uuid::Uuid;
 use axum::{
     async_trait,
     extract::{FromRef, FromRequestParts},
-    http::{request::Parts, StatusCode},
+    http::request::Parts,
     response::IntoResponseParts,
 };
 use axum_extra::extract::cookie::{Cookie, Expiration, PrivateCookieJar, SameSite};
@@ -330,8 +330,9 @@ where
     S: Send + Sync,
     St: AxumUserStore + FromRef<S>,
 {
-    type Rejection = (StatusCode, &'static str);
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Infallible> {
         let config = AxumUserConfig::from_ref(state);
         let jar = PrivateCookieJar::from_headers(&parts.headers, config.key);
         let store = St::from_ref(state);
