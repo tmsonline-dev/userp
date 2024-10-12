@@ -39,7 +39,7 @@ impl User for MyUser {
 pub struct MyUserEmail {
     email: String,
     verified: bool,
-    allow_login: bool,
+    allow_link_login: bool,
 }
 
 impl UserEmail for MyUserEmail {
@@ -51,8 +51,8 @@ impl UserEmail for MyUserEmail {
         self.verified
     }
 
-    fn allow_login(&self) -> bool {
-        self.allow_login
+    fn allow_link_login(&self) -> bool {
+        self.allow_link_login
     }
 }
 

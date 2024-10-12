@@ -55,7 +55,7 @@
     {% for email in emails %}
     <div class="email-item">
       <p>{{ email.email }}</p>
-      {% if email.allow_login %}
+      {% if email.allow_link_login %}
       <p>Magic link login: enabled</p>
       <form action="/user/email/disable_login" method="post" class="form">
         <input type="hidden" value="{{ email.email }}" name="email" />

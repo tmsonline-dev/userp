@@ -67,8 +67,8 @@ pub enum PasswordSignupError<T: std::error::Error> {
     NotAllowed,
     #[error("User already exists")]
     UserExists,
-    #[error(transparent)]
-    LoginError(#[from] PasswordLoginError<T>),
+    #[error("Wrong login password")]
+    WrongPassword,
     #[error(transparent)]
     StoreError(#[from] T),
 }

@@ -11,7 +11,10 @@ const SESSION_ID_KEY: &str = "axum-user-session-id";
 use chrono::{DateTime, Utc};
 
 #[cfg(feature = "email")]
-pub use self::email::{EmailChallenge, EmailConfig, EmailPaths, SmtpSettings, UserEmail};
+pub use self::email::{
+    EmailChallenge, EmailConfig, EmailLoginError, EmailPaths, EmailResetError, EmailSignupError,
+    EmailVerifyError, SmtpSettings, UserEmail,
+};
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
     provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthPaths,
@@ -90,7 +93,7 @@ pub trait AxumUserStore {
     type LoginSession: LoginSession;
     type EmailChallenge: EmailChallenge;
     type OAuthToken: OAuthToken;
-    type Error: std::error::Error;
+    type Error: std::error::Error + Send;
 
     // session store
     async fn create_session(&self, user_id: Uuid, method: LoginMethod) -> Self::LoginSession;
@@ -108,6 +111,7 @@ pub trait AxumUserStore {
         password_hash: String,
         allow_signup: bool,
     ) -> Result<Self::User, PasswordLoginError<Self::Error>>;
+    #[cfg(feature = "password")]
     async fn password_signup(
         &self,
         password_id: String,
@@ -117,21 +121,38 @@ pub trait AxumUserStore {
 
     // email user store
     #[cfg(feature = "email")]
-    async fn get_user_by_email(&self, email: String) -> Option<(Self::User, Self::UserEmail)>;
+    async fn email_login(
+        &self,
+        address: String,
+        allow_signup: bool,
+    ) -> Result<Self::User, EmailLoginError<Self::Error>>;
     #[cfg(feature = "email")]
-    async fn save_email_challenge(
+    async fn email_signup(
+        &self,
+        address: String,
+        allow_login: bool,
+    ) -> Result<Self::User, EmailSignupError<Self::Error>>;
+    #[cfg(feature = "email")]
+    async fn email_reset(
+        &self,
+        address: String,
+        require_verified_address: bool,
+    ) -> Result<Self::User, EmailResetError<Self::Error>>;
+    #[cfg(feature = "email")]
+    async fn email_verify(&self, address: String) -> Result<(), EmailVerifyError<Self::Error>>;
+    #[cfg(feature = "email")]
+    async fn email_create_challenge(
         &self,
         address: String,
         code: String,
         next: Option<String>,
         expires: DateTime<Utc>,
-    ) -> Self::EmailChallenge;
+    ) -> Result<Self::EmailChallenge, Self::Error>;
     #[cfg(feature = "email")]
-    async fn consume_email_challenge(&self, code: String) -> Option<Self::EmailChallenge>;
-    #[cfg(feature = "email")]
-    async fn set_user_email_verified(&self, user_id: Uuid, address: String);
-    #[cfg(feature = "email")]
-    async fn create_email_user(&self, address: String) -> (Self::User, Self::UserEmail);
+    async fn email_consume_challenge(
+        &self,
+        code: String,
+    ) -> Result<Option<Self::EmailChallenge>, Self::Error>;
 
     // oauth token store
     #[cfg(feature = "oauth")]

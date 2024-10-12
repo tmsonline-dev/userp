@@ -1,8 +1,9 @@
 use crate::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
 use axum::async_trait;
 use axum_user::{
-    AxumUserExtendedStore, AxumUserStore, LoginMethod, PasswordLoginError, PasswordSignupError,
-    UnmatchedOAuthToken, User,
+    AxumUserExtendedStore, AxumUserStore, EmailLoginError, EmailResetError, EmailSignupError,
+    EmailVerifyError, LoginMethod, PasswordLoginError, PasswordSignupError, UnmatchedOAuthToken,
+    User,
 };
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
@@ -86,7 +87,7 @@ impl AxumUserStore for MemoryStore {
                         emails: vec![MyUserEmail {
                             email: password_id,
                             verified: false,
-                            allow_login: false,
+                            allow_link_login: false,
                         }],
                     };
 
@@ -118,14 +119,10 @@ impl AxumUserStore for MemoryStore {
                     if user.validate_password_hash(password_hash) {
                         Ok(user.clone())
                     } else {
-                        Err(PasswordSignupError::LoginError(
-                            PasswordLoginError::WrongPassword,
-                        ))
+                        Err(PasswordSignupError::WrongPassword)
                     }
                 } else {
-                    Err(PasswordSignupError::LoginError(
-                        PasswordLoginError::NotAllowed,
-                    ))
+                    Err(PasswordSignupError::UserExists)
                 }
             }
             None => {
@@ -136,7 +133,7 @@ impl AxumUserStore for MemoryStore {
                     emails: vec![MyUserEmail {
                         email: password_id,
                         verified: false,
-                        allow_login: false,
+                        allow_link_login: false,
                     }],
                 };
 
@@ -147,25 +144,132 @@ impl AxumUserStore for MemoryStore {
         }
     }
 
-    async fn get_user_by_email(&self, email: String) -> Option<(Self::User, Self::UserEmail)> {
-        let users = self.users.read().await;
+    async fn email_login(
+        &self,
+        address: String,
+        allow_signup: bool,
+    ) -> Result<Self::User, EmailLoginError<Self::Error>> {
+        let mut users = self.users.write().await;
 
-        users.values().find_map(|user| {
+        let user_email = users.values().find_map(|user| {
             user.emails
                 .iter()
-                .find(|user_email| user_email.email == email)
-                .map(|email| (user.clone(), email.clone()))
-        })
+                .find(|e| e.email == address)
+                .map(|email| (user, email))
+        });
+
+        match user_email {
+            Some((user, email)) => {
+                if email.allow_link_login {
+                    Ok(user.clone())
+                } else {
+                    Err(EmailLoginError::NotAllowed)
+                }
+            }
+            None => {
+                if allow_signup {
+                    let id = Uuid::new_v4();
+                    let user = MyUser {
+                        id,
+                        password: None,
+                        emails: vec![MyUserEmail {
+                            email: address,
+                            verified: true,
+                            allow_link_login: true,
+                        }],
+                    };
+
+                    users.insert(id, user.clone());
+
+                    Ok(user)
+                } else {
+                    Err(EmailLoginError::NoUser)
+                }
+            }
+        }
+    }
+    async fn email_signup(
+        &self,
+        address: String,
+        allow_login: bool,
+    ) -> Result<Self::User, EmailSignupError<Self::Error>> {
+        let mut users = self.users.write().await;
+
+        let user_email = users.values().find_map(|user| {
+            user.emails
+                .iter()
+                .find(|e| e.email == address)
+                .map(|email| (user, email))
+        });
+
+        match user_email {
+            Some((user, email)) => {
+                if !email.allow_link_login {
+                    Err(EmailSignupError::NotAllowed)
+                } else if !allow_login {
+                    Err(EmailSignupError::UserExists)
+                } else {
+                    Ok(user.clone())
+                }
+            }
+            None => {
+                let id = Uuid::new_v4();
+                let user = MyUser {
+                    id,
+                    password: None,
+                    emails: vec![MyUserEmail {
+                        email: address,
+                        verified: true,
+                        allow_link_login: true,
+                    }],
+                };
+
+                users.insert(id, user.clone());
+
+                Ok(user)
+            }
+        }
+    }
+    async fn email_reset(
+        &self,
+        address: String,
+        require_verified_address: bool,
+    ) -> Result<Self::User, EmailResetError<Self::Error>> {
+        let users = self.users.read().await;
+        let user_email = users
+            .values()
+            .find_map(|u| u.emails.iter().find(|e| e.email == address).map(|e| (u, e)));
+
+        match user_email {
+            Some((user, email)) => {
+                if !require_verified_address || email.verified {
+                    Ok(user.clone())
+                } else {
+                    Err(EmailResetError::NotVerified)
+                }
+            }
+            None => Err(EmailResetError::NoUser),
+        }
     }
 
-    async fn save_email_challenge(
+    async fn email_verify(&self, address: String) -> Result<(), EmailVerifyError<Self::Error>> {
+        let mut users = self.users.write().await;
+
+        users
+            .values_mut()
+            .find_map(|u| u.emails.iter_mut().find(|e| e.email == address))
+            .map(|e| e.verified = true)
+            .ok_or(EmailVerifyError::NoUser)
+    }
+
+    async fn email_create_challenge(
         &self,
 
         address: String,
         code: String,
         next: Option<String>,
         expires: DateTime<Utc>,
-    ) -> Self::EmailChallenge {
+    ) -> Result<Self::EmailChallenge, Self::Error> {
         let challenge = MyEmailChallenge {
             address,
             code,
@@ -176,56 +280,19 @@ impl AxumUserStore for MemoryStore {
         let mut challenges = self.challenges.write().await;
         challenges.insert(challenge.code.clone(), challenge.clone());
 
-        challenge
+        Ok(challenge)
     }
 
-    async fn consume_email_challenge(&self, code: String) -> Option<Self::EmailChallenge> {
+    async fn email_consume_challenge(
+        &self,
+        code: String,
+    ) -> Result<Option<Self::EmailChallenge>, Self::Error> {
         let challenge = {
             let mut challenges = self.challenges.write().await;
             challenges.remove(&code)
-        }?;
-
-        Some(challenge)
-    }
-
-    async fn set_user_email_verified(&self, user_id: Uuid, email: String) {
-        let mut users = self.users.write().await;
-
-        let Some(user) = users.get_mut(&user_id) else {
-            return;
         };
 
-        user.emails.iter_mut().for_each(|e| {
-            if e.email == email {
-                e.verified = true
-            }
-        });
-    }
-
-    async fn create_email_user(&self, email: String) -> (Self::User, Self::UserEmail) {
-        if self.get_user_by_email(email.clone()).await.is_some() {
-            panic!("user conflict");
-        };
-
-        let mut users = self.users.write().await;
-
-        let id = Uuid::new_v4();
-
-        let email = MyUserEmail {
-            email,
-            allow_login: true,
-            verified: true,
-        };
-
-        let user = MyUser {
-            id,
-            password: None,
-            emails: vec![email.clone()],
-        };
-
-        users.insert(id, user.clone());
-
-        (user, email)
+        Ok(challenge)
     }
 
     async fn link_oauth_token(
@@ -338,7 +405,7 @@ impl AxumUserStore for MemoryStore {
             emails: match token.provider_user.email {
                 Some(email) => vec![MyUserEmail {
                     email,
-                    allow_login: token.provider_user.email_verified,
+                    allow_link_login: token.provider_user.email_verified,
                     verified: token.provider_user.email_verified,
                 }],
                 None => vec![],
@@ -451,7 +518,7 @@ impl AxumUserExtendedStore for MemoryStore {
             u.emails
                 .iter_mut()
                 .find(|e| e.email == address)
-                .map(|e| e.allow_login = allow_login)
+                .map(|e| e.allow_link_login = allow_login)
         });
     }
 
@@ -471,7 +538,7 @@ impl AxumUserExtendedStore for MemoryStore {
             emails.push(MyUserEmail {
                 email: address,
                 verified: false,
-                allow_login: false,
+                allow_link_login: false,
             });
         }
     }

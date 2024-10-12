@@ -21,7 +21,7 @@ impl<T: LoginSession> From<T> for TemplateLoginSession {
 pub struct TemplateUserEmail {
     email: String,
     verified: bool,
-    allow_login: bool,
+    allow_link_login: bool,
 }
 
 impl<T: UserEmail> From<T> for TemplateUserEmail {
@@ -29,7 +29,7 @@ impl<T: UserEmail> From<T> for TemplateUserEmail {
         Self {
             email: value.address(),
             verified: value.verified(),
-            allow_login: value.allow_login(),
+            allow_link_login: value.allow_link_login(),
         }
     }
 }
