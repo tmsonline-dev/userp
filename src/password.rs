@@ -78,7 +78,7 @@ impl<S: AxumUserStore> AxumUser<S> {
     pub async fn password_signup(
         self,
         password_id: String,
-        password_hash: String,
+        password: String,
     ) -> Result<Self, PasswordSignupError<S::Error>> {
         if self
             .pass
@@ -94,7 +94,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             .store
             .password_signup(
                 password_id,
-                password_hash,
+                password,
                 self.email
                     .allow_login
                     .as_ref()
@@ -110,7 +110,7 @@ impl<S: AxumUserStore> AxumUser<S> {
     pub async fn password_login(
         self,
         password_id: String,
-        password_hash: String,
+        password: String,
     ) -> Result<Self, PasswordLoginError<S::Error>> {
         if self.pass.allow_login.as_ref().unwrap_or(&self.allow_login) == &Allow::Never {
             return Err(PasswordLoginError::NotAllowed);
@@ -120,7 +120,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             .store
             .password_login(
                 password_id,
-                password_hash,
+                password,
                 self.email
                     .allow_signup
                     .as_ref()

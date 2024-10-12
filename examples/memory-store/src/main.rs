@@ -15,6 +15,7 @@ use axum_user::{
     UserEmail,
 };
 use dotenv::var;
+use password_auth::verify_password;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
@@ -34,17 +35,23 @@ pub struct ProtectedTemplate {
 #[derive(Debug, Clone)]
 pub struct MyUser {
     id: Uuid,
-    password: Option<String>,
+    password_hash: Option<String>,
     emails: Vec<MyUserEmail>,
 }
 
 impl User for MyUser {
-    fn get_password_hash(&self) -> Option<String> {
-        self.password.clone()
+    fn has_password(&self) -> bool {
+        self.password_hash.is_some()
     }
 
     fn get_id(&self) -> Uuid {
         self.id
+    }
+
+    fn validate_password(&self, password: String) -> bool {
+        self.password_hash
+            .as_ref()
+            .is_some_and(|hash| verify_password(password, hash).is_ok())
     }
 }
 

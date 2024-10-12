@@ -76,12 +76,9 @@ pub trait User: Send + Sync {
     fn get_id(&self) -> Uuid;
 
     #[cfg(feature = "password")]
-    fn get_password_hash(&self) -> Option<String>;
+    fn has_password(&self) -> bool;
     #[cfg(feature = "password")]
-    fn validate_password_hash(&self, password_hash: String) -> bool {
-        self.get_password_hash()
-            .is_some_and(|hash| password_hash == hash)
-    }
+    fn validate_password(&self, password: String) -> bool;
 }
 
 #[async_trait]
@@ -114,14 +111,14 @@ pub trait AxumUserStore {
     async fn password_login(
         &self,
         password_id: String,
-        password_hash: String,
+        password: String,
         allow_signup: bool,
     ) -> Result<Self::User, PasswordLoginError<Self::Error>>;
     #[cfg(feature = "password")]
     async fn password_signup(
         &self,
         password_id: String,
-        password_hash: String,
+        password: String,
         allow_login: bool,
     ) -> Result<Self::User, PasswordSignupError<Self::Error>>;
 

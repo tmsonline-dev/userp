@@ -29,7 +29,7 @@ where
             message,
             error,
             sessions: sessions.into_iter().map(|s| s.into()).collect(),
-            has_password: user.get_password_hash().is_some(),
+            has_password: user.has_password(),
             emails: emails.into_iter().map(|e| e.into()).collect(),
             oauth_providers: auth
                 .oauth_link_providers()
