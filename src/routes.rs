@@ -664,7 +664,7 @@ pub struct Routes {
     signup_oauth_provider: &'static str,
     user: &'static str,
     user_delete: &'static str,
-    user_logout: &'static str,
+    logout: &'static str,
     user_verify_session: &'static str,
     user_password_set: &'static str,
     user_password_delete: &'static str,
@@ -687,6 +687,7 @@ impl Default for Routes {
     fn default() -> Self {
         Routes {
             login: "/login",
+            logout: "/logout",
             login_password: "/login/password",
             login_email: "/login/email",
             login_oauth: "/login/oauth",
@@ -698,7 +699,6 @@ impl Default for Routes {
             signup_oauth_provider: "/signup/oauth/:provider",
             user: "/user",
             user_delete: "/user/delete",
-            user_logout: "/user/logout",
             user_verify_session: "/user/verify-session",
             user_password_set: "/user/password/set",
             user_password_delete: "/user/password/delete",
@@ -812,7 +812,7 @@ impl AxumUserConfig {
                 post(post_signup_oauth::<St>),
             )
             .route(
-                prefixed_route(routes.user_logout).as_str(),
+                prefixed_route(routes.logout).as_str(),
                 get(get_user_logout::<St>),
             )
             .route(
