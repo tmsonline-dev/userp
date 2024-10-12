@@ -22,6 +22,7 @@ impl PasswordConfig {
         Self {
             allow_login: None,
             allow_signup: None,
+            #[cfg(feature = "email")]
             allow_reset: PasswordReset::VerifiedEmailOnly,
         }
     }
@@ -95,11 +96,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             .password_signup(
                 password_id,
                 password,
-                self.email
-                    .allow_login
-                    .as_ref()
-                    .unwrap_or(&self.allow_signup)
-                    == &Allow::OnEither,
+                self.pass.allow_login.as_ref().unwrap_or(&self.allow_signup) == &Allow::OnEither,
             )
             .await?;
 
@@ -121,7 +118,7 @@ impl<S: AxumUserStore> AxumUser<S> {
             .password_login(
                 password_id,
                 password,
-                self.email
+                self.pass
                     .allow_signup
                     .as_ref()
                     .unwrap_or(&self.allow_signup)

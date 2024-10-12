@@ -26,7 +26,10 @@ pub use self::password::PasswordReset;
 pub use self::password::{PasswordConfig, PasswordLoginError, PasswordSignupError};
 
 pub use axum_extra::{self, extract::cookie::Key};
+
+#[cfg(any(feature = "email", feature = "oauth"))]
 pub use chrono;
+#[cfg(any(feature = "email", feature = "oauth"))]
 pub use url;
 pub use uuid;
 
@@ -37,6 +40,8 @@ use axum::{
     response::IntoResponseParts,
 };
 use axum_extra::extract::cookie::{Cookie, Expiration, PrivateCookieJar, SameSite};
+
+#[cfg(any(feature = "email", feature = "oauth"))]
 use chrono::{DateTime, Utc};
 use std::{convert::Infallible, fmt::Display};
 use uuid::Uuid;
@@ -85,12 +90,15 @@ pub trait User: Send + Sync {
 #[async_trait]
 pub trait AxumUserStore {
     type User: User;
+    type LoginSession: LoginSession;
+    type Error: std::error::Error + Send;
+
     #[cfg(feature = "email")]
     type UserEmail: UserEmail;
-    type LoginSession: LoginSession;
+    #[cfg(feature = "email")]
     type EmailChallenge: EmailChallenge;
+    #[cfg(feature = "oauth")]
     type OAuthToken: OAuthToken;
-    type Error: std::error::Error + Send;
 
     // session store
     async fn create_session(

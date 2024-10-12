@@ -8,7 +8,11 @@ mod extended;
 #[cfg(feature = "extended")]
 use extended::*;
 
+#[cfg(feature = "templates")]
 use askama_axum::IntoResponse;
+#[cfg(not(feature = "templates"))]
+use axum::response::IntoResponse;
+
 use axum::{
     extract::{FromRef, Path, Query},
     response::Redirect,
@@ -775,15 +779,18 @@ impl AxumUserConfig {
 
         #[cfg(not(feature = "templates"))]
         {
-            router = router
-                .route(
-                    prefixed_route(routes.password_send_reset).as_str(),
-                    post(post_password_send_reset::<St>),
-                )
-                .route(
+            router = router.route(
+                prefixed_route(routes.password_send_reset).as_str(),
+                post(post_password_send_reset::<St>),
+            );
+
+            #[cfg(feature = "extended")]
+            {
+                router = router.route(
                     prefixed_route(routes.password_reset).as_str(),
                     post(post_password_reset::<St>),
                 );
+            }
         }
 
         router = router

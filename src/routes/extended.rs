@@ -5,7 +5,10 @@ use super::forms::*;
 use super::queries::*;
 #[cfg(feature = "templates")]
 use super::templates::*;
+#[cfg(feature = "templates")]
 use askama_axum::IntoResponse;
+#[cfg(not(feature = "templates"))]
+use axum::response::IntoResponse;
 use axum::{extract::Query, response::Redirect, Form};
 use forms::*;
 use reqwest::StatusCode;
