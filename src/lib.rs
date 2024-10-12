@@ -4,11 +4,10 @@ mod email;
 mod oauth;
 #[cfg(feature = "password")]
 mod password;
-
+#[cfg(feature = "routes")]
 mod routes;
 
 const SESSION_ID_KEY: &str = "axum-user-session-id";
-use chrono::{DateTime, Utc};
 
 #[cfg(feature = "email")]
 pub use self::email::{
@@ -31,8 +30,6 @@ pub use chrono;
 pub use url;
 pub use uuid;
 
-use uuid::Uuid;
-
 use axum::{
     async_trait,
     extract::{FromRef, FromRequestParts},
@@ -40,7 +37,9 @@ use axum::{
     response::IntoResponseParts,
 };
 use axum_extra::extract::cookie::{Cookie, Expiration, PrivateCookieJar, SameSite};
+use chrono::{DateTime, Utc};
 use std::{convert::Infallible, fmt::Display};
+use uuid::Uuid;
 
 pub trait LoginSession: Send + Sync {
     fn get_id(&self) -> Uuid;

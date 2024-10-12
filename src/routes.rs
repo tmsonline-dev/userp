@@ -1,5 +1,6 @@
 mod forms;
 mod queries;
+#[cfg(feature = "templates")]
 mod templates;
 
 use askama_axum::IntoResponse;
@@ -12,23 +13,27 @@ use axum::{
 use forms::*;
 use queries::*;
 use reqwest::StatusCode;
+#[cfg(feature = "templates")]
 use templates::*;
 use urlencoding::encode;
 
 use crate::{
     email::{
-        EmailLoginCallbackError, EmailLoginInitError, EmailResetCallbackError,
-        EmailSignupCallbackError, EmailSignupInitError, EmailVerifyCallbackError,
-        SendEmailChallengeError,
+        EmailLoginCallbackError, EmailLoginInitError, EmailSignupCallbackError,
+        EmailSignupInitError, EmailVerifyCallbackError, SendEmailChallengeError,
     },
     oauth::{
-        OAuthLinkCallbackError, OAuthLinkInitError, OAuthLoginCallbackError,
-        OAuthRefreshCallbackError, OAuthSignupCallbackError,
+        OAuthGenericCallbackError, OAuthLinkCallbackError, OAuthLinkInitError,
+        OAuthLoginCallbackError, OAuthRefreshCallbackError, OAuthSignupCallbackError,
     },
-    AxumUser, AxumUserConfig, AxumUserExtendedStore, EmailLoginError, EmailResetError,
-    LoginSession, OAuthToken, PasswordLoginError, PasswordSignupError, RefreshInitResult, User,
+    AxumUser, AxumUserConfig, AxumUserExtendedStore, EmailLoginError, LoginSession,
+    PasswordLoginError, PasswordSignupError, RefreshInitResult, User,
 };
 
+#[cfg(feature = "templates")]
+use crate::{email::EmailResetCallbackError, EmailResetError, OAuthToken};
+
+#[cfg(feature = "templates")]
 async fn get_login<St>(
     auth: AxumUser<St>,
     Query(NextMessageErrorQuery {
@@ -180,6 +185,34 @@ where
     }
 }
 
+async fn get_generic_oauth<St>(
+    auth: AxumUser<St>,
+    Path(ProviderPath { provider }): Path<ProviderPath>,
+    Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
+) -> Result<impl IntoResponse, St::Error>
+where
+    St: AxumUserExtendedStore,
+    St::Error: IntoResponse,
+{
+    match auth.oauth_generic_callback(provider, code, state).await {
+        Ok((auth, next)) => {
+            let next = next.unwrap_or("/user".into());
+            Ok((auth, Redirect::to(&next)).into_response())
+        }
+        Err(err) => match err {
+            OAuthGenericCallbackError::Signup(OAuthSignupCallbackError::Store(err))
+            | OAuthGenericCallbackError::Login(OAuthLoginCallbackError::Store(err))
+            | OAuthGenericCallbackError::Refresh(OAuthRefreshCallbackError::Store(err))
+            | OAuthGenericCallbackError::Link(OAuthLinkCallbackError::Store(err)) => Err(err),
+            _ => {
+                let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
+                Ok(Redirect::to(&next).into_response())
+            }
+        },
+    }
+}
+
+#[cfg(feature = "templates")]
 async fn get_signup<St>(
     auth: AxumUser<St>,
     Query(NextMessageErrorQuery {
@@ -330,6 +363,7 @@ where
     }
 }
 
+#[cfg(feature = "templates")]
 async fn get_user<St>(
     auth: AxumUser<St>,
     Query(NextMessageErrorQuery { error, message, .. }): Query<NextMessageErrorQuery>,
@@ -740,6 +774,7 @@ where
     .into_response())
 }
 
+#[cfg(feature = "templates")]
 async fn get_password_send_reset<St>(
     Query(query): Query<AddressMessageSentErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -779,6 +814,7 @@ where
     }
 }
 
+#[cfg(feature = "templates")]
 async fn get_password_reset<St>(
     auth: AxumUser<St>,
     Query(query): Query<CodeQuery>,
@@ -817,70 +853,290 @@ where
     }
 }
 
+pub struct Routes {
+    login: &'static str,
+    login_password: &'static str,
+    login_email: &'static str,
+    login_oauth: &'static str,
+    login_oauth_provider: &'static str,
+    signup: &'static str,
+    signup_password: &'static str,
+    signup_email: &'static str,
+    signup_oauth: &'static str,
+    signup_oauth_provider: &'static str,
+    user: &'static str,
+    user_delete: &'static str,
+    user_logout: &'static str,
+    user_verify_session: &'static str,
+    user_password_set: &'static str,
+    user_password_delete: &'static str,
+    user_oauth_link: &'static str,
+    user_oauth_link_provider: &'static str,
+    user_session_delete: &'static str,
+    user_oauth_refresh: &'static str,
+    user_oauth_refresh_provider: &'static str,
+    user_oauth_delete: &'static str,
+    user_email_verify: &'static str,
+    user_email_add: &'static str,
+    user_email_delete: &'static str,
+    user_email_enable_login: &'static str,
+    user_email_disable_login: &'static str,
+    password_send_reset: &'static str,
+    password_reset: &'static str,
+}
+
+impl Default for Routes {
+    fn default() -> Self {
+        Routes {
+            login: "/login",
+            login_password: "/login/password",
+            login_email: "/login/email",
+            login_oauth: "/login/oauth",
+            login_oauth_provider: "/login/oauth/:provider",
+            signup: "/signup",
+            signup_password: "/signup/password",
+            signup_email: "/signup/email",
+            signup_oauth: "/signup/oauth",
+            signup_oauth_provider: "/signup/oauth/:provider",
+            user: "/user",
+            user_delete: "/user/delete",
+            user_logout: "/user/logout",
+            user_verify_session: "/user/verify-session",
+            user_password_set: "/user/password/set",
+            user_password_delete: "/user/password/delete",
+            user_oauth_link: "/user/oauth/link",
+            user_oauth_link_provider: "/user/oauth/link/:provider",
+            user_session_delete: "/user/session/delete",
+            user_oauth_refresh: "/user/oauth/refresh",
+            user_oauth_refresh_provider: "/user/oauth/refresh/:provider",
+            user_oauth_delete: "/user/oauth/delete",
+            user_email_verify: "/user/email/verify",
+            user_email_add: "/user/email/add",
+            user_email_delete: "/user/email/delete",
+            user_email_enable_login: "/user/email/enable_login",
+            user_email_disable_login: "/user/email/disable_login",
+            password_send_reset: "/password/send-reset",
+            password_reset: "/password/reset",
+        }
+    }
+}
+
 impl AxumUserConfig {
-    pub fn routes<St, S>(&self) -> Router<S>
+    pub fn routes<St, S>(&self, routes: Routes) -> Router<S>
     where
         AxumUserConfig: FromRef<S>,
         S: Send + Sync + Clone + 'static,
         St: AxumUserExtendedStore + FromRef<S> + Send + Sync + 'static,
         St::Error: IntoResponse,
     {
-        Router::new()
-            .route("/login", get(get_login::<St>))
-            .route("/login/password", post(post_login_password::<St>))
+        self.routes_with_prefix::<St, S>(routes, "")
+    }
+
+    pub fn routes_with_prefix<St, S>(&self, routes: Routes, prefix: &'static str) -> Router<S>
+    where
+        AxumUserConfig: FromRef<S>,
+        S: Send + Sync + Clone + 'static,
+        St: AxumUserExtendedStore + FromRef<S> + Send + Sync + 'static,
+        St::Error: IntoResponse,
+    {
+        let mut router = Router::new();
+
+        if !prefix.is_empty() && !prefix.starts_with('/') {
+            panic!("Prefix must be empty or start with /");
+        }
+
+        if prefix.ends_with('/') {
+            panic!("Prefix must not end with /")
+        }
+
+        let prefixed_route = |route: &str| format!("{}{}", prefix, route);
+
+        #[cfg(feature = "templates")]
+        {
+            router = router
+                .route(prefixed_route(routes.login).as_str(), get(get_login::<St>))
+                .route(
+                    prefixed_route(routes.signup).as_str(),
+                    get(get_signup::<St>),
+                )
+                .route(prefixed_route(routes.user).as_str(), get(get_user::<St>))
+                .route(
+                    prefixed_route(routes.password_send_reset).as_str(),
+                    get(get_password_send_reset::<St>).post(post_password_send_reset::<St>),
+                )
+                .route(
+                    prefixed_route(routes.password_reset).as_str(),
+                    get(get_password_reset::<St>).post(post_password_reset::<St>),
+                );
+        }
+
+        #[cfg(not(feature = "templates"))]
+        {
+            router = router
+                .route(
+                    prefixed_route(routes.password_send_reset).as_str(),
+                    post(post_password_send_reset::<St>),
+                )
+                .route(
+                    prefixed_route(routes.password_reset).as_str(),
+                    post(post_password_reset::<St>),
+                );
+        }
+
+        router = router
             .route(
-                "/login/email",
+                prefixed_route(routes.login_password).as_str(),
+                post(post_login_password::<St>),
+            )
+            .route(
+                prefixed_route(routes.login_email).as_str(),
                 post(post_login_email::<St>).get(get_login_email::<St>),
             )
-            .route("/login/oauth", post(post_login_oauth::<St>))
-            .route("/login/oauth/:provider", get(get_login_oauth::<St>))
-            .route("/signup", get(get_signup::<St>))
-            .route("/signup/password", post(post_signup_password::<St>))
             .route(
-                "/signup/email",
+                prefixed_route(routes.login_oauth).as_str(),
+                post(post_login_oauth::<St>),
+            )
+            .route(
+                prefixed_route(routes.signup_password).as_str(),
+                post(post_signup_password::<St>),
+            )
+            .route(
+                prefixed_route(routes.signup_email).as_str(),
                 post(post_signup_email::<St>).get(get_signup_email::<St>),
             )
-            .route("/signup/oauth", post(post_signup_oauth::<St>))
-            .route("/signup/oauth/:provider", get(get_signup_oauth::<St>))
-            .route("/user", get(get_user::<St>))
-            .route("/user/delete", post(post_user_delete::<St>))
-            .route("/user/logout", get(get_user_logout::<St>))
-            .route("/user/verify-session", get(get_user_verify_session::<St>))
-            .route("/user/password/set", post(post_user_password_set::<St>))
             .route(
-                "/user/password/delete",
+                prefixed_route(routes.signup_oauth).as_str(),
+                post(post_signup_oauth::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_delete).as_str(),
+                post(post_user_delete::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_logout).as_str(),
+                get(get_user_logout::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_verify_session).as_str(),
+                get(get_user_verify_session::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_password_set).as_str(),
+                post(post_user_password_set::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_password_delete).as_str(),
                 post(post_user_password_delete::<St>),
             )
-            .route("/user/oauth/link", post(post_user_oauth_link::<St>))
-            .route("/user/oauth/link/:provider", get(get_user_oauth_link::<St>))
-            .route("/user/session/delete", post(post_user_session_delete::<St>))
-            .route("/user/oauth/refresh", post(post_user_oauth_refresh::<St>))
             .route(
-                "/user/oauth/refresh/:provider",
-                get(get_user_oauth_refresh::<St>),
+                prefixed_route(routes.user_oauth_link).as_str(),
+                post(post_user_oauth_link::<St>),
             )
-            .route("/user/oauth/delete", post(post_user_oauth_delete::<St>))
             .route(
-                "/user/email/verify",
+                prefixed_route(routes.user_session_delete).as_str(),
+                post(post_user_session_delete::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_oauth_refresh).as_str(),
+                post(post_user_oauth_refresh::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_oauth_delete).as_str(),
+                post(post_user_oauth_delete::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_email_verify).as_str(),
                 get(get_user_email_verify::<St>).post(post_user_email_verify::<St>),
             )
-            .route("/user/email/add", post(post_user_email_add::<St>))
-            .route("/user/email/delete", post(post_user_email_delete::<St>))
             .route(
-                "/user/email/enable_login",
+                prefixed_route(routes.user_email_add).as_str(),
+                post(post_user_email_add::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_email_delete).as_str(),
+                post(post_user_email_delete::<St>),
+            )
+            .route(
+                prefixed_route(routes.user_email_enable_login).as_str(),
                 post(post_user_email_enable_login::<St>),
             )
             .route(
-                "/user/email/disable_login",
+                prefixed_route(routes.user_email_disable_login).as_str(),
                 post(post_user_email_disable_login::<St>),
-            )
-            .route(
-                "/password/send-reset",
-                get(get_password_send_reset::<St>).post(post_password_send_reset::<St>),
-            )
-            .route(
-                "/password/reset",
-                get(get_password_reset::<St>).post(post_password_reset::<St>),
-            )
+            );
+
+        if [
+            routes.login_oauth_provider,
+            routes.signup_oauth_provider,
+            routes.user_oauth_link_provider,
+            routes.user_oauth_refresh_provider,
+        ]
+        .into_iter()
+        .any(|r| !r.contains("/:provider"))
+        {
+            panic!("All oauth callback routes must contain /:provider")
+        };
+
+        if routes.login_oauth_provider == routes.signup_oauth_provider
+            || routes.login_oauth_provider == routes.user_oauth_link_provider
+            || routes.login_oauth_provider == routes.user_oauth_refresh_provider
+        {
+            router = router.route(
+                prefixed_route(routes.login_oauth_provider).as_str(),
+                get(get_generic_oauth::<St>),
+            );
+        } else {
+            router = router.route(
+                prefixed_route(routes.login_oauth_provider).as_str(),
+                get(get_login_oauth::<St>),
+            );
+        }
+
+        if routes.signup_oauth_provider == routes.login_oauth_provider
+            || routes.signup_oauth_provider == routes.user_oauth_link_provider
+            || routes.signup_oauth_provider == routes.user_oauth_refresh_provider
+        {
+            router = router.route(
+                prefixed_route(routes.signup_oauth_provider).as_str(),
+                get(get_generic_oauth::<St>),
+            );
+        } else {
+            router = router.route(
+                prefixed_route(routes.signup_oauth_provider).as_str(),
+                get(get_signup_oauth::<St>),
+            );
+        }
+
+        if routes.user_oauth_link == routes.signup_oauth_provider
+            || routes.user_oauth_link == routes.login_oauth_provider
+            || routes.user_oauth_link == routes.user_oauth_refresh_provider
+        {
+            router = router.route(
+                prefixed_route(routes.user_oauth_link).as_str(),
+                get(get_generic_oauth::<St>),
+            );
+        } else {
+            router = router.route(
+                prefixed_route(routes.user_oauth_link).as_str(),
+                get(get_user_oauth_link::<St>),
+            );
+        }
+
+        if routes.user_oauth_refresh == routes.signup_oauth_provider
+            || routes.user_oauth_refresh == routes.user_oauth_link_provider
+            || routes.user_oauth_refresh == routes.login_oauth_provider
+        {
+            router = router.route(
+                prefixed_route(routes.user_oauth_refresh).as_str(),
+                get(get_generic_oauth::<St>),
+            );
+        } else {
+            router = router.route(
+                prefixed_route(routes.user_oauth_refresh).as_str(),
+                get(get_user_oauth_refresh::<St>),
+            );
+        }
+
+        router
     }
 }
