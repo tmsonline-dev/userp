@@ -922,32 +922,32 @@ impl AxumUserConfig {
             );
         }
 
-        if routes.user_oauth_link == routes.signup_oauth_provider
-            || routes.user_oauth_link == routes.login_oauth_provider
-            || routes.user_oauth_link == routes.user_oauth_refresh_provider
+        if routes.user_oauth_link_provider == routes.signup_oauth_provider
+            || routes.user_oauth_link_provider == routes.login_oauth_provider
+            || routes.user_oauth_link_provider == routes.user_oauth_refresh_provider
         {
             router = router.route(
-                prefixed_route(routes.user_oauth_link).as_str(),
+                prefixed_route(routes.user_oauth_link_provider).as_str(),
                 get(get_generic_oauth::<St>),
             );
         } else {
             router = router.route(
-                prefixed_route(routes.user_oauth_link).as_str(),
+                prefixed_route(routes.user_oauth_link_provider).as_str(),
                 get(get_user_oauth_link::<St>),
             );
         }
 
-        if routes.user_oauth_refresh == routes.signup_oauth_provider
-            || routes.user_oauth_refresh == routes.user_oauth_link_provider
-            || routes.user_oauth_refresh == routes.login_oauth_provider
+        if routes.user_oauth_refresh_provider == routes.signup_oauth_provider
+            || routes.user_oauth_refresh_provider == routes.user_oauth_link_provider
+            || routes.user_oauth_refresh_provider == routes.login_oauth_provider
         {
             router = router.route(
-                prefixed_route(routes.user_oauth_refresh).as_str(),
+                prefixed_route(routes.user_oauth_refresh_provider).as_str(),
                 get(get_generic_oauth::<St>),
             );
         } else {
             router = router.route(
-                prefixed_route(routes.user_oauth_refresh).as_str(),
+                prefixed_route(routes.user_oauth_refresh_provider).as_str(),
                 get(get_user_oauth_refresh::<St>),
             );
         }

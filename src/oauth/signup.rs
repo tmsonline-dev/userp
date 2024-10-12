@@ -10,7 +10,7 @@ use url::Url;
 pub enum OAuthSignupCallbackError<StoreError: std::error::Error> {
     #[error(transparent)]
     OAuthCallbackError(#[from] OAuthCallbackError),
-    #[error("Expected a login flow, got {0}")]
+    #[error("Expected a signup flow, got {0}")]
     UnexpectedFlow(OAuthFlow),
     #[error(transparent)]
     SignupError(#[from] OAuthSignupError<StoreError>),
@@ -105,7 +105,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         unmatched_token: UnmatchedOAuthToken,
         flow: OAuthFlow,
     ) -> Result<(Self, Option<String>), OAuthSignupCallbackError<S::Error>> {
-        let OAuthFlow::LogIn { next } = flow else {
+        let OAuthFlow::SignUp { next } = flow else {
             return Err(OAuthSignupCallbackError::UnexpectedFlow(flow));
         };
 
