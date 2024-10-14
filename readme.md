@@ -33,6 +33,7 @@ This crate provides a high-level user, authentication and session handling syste
 - [ ] Webauthn
 - [ ] MFA
 - [ ] Doc-comments
+- [ ] Tests
 - [ ] ???
 - [ ] Publish!
 

@@ -44,8 +44,7 @@ where
         }
         .into_response()
     } else {
-        println!("User not found in store");
-        Redirect::to("/login?next=%UFuser").into_response()
+        Redirect::to("/login?next=%2Fuser").into_response()
     })
 }
 

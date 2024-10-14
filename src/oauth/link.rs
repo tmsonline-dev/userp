@@ -1,11 +1,21 @@
 use crate::UnmatchedOAuthToken;
 
 use super::provider::OAuthProvider;
-use super::{AxumUser, AxumUserStore, OAuthFlow, OAuthLinkCallbackError, User};
+use super::{AxumUser, AxumUserStore, OAuthCallbackError, OAuthFlow, User};
 use oauth2::{AuthorizationCode, CsrfToken};
 use std::sync::Arc;
 use thiserror::Error;
 use url::Url;
+
+#[derive(Error, Debug)]
+pub enum OAuthLinkError<StoreError: std::error::Error> {
+    #[error("OAuth linking not allowed")]
+    NotAllowed,
+    #[error("OAuth account already in use")]
+    UserConflict,
+    #[error(transparent)]
+    Store(#[from] StoreError),
+}
 
 #[derive(Debug, Error)]
 pub enum OAuthLinkInitError<StoreError: std::error::Error> {
@@ -15,6 +25,20 @@ pub enum OAuthLinkInitError<StoreError: std::error::Error> {
     ProviderNotFound(String),
     #[error("No user found or not logged in")]
     NoUser,
+    #[error(transparent)]
+    Store(StoreError),
+}
+
+#[derive(Error, Debug)]
+pub enum OAuthLinkCallbackError<StoreError: std::error::Error> {
+    #[error(transparent)]
+    OAuthCallbackError(#[from] OAuthCallbackError),
+    #[error("Linking not allowed")]
+    NotAllowed,
+    #[error("Expected a login flow, got {0}")]
+    UnexpectedFlow(OAuthFlow),
+    #[error(transparent)]
+    Link(OAuthLinkError<StoreError>),
     #[error(transparent)]
     Store(StoreError),
 }
@@ -84,7 +108,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         }
 
         if let Err(err) = self.store.oauth_link(user_id, unmatched_token).await {
-            Err(OAuthLinkCallbackError::Store(err))
+            Err(OAuthLinkCallbackError::Link(err))
         } else {
             Ok(next)
         }

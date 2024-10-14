@@ -36,18 +36,6 @@ pub enum OAuthLoginInitError {
     ProviderNotFound(String),
 }
 
-#[derive(Error, Debug)]
-pub enum OAuthLinkCallbackError<StoreError: std::error::Error> {
-    #[error(transparent)]
-    OAuthCallbackError(#[from] OAuthCallbackError),
-    #[error("Linking not allowed")]
-    NotAllowed,
-    #[error("Expected a login flow, got {0}")]
-    UnexpectedFlow(OAuthFlow),
-    #[error(transparent)]
-    Store(StoreError),
-}
-
 impl<S: AxumUserStore> AxumUser<S> {
     pub fn oauth_login_providers(&self) -> Vec<&Arc<dyn OAuthProvider>> {
         self.oauth

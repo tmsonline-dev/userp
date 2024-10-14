@@ -16,9 +16,9 @@ pub use self::email::{
 };
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
-    provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthLoginError,
-    OAuthPaths, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthSignupError,
-    OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
+    provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthLinkError,
+    OAuthLoginError, OAuthPaths, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders,
+    OAuthSignupError, OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
 };
 #[cfg(all(feature = "password", feature = "email"))]
 pub use self::password::PasswordReset;
@@ -184,7 +184,7 @@ pub trait AxumUserStore {
         &self,
         user_id: Uuid,
         unmatched_token: UnmatchedOAuthToken,
-    ) -> Result<Self::OAuthToken, Self::Error>;
+    ) -> Result<Self::OAuthToken, OAuthLinkError<Self::Error>>;
     #[cfg(feature = "oauth")]
     async fn oauth_update_token(
         &self,

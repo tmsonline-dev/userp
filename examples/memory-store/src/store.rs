@@ -3,8 +3,8 @@ use crate::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail}
 use axum::async_trait;
 use axum_user::{
     AxumUserStore, EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError,
-    LoginMethod, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
-    UnmatchedOAuthToken, User,
+    LoginMethod, OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError,
+    PasswordSignupError, UnmatchedOAuthToken, User,
 };
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
@@ -310,7 +310,7 @@ impl AxumUserStore for MemoryStore {
         &self,
         user_id: Uuid,
         unmatched_token: UnmatchedOAuthToken,
-    ) -> Result<Self::OAuthToken, Self::Error> {
+    ) -> Result<Self::OAuthToken, OAuthLinkError<Self::Error>> {
         let UnmatchedOAuthToken {
             access_token,
             refresh_token,
@@ -320,8 +320,18 @@ impl AxumUserStore for MemoryStore {
             provider_user,
         } = unmatched_token;
 
+        let mut oauth_tokens = self.oauth_tokens.write().await;
+
+        let existing_token = oauth_tokens
+            .values()
+            .find(|t| t.provider_name == provider_name && t.provider_user_id == provider_user.id);
+
+        if existing_token.is_some_and(|t| t.user_id != user_id) {
+            return Err(OAuthLinkError::UserConflict);
+        };
+
         let token = MyOAuthToken {
-            id: Uuid::new_v4(),
+            id: existing_token.map(|t| t.id).unwrap_or(Uuid::new_v4()),
             user_id,
             provider_name,
             provider_user_id: provider_user.id,
@@ -331,14 +341,10 @@ impl AxumUserStore for MemoryStore {
             scopes,
         };
 
-        let mut oauth_tokens = self.oauth_tokens.write().await;
-
         oauth_tokens.insert(token.id, token.clone());
 
         Ok(token)
     }
-
-    // async fn create_oauth_token(&self, unmatched_token: UnmatchedOAuthToken) -> Self::OAuthToken {}
 
     async fn oauth_signup(
         &self,
