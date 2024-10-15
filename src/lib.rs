@@ -4,10 +4,9 @@ mod email;
 mod oauth;
 #[cfg(feature = "password")]
 mod password;
-#[cfg(feature = "routes")]
+#[cfg(feature = "router")]
+mod router;
 mod routes;
-
-const SESSION_ID_KEY: &str = "axum-user-session-id";
 
 #[cfg(feature = "email")]
 pub use self::email::{
@@ -24,11 +23,10 @@ pub use self::oauth::{
 pub use self::password::PasswordReset;
 #[cfg(feature = "password")]
 pub use self::password::{PasswordConfig, PasswordLoginError, PasswordSignupError};
-
 pub use axum_extra::{self, extract::cookie::Key};
-
 #[cfg(any(feature = "email", feature = "oauth"))]
 pub use chrono;
+pub use routes::*;
 #[cfg(any(feature = "email", feature = "oauth"))]
 pub use url;
 pub use uuid;
@@ -40,11 +38,12 @@ use axum::{
     response::IntoResponseParts,
 };
 use axum_extra::extract::cookie::{Cookie, Expiration, PrivateCookieJar, SameSite};
-
 #[cfg(any(feature = "email", feature = "oauth"))]
 use chrono::{DateTime, Utc};
 use std::{convert::Infallible, fmt::Display};
 use uuid::Uuid;
+
+const SESSION_ID_KEY: &str = "axum-user-session-id";
 
 pub trait LoginSession: Send + Sync {
     fn get_id(&self) -> Uuid;
@@ -241,6 +240,7 @@ pub struct AxumUser<S: AxumUserStore> {
     allow_login: Allow,
     jar: PrivateCookieJar,
     https_only: bool,
+    routes: Routes<String>,
     store: S,
     #[cfg(feature = "password")]
     pass: PasswordConfig,
@@ -355,6 +355,7 @@ pub struct AxumUserConfig {
     pub allow_signup: Allow,
     pub allow_login: Allow,
     pub https_only: bool,
+    pub routes: Routes<String>,
     #[cfg(feature = "password")]
     pub pass: PasswordConfig,
     #[cfg(feature = "email")]
@@ -366,6 +367,7 @@ pub struct AxumUserConfig {
 impl AxumUserConfig {
     pub fn new(
         key: Key,
+        routes: impl Into<Routes<String>>,
         #[cfg(feature = "password")] pass: PasswordConfig,
         #[cfg(feature = "email")] email: EmailConfig,
         #[cfg(feature = "oauth")] oauth: OAuthConfig,
@@ -375,6 +377,7 @@ impl AxumUserConfig {
             https_only: true,
             allow_signup: Allow::OnSelf,
             allow_login: Allow::OnEither,
+            routes: routes.into(),
             #[cfg(feature = "password")]
             pass,
             #[cfg(feature = "email")]
@@ -419,6 +422,7 @@ where
             allow_signup: config.allow_signup,
             allow_login: config.allow_login,
             https_only: config.https_only,
+            routes: config.routes,
             jar,
             store,
             #[cfg(feature = "email")]

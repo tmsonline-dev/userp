@@ -11,7 +11,7 @@ use axum_user::{
     url::Url,
     uuid::Uuid,
     AxumUser, AxumUserConfig, EmailChallenge, EmailConfig, EmailPaths, Key, LoginMethod,
-    LoginSession, OAuthConfig, OAuthPaths, OAuthToken, PasswordConfig, SmtpSettings, User,
+    LoginSession, OAuthConfig, OAuthPaths, OAuthToken, PasswordConfig, Routes, SmtpSettings, User,
     UserEmail,
 };
 use dotenv::var;
@@ -210,6 +210,7 @@ async fn main() {
 
     let auth = AxumUserConfig::new(
         key,
+        Routes::default(),
         PasswordConfig::new().with_allow_reset(axum_user::PasswordReset::AnyUserEmail),
         EmailConfig::new(
             base_url.clone(),
@@ -247,7 +248,7 @@ async fn main() {
     )
     .with_https_only(false);
 
-    let routes = auth.routes::<MemoryStore, AppState>(Default::default());
+    let auth_router = auth.handlers::<MemoryStore, AppState>();
 
     let state = AppState {
         store: MemoryStore::default(),
@@ -255,7 +256,7 @@ async fn main() {
     };
 
     let app = Router::new()
-        .merge(routes)
+        .merge(auth_router)
         .route("/store", get(get_store))
         .route("/", get(get_index))
         .route("/protected", get(get_protected))

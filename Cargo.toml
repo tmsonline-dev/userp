@@ -36,6 +36,6 @@ oauth = [
   "dep:reqwest",
 ]
 password = []
-routes = ["email", "password", "oauth", "dep:urlencoding"]
-templates = ["routes", "dep:askama", "dep:askama_axum"]
-extended = ["routes"]
+router = ["email", "password", "oauth", "dep:urlencoding"]
+templates = ["router", "dep:askama", "dep:askama_axum"]
+extended = ["router"]
