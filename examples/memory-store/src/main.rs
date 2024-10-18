@@ -13,9 +13,8 @@ use userp::{
     provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
     url::Url,
     uuid::Uuid,
-    EmailChallenge, EmailConfig, EmailPaths, LoginMethod, LoginSession, OAuthConfig, OAuthPaths,
-    OAuthToken, PasswordConfig, PasswordReset, Routes, SmtpSettings, User, UserEmail, Userp,
-    UserpConfig,
+    EmailChallenge, EmailConfig, LoginMethod, LoginSession, OAuthConfig, OAuthToken,
+    PasswordConfig, PasswordReset, Routes, SmtpSettings, User, UserEmail, Userp, UserpConfig,
 };
 
 mod password {
@@ -57,14 +56,16 @@ pub struct MyUser {
 
 #[async_trait]
 impl User for MyUser {
-    fn has_password(&self) -> bool {
+    fn get_allow_password_login(&self) -> bool {
         self.password_hash.is_some()
     }
 
     fn get_id(&self) -> Uuid {
         self.id
     }
+}
 
+impl MyUser {
     async fn validate_password(&self, password: &str) -> bool {
         if let Some(hash) = self.password_hash.as_ref() {
             password::verify(password.to_string(), hash.clone()).await
@@ -155,36 +156,16 @@ pub struct MyOAuthToken {
 }
 
 impl OAuthToken for MyOAuthToken {
-    fn id(&self) -> Uuid {
+    fn get_id(&self) -> Uuid {
         self.id
     }
 
-    fn user_id(&self) -> Uuid {
-        self.user_id
-    }
-
-    fn provider_name(&self) -> &str {
+    fn get_provider_name(&self) -> &str {
         self.provider_name.as_str()
     }
 
-    fn provider_user_id(&self) -> &str {
-        self.provider_user_id.as_str()
-    }
-
-    fn access_token(&self) -> &str {
-        self.access_token.as_str()
-    }
-
-    fn refresh_token(&self) -> &Option<String> {
+    fn get_refresh_token(&self) -> &Option<String> {
         &self.refresh_token
-    }
-
-    fn expires(&self) -> Option<DateTime<Utc>> {
-        self.expires
-    }
-
-    fn scopes(&self) -> &[String] {
-        &self.scopes
     }
 }
 
@@ -214,12 +195,6 @@ async fn main() {
         PasswordConfig::new().with_allow_reset(PasswordReset::AnyUserEmail),
         EmailConfig::new(
             base_url.clone(),
-            EmailPaths {
-                login: "login/email",
-                verify: "user/email/verify",
-                signup: "signup/email",
-                reset_pw: "password/reset",
-            },
             SmtpSettings {
                 server_url: req_var("SMTP_URL"),
                 username: req_var("SMTP_USERNAME"),
@@ -228,23 +203,15 @@ async fn main() {
                 starttls: true,
             },
         ),
-        OAuthConfig::new(
-            base_url,
-            OAuthPaths {
-                login: "login/oauth",
-                signup: "signup/oauth",
-                refresh: "user/oauth/refresh",
-                link: "user/oauth/link",
-            },
-        )
-        .with_client(SpotifyOAuthProvider::new(
-            req_var("SPOTIFY_CLIENT_ID"),
-            req_var("SPOTIFY_CLIENT_SECRET"),
-        ))
-        .with_client(GitHubOAuthProvider::new(
-            req_var("GITHUB_CLIENT_ID"),
-            req_var("GITHUB_CLIENT_SECRET"),
-        )),
+        OAuthConfig::new(base_url)
+            .with_client(SpotifyOAuthProvider::new(
+                req_var("SPOTIFY_CLIENT_ID"),
+                req_var("SPOTIFY_CLIENT_SECRET"),
+            ))
+            .with_client(GitHubOAuthProvider::new(
+                req_var("GITHUB_CLIENT_ID"),
+                req_var("GITHUB_CLIENT_SECRET"),
+            )),
     )
     .with_https_only(false);
 

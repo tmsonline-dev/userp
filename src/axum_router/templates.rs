@@ -42,8 +42,8 @@ pub struct TemplateOAuthToken<'a> {
 impl<'a, T: OAuthToken> From<&'a T> for TemplateOAuthToken<'a> {
     fn from(value: &'a T) -> Self {
         Self {
-            id: value.id(),
-            provider_name: value.provider_name(),
+            id: value.get_id(),
+            provider_name: value.get_provider_name(),
         }
     }
 }

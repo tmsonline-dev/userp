@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 use userp::{
     EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError, LoginMethod,
     OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
-    UnmatchedOAuthToken, User, UserpStore,
+    UnmatchedOAuthToken, UserpStore,
 };
 use uuid::Uuid;
 

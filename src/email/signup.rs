@@ -52,7 +52,7 @@ impl<S: UserpStore> Userp<S> {
         }
 
         self.send_email_challenge(
-            self.email.signup_path.clone(),
+            self.routes.signup_email.clone(),
             email,
             "Click here to sign up".into(),
             next,

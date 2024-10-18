@@ -34,12 +34,16 @@ where
             message: message.as_deref(),
             error: error.as_deref(),
             sessions: sessions.iter().map(|s| s.into()).collect(),
-            has_password: user.has_password(),
+            has_password: user.get_allow_password_login(),
             emails: emails.iter().map(|e| e.into()).collect(),
             oauth_providers: auth
                 .oauth_link_providers()
                 .into_iter()
-                .filter(|p| !oauth_tokens.iter().any(|t| t.provider_name() == p.name()))
+                .filter(|p| {
+                    !oauth_tokens
+                        .iter()
+                        .any(|t| t.get_provider_name() == p.name())
+                })
                 .map(|p| p.into())
                 .collect(),
             oauth_tokens: oauth_tokens.iter().map(|t| t.into()).collect(),

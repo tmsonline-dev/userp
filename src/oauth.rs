@@ -74,33 +74,17 @@ pub struct OAuthConfig {
     pub allow_login: Option<Allow>,
     pub allow_signup: Option<Allow>,
     pub allow_linking: bool,
-    pub login_path: String,
-    pub link_path: String,
-    pub signup_path: String,
-    pub refresh_path: String,
     pub base_url: Url,
     pub providers: OAuthProviders,
 }
 
-#[derive(Debug, Clone)]
-pub struct OAuthPaths {
-    pub login: &'static str,
-    pub link: &'static str,
-    pub signup: &'static str,
-    pub refresh: &'static str,
-}
-
 impl OAuthConfig {
-    pub fn new(base_url: Url, paths: OAuthPaths) -> Self {
+    pub fn new(base_url: Url) -> Self {
         Self {
             base_url,
             allow_login: None,
             allow_signup: None,
             allow_linking: true,
-            login_path: paths.login.to_string(),
-            link_path: paths.link.to_string(),
-            signup_path: paths.signup.to_string(),
-            refresh_path: paths.refresh.to_string(),
             providers: Default::default(),
         }
     }
@@ -166,14 +150,9 @@ impl UnmatchedOAuthToken {
 }
 
 pub trait OAuthToken: Send + Sync {
-    fn id(&self) -> Uuid;
-    fn user_id(&self) -> Uuid;
-    fn provider_name(&self) -> &str;
-    fn provider_user_id(&self) -> &str;
-    fn access_token(&self) -> &str;
-    fn refresh_token(&self) -> &Option<String>;
-    fn expires(&self) -> Option<DateTime<Utc>>;
-    fn scopes(&self) -> &[String];
+    fn get_id(&self) -> Uuid;
+    fn get_provider_name(&self) -> &str;
+    fn get_refresh_token(&self) -> &Option<String>;
 }
 
 #[derive(Error, Debug)]
@@ -212,14 +191,9 @@ impl<S: UserpStore> Userp<S> {
             format!("{path}/")
         };
 
-        RedirectUrl::from_url(
-            self.oauth
-                .base_url
-                .join(path.as_str())
-                .unwrap()
-                .join(provider_name)
-                .unwrap(),
-        )
+        let path = path.replace(":provider", provider_name);
+
+        RedirectUrl::from_url(self.oauth.base_url.join(path.as_str()).unwrap())
     }
 
     async fn oauth_init(
@@ -287,7 +261,7 @@ impl<S: UserpStore> Userp<S> {
                 provider_name.clone(),
                 code,
                 state,
-                self.oauth.signup_path.clone(),
+                self.routes.signup_oauth_provider.clone(),
             )
             .await?;
 

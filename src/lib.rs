@@ -12,14 +12,14 @@ mod routes;
 
 #[cfg(feature = "email")]
 pub use self::email::{
-    EmailChallenge, EmailConfig, EmailLoginError, EmailPaths, EmailResetError, EmailSignupError,
+    EmailChallenge, EmailConfig, EmailLoginError, EmailResetError, EmailSignupError,
     EmailVerifyError, SmtpSettings, UserEmail,
 };
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
     provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthLinkError,
-    OAuthLoginError, OAuthPaths, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders,
-    OAuthSignupError, OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
+    OAuthLoginError, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthSignupError,
+    OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
 };
 #[cfg(all(feature = "password", feature = "email"))]
 pub use self::password::PasswordReset;
@@ -78,9 +78,7 @@ pub trait User: Send + Sync {
     fn get_id(&self) -> Uuid;
 
     #[cfg(feature = "password")]
-    fn has_password(&self) -> bool;
-    #[cfg(feature = "password")]
-    async fn validate_password(&self, password: &str) -> bool;
+    fn get_allow_password_login(&self) -> bool;
 }
 
 #[async_trait]

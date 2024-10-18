@@ -35,17 +35,20 @@ impl<S: UserpStore> Userp<S> {
         let provider = self
             .oauth
             .providers
-            .get(token.provider_name())
+            .get(token.get_provider_name())
             .ok_or(OAuthRefreshInitError::ProviderNotFound(
-                token.provider_name().to_string(),
+                token.get_provider_name().to_string(),
             ))
             .cloned()?;
 
-        if let Some(refresh_token) = token.refresh_token() {
+        if let Some(refresh_token) = token.get_refresh_token() {
             let res = provider
                 .exchange_refresh_token(
                     provider.name(),
-                    &self.redirect_uri(self.oauth.refresh_path.clone(), provider.name()),
+                    &self.redirect_uri(
+                        self.routes.user_oauth_refresh_provider.clone(),
+                        provider.name(),
+                    ),
                     &RefreshToken::new(refresh_token.to_string()),
                 )
                 .await?;
@@ -54,13 +57,13 @@ impl<S: UserpStore> Userp<S> {
 
             Ok((self, RefreshInitResult::Ok))
         } else {
-            let path = self.oauth.refresh_path.clone();
+            let path = self.routes.user_oauth_refresh_provider.clone();
             let (new_self, url) = self
                 .oauth_init(
                     path,
                     provider,
                     OAuthFlow::Refresh {
-                        token_id: token.id(),
+                        token_id: token.get_id(),
                         next,
                     },
                 )
@@ -107,7 +110,7 @@ impl<S: UserpStore> Userp<S> {
                 provider_name.clone(),
                 code,
                 state,
-                self.oauth.refresh_path.clone(),
+                self.routes.user_oauth_refresh_provider.clone(),
             )
             .await?;
 

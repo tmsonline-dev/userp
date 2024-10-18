@@ -72,7 +72,7 @@ impl<S: UserpStore> Userp<S> {
             return Err(OAuthSignupInitError::NotAllowed);
         };
 
-        let path = self.oauth.signup_path.clone();
+        let path = self.routes.signup_oauth_provider.clone();
 
         Ok(self
             .oauth_init(path, provider, OAuthFlow::SignUp { next })
@@ -91,7 +91,7 @@ impl<S: UserpStore> Userp<S> {
                 provider_name.clone(),
                 code,
                 state,
-                self.oauth.signup_path.clone(),
+                self.routes.signup_oauth_provider.clone(),
             )
             .await?;
 
@@ -124,7 +124,7 @@ impl<S: UserpStore> Userp<S> {
         Ok((
             self.log_in(
                 LoginMethod::OAuth {
-                    token_id: token.id(),
+                    token_id: token.get_id(),
                 },
                 user.get_id(),
             )

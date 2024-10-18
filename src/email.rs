@@ -23,35 +23,16 @@ pub struct EmailConfig {
     pub allow_signup: Option<Allow>,
     pub challenge_lifetime: Duration,
     pub base_url: Url,
-    pub login_path: String,
-    pub verify_path: String,
-    pub signup_path: String,
-    #[cfg(feature = "password")]
-    pub reset_pw_path: String,
     pub smtp: SmtpSettings,
 }
 
-#[derive(Debug, Clone)]
-pub struct EmailPaths {
-    pub login: &'static str,
-    pub verify: &'static str,
-    pub signup: &'static str,
-    #[cfg(feature = "password")]
-    pub reset_pw: &'static str,
-}
-
 impl EmailConfig {
-    pub fn new(base_url: Url, paths: EmailPaths, smtp: SmtpSettings) -> Self {
+    pub fn new(base_url: Url, smtp: SmtpSettings) -> Self {
         Self {
             allow_login: None,
             allow_signup: None,
             challenge_lifetime: Duration::minutes(5),
             base_url,
-            login_path: paths.login.to_string(),
-            verify_path: paths.verify.to_string(),
-            signup_path: paths.signup.to_string(),
-            #[cfg(feature = "password")]
-            reset_pw_path: paths.reset_pw.to_string(),
             smtp,
         }
     }
