@@ -16,6 +16,8 @@ If you need something truly custom you might want to look at the awesome axum-lo
 
 ... Then this might be something for you!
 
+![A screenshot of the included sign-up screen](https://raw.githubusercontent.com/StefanTerdell/userp/refs/heads/main/.github/sign-up.png)
+
 ## Features
 
 - Login types
@@ -33,6 +35,8 @@ If you need something truly custom you might want to look at the awesome axum-lo
   - Askama based templates provide basic login/signup/account pages
   - Growing list of built-in social providers
   - Multiple sessions
+
+![A screenshot of the included user account management screen](https://raw.githubusercontent.com/StefanTerdell/userp/refs/heads/main/.github/account-manager.png)
 
 ## Todo
 - [ ] Granular feature-controlled templates
