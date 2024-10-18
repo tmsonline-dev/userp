@@ -1,3 +1,5 @@
+#[cfg(feature = "axum")]
+mod axum_extract;
 #[cfg(feature = "email")]
 mod email;
 #[cfg(feature = "oauth")]
@@ -23,7 +25,6 @@ pub use self::oauth::{
 pub use self::password::PasswordReset;
 #[cfg(feature = "password")]
 pub use self::password::{PasswordConfig, PasswordLoginError, PasswordSignupError};
-pub use axum_extra::{self, extract::cookie::Key};
 #[cfg(any(feature = "email", feature = "oauth"))]
 pub use chrono;
 pub use routes::*;
@@ -31,19 +32,15 @@ pub use routes::*;
 pub use url;
 pub use uuid;
 
-use axum::{
-    async_trait,
-    extract::{FromRef, FromRequestParts},
-    http::request::Parts,
-    response::IntoResponseParts,
-};
-use axum_extra::extract::cookie::{Cookie, Expiration, PrivateCookieJar, SameSite};
+use async_trait::async_trait;
+#[cfg(feature = "axum")]
+use axum_extract::CookieStore;
 #[cfg(any(feature = "email", feature = "oauth"))]
 use chrono::{DateTime, Utc};
-use std::{convert::Infallible, fmt::Display};
+use std::fmt::Display;
 use uuid::Uuid;
 
-const SESSION_ID_KEY: &str = "axum-user-session-id";
+const SESSION_ID_KEY: &str = "userp-session-id";
 
 pub trait LoginSession: Send + Sync {
     fn get_id(&self) -> Uuid;
@@ -87,7 +84,7 @@ pub trait User: Send + Sync {
 }
 
 #[async_trait]
-pub trait AxumUserStore {
+pub trait UserpStore {
     type User: User;
     type LoginSession: LoginSession;
     type Error: std::error::Error + Send;
@@ -235,11 +232,10 @@ pub trait AxumUserStore {
     async fn delete_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
 }
 
-pub struct AxumUser<S: AxumUserStore> {
+pub struct Userp<S: UserpStore> {
     allow_signup: Allow,
     allow_login: Allow,
-    jar: PrivateCookieJar,
-    https_only: bool,
+    cookies: CookieStore,
     routes: Routes<String>,
     store: S,
     #[cfg(feature = "password")]
@@ -250,29 +246,22 @@ pub struct AxumUser<S: AxumUserStore> {
     oauth: OAuthConfig,
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     async fn log_in(mut self, method: LoginMethod, user_id: Uuid) -> Result<Self, S::Error> {
         let session = self.store.create_session(user_id, method).await?;
 
-        self.jar = self.jar.add(
-            Cookie::build((SESSION_ID_KEY, session.get_id().to_string()))
-                .same_site(SameSite::Lax)
-                .http_only(true)
-                .expires(Expiration::Session)
-                .secure(self.https_only)
-                .path("/")
-                .build(),
-        );
+        self.cookies
+            .add(SESSION_ID_KEY, &session.get_id().to_string());
 
         Ok(self)
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn log_out(mut self) -> Result<Self, S::Error> {
-        if let Some(session) = self.jar.get(SESSION_ID_KEY) {
-            self.jar = self.jar.remove(SESSION_ID_KEY);
+        if let Some(session) = self.cookies.get(SESSION_ID_KEY) {
+            self.cookies.remove(SESSION_ID_KEY);
 
-            if let Ok(session_id) = Uuid::parse_str(session.value()) {
+            if let Ok(session_id) = Uuid::parse_str(&session) {
                 self.store.delete_session(session_id).await?;
             }
         }
@@ -281,12 +270,12 @@ impl<S: AxumUserStore> AxumUser<S> {
     }
 
     fn session_id_cookie(&self) -> Option<Uuid> {
-        let Some(session_id_cookie) = self.jar.get(SESSION_ID_KEY) else {
+        let Some(session_id_cookie) = self.cookies.get(SESSION_ID_KEY) else {
             println!("No session ID cookie found");
             return None;
         };
 
-        let Ok(session_id) = Uuid::parse_str(session_id_cookie.value()) else {
+        let Ok(session_id) = Uuid::parse_str(&session_id_cookie) else {
             println!("Session ID not a UUID");
             return None;
         };
@@ -338,20 +327,9 @@ impl<S: AxumUserStore> AxumUser<S> {
     }
 }
 
-impl<S: AxumUserStore> IntoResponseParts for AxumUser<S> {
-    type Error = Infallible;
-
-    fn into_response_parts(
-        self,
-        res: axum::response::ResponseParts,
-    ) -> Result<axum::response::ResponseParts, Self::Error> {
-        self.jar.into_response_parts(res)
-    }
-}
-
 #[derive(Clone)]
-pub struct AxumUserConfig {
-    pub key: Key,
+pub struct UserpConfig {
+    pub key: String,
     pub allow_signup: Allow,
     pub allow_login: Allow,
     pub https_only: bool,
@@ -364,9 +342,9 @@ pub struct AxumUserConfig {
     pub oauth: OAuthConfig,
 }
 
-impl AxumUserConfig {
+impl UserpConfig {
     pub fn new(
-        key: Key,
+        key: String,
         routes: impl Into<Routes<String>>,
         #[cfg(feature = "password")] pass: PasswordConfig,
         #[cfg(feature = "email")] email: EmailConfig,
@@ -400,37 +378,5 @@ impl AxumUserConfig {
     pub fn with_allow_login(mut self, allow_login: Allow) -> Self {
         self.allow_login = allow_login;
         self
-    }
-}
-
-#[async_trait]
-impl<S, St> FromRequestParts<S> for AxumUser<St>
-where
-    St: AxumUserStore,
-    AxumUserConfig: FromRef<S>,
-    S: Send + Sync,
-    St: AxumUserStore + FromRef<S>,
-{
-    type Rejection = Infallible;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Infallible> {
-        let config = AxumUserConfig::from_ref(state);
-        let jar = PrivateCookieJar::from_headers(&parts.headers, config.key);
-        let store = St::from_ref(state);
-
-        return Ok(AxumUser {
-            allow_signup: config.allow_signup,
-            allow_login: config.allow_login,
-            https_only: config.https_only,
-            routes: config.routes,
-            jar,
-            store,
-            #[cfg(feature = "email")]
-            email: config.email,
-            #[cfg(feature = "password")]
-            pass: config.pass,
-            #[cfg(feature = "oauth")]
-            oauth: config.oauth,
-        });
     }
 }

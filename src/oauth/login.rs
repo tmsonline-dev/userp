@@ -1,5 +1,5 @@
 use super::provider::OAuthProvider;
-use super::{Allow, AxumUser, AxumUserStore, OAuthCallbackError, OAuthFlow};
+use super::{Allow, OAuthCallbackError, OAuthFlow, Userp, UserpStore};
 use crate::{LoginMethod, OAuthToken, UnmatchedOAuthToken, User};
 pub use oauth2::{AuthorizationCode, CsrfToken};
 use std::sync::Arc;
@@ -36,7 +36,7 @@ pub enum OAuthLoginInitError {
     ProviderNotFound(String),
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     pub fn oauth_login_providers(&self) -> Vec<&Arc<dyn OAuthProvider>> {
         self.oauth
             .providers

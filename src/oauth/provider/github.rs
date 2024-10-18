@@ -24,7 +24,7 @@ impl GitHubOAuthProvider {
 
                 let res = client
                     .get("https://api.github.com/user")
-                    .header("User-Agent", "axum-user")
+                    .header("User-Agent", "userp")
                     .header("Accept", "application/vnd.github+json")
                     .header("X-GitHub-Api-Version", "2022-11-28")
                     .bearer_auth(access_token)

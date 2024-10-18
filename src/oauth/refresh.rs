@@ -1,4 +1,4 @@
-use super::{AxumUser, AxumUserStore, OAuthCallbackError, OAuthFlow, OAuthToken};
+use super::{OAuthCallbackError, OAuthFlow, OAuthToken, Userp, UserpStore};
 use crate::{RefreshInitResult, UnmatchedOAuthToken};
 pub use oauth2::RefreshToken;
 use oauth2::{AuthorizationCode, CsrfToken};
@@ -26,7 +26,7 @@ pub enum OAuthRefreshInitError {
     ExchangeError(#[from] anyhow::Error),
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     pub async fn oauth_refresh_init(
         self,
         token: S::OAuthToken,

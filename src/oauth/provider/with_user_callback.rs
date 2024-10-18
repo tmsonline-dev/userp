@@ -6,7 +6,7 @@ use crate::{
     Allow,
 };
 use anyhow::Context;
-use axum::async_trait;
+use async_trait::async_trait;
 use oauth2::{
     basic::BasicClient, reqwest::async_http_client, AuthorizationCode, CsrfToken, RedirectUrl,
     RefreshToken, Scope, TokenResponse,

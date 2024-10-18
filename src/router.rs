@@ -35,19 +35,19 @@ use crate::{
         OAuthGenericCallbackError, OAuthLinkCallbackError, OAuthLinkInitError,
         OAuthLoginCallbackError, OAuthRefreshCallbackError, OAuthSignupCallbackError,
     },
-    AxumUser, AxumUserConfig, AxumUserStore, EmailLoginError, PasswordLoginError,
-    PasswordSignupError, RefreshInitResult,
+    EmailLoginError, PasswordLoginError, PasswordSignupError, RefreshInitResult, Userp,
+    UserpConfig, UserpStore,
 };
 
 #[cfg(feature = "templates")]
 use crate::{email::EmailResetCallbackError, EmailResetError};
 
-impl AxumUserConfig {
+impl UserpConfig {
     pub fn handlers<St, S>(&self) -> Router<S>
     where
-        AxumUserConfig: FromRef<S>,
+        UserpConfig: FromRef<S>,
         S: Send + Sync + Clone + 'static,
-        St: AxumUserStore + FromRef<S> + Send + Sync + 'static,
+        St: UserpStore + FromRef<S> + Send + Sync + 'static,
         St::Error: IntoResponse,
     {
         let mut router = Router::new();
@@ -239,7 +239,7 @@ impl AxumUserConfig {
 
 #[cfg(feature = "templates")]
 async fn get_login<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(NextMessageErrorQuery {
         next,
         message,
@@ -248,7 +248,7 @@ async fn get_login<St>(
     }): Query<NextMessageErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     Ok(if auth.logged_in().await? {
@@ -271,7 +271,7 @@ where
 }
 
 async fn post_login_password<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailPasswordNextForm {
         email,
         password,
@@ -279,7 +279,7 @@ async fn post_login_password<St>(
     }): Form<EmailPasswordNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -305,11 +305,11 @@ where
 }
 
 async fn post_login_email<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -337,11 +337,11 @@ where
 }
 
 async fn get_login_email<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -366,11 +366,11 @@ where
 }
 
 async fn post_login_oauth<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(ProviderNextForm { provider, next }): Form<ProviderNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -388,12 +388,12 @@ where
 }
 
 async fn get_login_oauth<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -417,12 +417,12 @@ where
 }
 
 async fn get_generic_oauth<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -450,7 +450,7 @@ where
 
 #[cfg(feature = "templates")]
 async fn get_signup<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(NextMessageErrorQuery {
         error,
         message,
@@ -459,7 +459,7 @@ async fn get_signup<St>(
     }): Query<NextMessageErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     Ok(SignupTemplate {
@@ -478,7 +478,7 @@ where
 }
 
 async fn post_signup_password<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailPasswordNextForm {
         email,
         password,
@@ -486,7 +486,7 @@ async fn post_signup_password<St>(
     }): Form<EmailPasswordNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let signup_route = auth.routes.signup.clone();
@@ -511,11 +511,11 @@ where
 }
 
 async fn post_signup_email<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let signup_route = auth.routes.signup.clone();
@@ -543,11 +543,11 @@ where
 }
 
 async fn get_signup_email<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let signup_route = auth.routes.signup.clone();
@@ -572,11 +572,11 @@ where
 }
 
 async fn post_signup_oauth<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(ProviderNextForm { provider, next }): Form<ProviderNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let signup_route = auth.routes.signup.clone();
@@ -594,12 +594,12 @@ where
 }
 
 async fn get_signup_oauth<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let signup_route = auth.routes.signup.clone();
@@ -622,9 +622,9 @@ where
     }
 }
 
-async fn get_user_logout<St>(auth: AxumUser<St>) -> Result<impl IntoResponse, St::Error>
+async fn get_user_logout<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let post_logout = auth.routes.post_logout.clone();
@@ -632,9 +632,9 @@ where
     Ok((auth.log_out().await?, Redirect::to(&post_logout)))
 }
 
-async fn get_user_verify_session<St>(auth: AxumUser<St>) -> Result<impl IntoResponse, St::Error>
+async fn get_user_verify_session<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     Ok(if auth.logged_in().await? {
@@ -645,11 +645,11 @@ where
 }
 
 async fn post_user_oauth_link<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(ProviderNextForm { provider, next }): Form<ProviderNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     if !auth.logged_in().await? {
@@ -674,12 +674,12 @@ where
 }
 
 async fn get_user_oauth_link<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     match auth.oauth_link_callback(provider, code, state).await {
@@ -702,11 +702,11 @@ where
 }
 
 async fn post_user_session_delete<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(IdForm { id }): Form<IdForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     if !auth.logged_in().await? {
@@ -721,11 +721,11 @@ where
 }
 
 async fn post_user_oauth_refresh<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(IdForm { id: token_id }): Form<IdForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     if !auth.logged_in().await? {
@@ -775,12 +775,12 @@ where
 }
 
 async fn get_user_oauth_refresh<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let user_route = auth.routes.user.clone();
@@ -810,11 +810,11 @@ where
 }
 
 async fn get_user_email_verify<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -855,11 +855,11 @@ where
 }
 
 async fn post_user_email_verify<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     if !auth.logged_in().await? {
@@ -892,11 +892,11 @@ where
 
 #[cfg(feature = "templates")]
 async fn get_password_send_reset<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(query): Query<AddressMessageSentErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     Ok(SendResetPasswordTemplate {
@@ -910,11 +910,11 @@ where
 }
 
 async fn post_password_send_reset<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let password_send_reset_route = auth.routes.password_send_reset.clone();
@@ -936,11 +936,11 @@ where
 
 #[cfg(feature = "templates")]
 async fn get_password_reset<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(query): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();

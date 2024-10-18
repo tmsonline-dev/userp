@@ -1,5 +1,5 @@
 use super::{EmailChallenge, SendEmailChallengeError};
-use crate::{AxumUser, AxumUserStore, LoginMethod, LoginSession, PasswordReset, User};
+use crate::{LoginMethod, LoginSession, PasswordReset, User, Userp, UserpStore};
 use chrono::Utc;
 use thiserror::Error;
 
@@ -37,7 +37,7 @@ pub enum EmailResetCallbackError<StoreError: std::error::Error> {
     Store(#[from] StoreError),
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     pub async fn email_reset_init(
         &self,
         email: String,

@@ -1,14 +1,14 @@
 use crate::password::hash;
 use crate::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
 use axum::async_trait;
-use axum_user::{
-    AxumUserStore, EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError,
-    LoginMethod, OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError,
-    PasswordSignupError, UnmatchedOAuthToken, User,
-};
 use chrono::{DateTime, Utc};
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
+use userp::{
+    EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError, LoginMethod,
+    OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
+    UnmatchedOAuthToken, User, UserpStore,
+};
 use uuid::Uuid;
 
 #[derive(Clone, Default, Debug)]
@@ -20,7 +20,7 @@ pub struct MemoryStore {
 }
 
 #[async_trait]
-impl AxumUserStore for MemoryStore {
+impl UserpStore for MemoryStore {
     type User = MyUser;
     type UserEmail = MyUserEmail;
     type LoginSession = MyLoginSession;

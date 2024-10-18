@@ -1,4 +1,4 @@
-use crate::{Allow, AxumUser, AxumUserStore, LoginMethod, User};
+use crate::{Allow, LoginMethod, User, Userp, UserpStore};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -13,7 +13,7 @@ pub enum PasswordSignupError<T: std::error::Error> {
     StoreError(#[from] T),
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn password_signup(
         self,

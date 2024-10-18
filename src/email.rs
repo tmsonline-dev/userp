@@ -10,7 +10,7 @@ pub use reset::*;
 pub use signup::*;
 pub use verify::*;
 
-use super::{Allow, AxumUser, AxumUserStore};
+use super::{Allow, Userp, UserpStore};
 use chrono::{DateTime, Duration, Utc};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use thiserror::Error;
@@ -126,7 +126,7 @@ pub enum SendEmailChallengeError<StoreError: std::error::Error> {
     Store(#[from] StoreError),
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     async fn send_email_challenge(
         &self,
         path: String,

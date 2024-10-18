@@ -5,18 +5,18 @@ use askama::Template;
 use askama_axum::IntoResponse;
 use axum::{async_trait, extract::State, response::Redirect, routing::get, serve, Router};
 use axum_macros::FromRef;
-use axum_user::{
+use dotenv::var;
+use tokio::net::TcpListener;
+use tower_http::trace::TraceLayer;
+use userp::{
     chrono::{DateTime, Utc},
     provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
     url::Url,
     uuid::Uuid,
-    AxumUser, AxumUserConfig, EmailChallenge, EmailConfig, EmailPaths, Key, LoginMethod,
-    LoginSession, OAuthConfig, OAuthPaths, OAuthToken, PasswordConfig, Routes, SmtpSettings, User,
-    UserEmail,
+    EmailChallenge, EmailConfig, EmailPaths, LoginMethod, LoginSession, OAuthConfig, OAuthPaths,
+    OAuthToken, PasswordConfig, PasswordReset, Routes, SmtpSettings, User, UserEmail, Userp,
+    UserpConfig,
 };
-use dotenv::var;
-use tokio::net::TcpListener;
-use tower_http::trace::TraceLayer;
 
 mod password {
     use password_auth::{generate_hash, verify_password};
@@ -191,7 +191,7 @@ impl OAuthToken for MyOAuthToken {
 #[derive(Clone, FromRef)]
 struct AppState {
     store: MemoryStore,
-    auth: AxumUserConfig,
+    auth: UserpConfig,
 }
 
 #[tokio::main]
@@ -206,12 +206,12 @@ async fn main() {
 
     let base_url = Url::parse("http://localhost:3000").unwrap();
 
-    let key = Key::from("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".as_bytes());
+    let key = String::from("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
-    let auth = AxumUserConfig::new(
+    let auth = UserpConfig::new(
         key,
         Routes::default(),
-        PasswordConfig::new().with_allow_reset(axum_user::PasswordReset::AnyUserEmail),
+        PasswordConfig::new().with_allow_reset(PasswordReset::AnyUserEmail),
         EmailConfig::new(
             base_url.clone(),
             EmailPaths {
@@ -267,7 +267,7 @@ async fn main() {
     serve(tcp, app.into_make_service()).await.unwrap();
 }
 
-async fn get_index(auth: AxumUser<MemoryStore>) -> impl IntoResponse {
+async fn get_index(auth: Userp<MemoryStore>) -> impl IntoResponse {
     let logged_in = auth.logged_in().await.unwrap();
 
     IndexTemplate { logged_in }
@@ -277,7 +277,7 @@ async fn get_store(State(state): State<AppState>) -> impl IntoResponse {
     format!("{:#?}", state.store).into_response()
 }
 
-async fn get_protected(auth: AxumUser<MemoryStore>) -> impl IntoResponse {
+async fn get_protected(auth: Userp<MemoryStore>) -> impl IntoResponse {
     let Some((user, session)) = auth.user_session().await.unwrap() else {
         return Redirect::to(&format!(
             "/login?next={}",

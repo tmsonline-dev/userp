@@ -1,4 +1,4 @@
-use crate::{oauth::OAuthToken, AxumUser, AxumUserStore, LoginSession, User};
+use crate::{oauth::OAuthToken, LoginSession, User, Userp, UserpStore};
 
 mod forms;
 use super::forms::*;
@@ -16,11 +16,11 @@ use urlencoding::encode;
 
 #[cfg(feature = "templates")]
 pub async fn get_user<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Query(NextMessageErrorQuery { error, message, .. }): Query<NextMessageErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.login.clone();
@@ -51,9 +51,9 @@ where
     })
 }
 
-pub async fn post_user_delete<St>(auth: AxumUser<St>) -> Result<impl IntoResponse, St::Error>
+pub async fn post_user_delete<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     Ok(if let Some(user) = auth.user().await? {
@@ -67,11 +67,11 @@ where
 }
 
 pub async fn post_user_password_set<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(NewPasswordForm { new_password }): Form<NewPasswordForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let mut user_session = auth.user_session().await?;
@@ -93,11 +93,9 @@ where
     Ok(Redirect::to(&format!("{user_route}?message=The password has been set!")).into_response())
 }
 
-pub async fn post_user_password_delete<St>(
-    auth: AxumUser<St>,
-) -> Result<impl IntoResponse, St::Error>
+pub async fn post_user_password_delete<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let Some((user, session)) = auth.user_session().await? else {
@@ -118,11 +116,11 @@ where
 }
 
 pub async fn post_user_oauth_delete<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(IdForm { id }): Form<IdForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     if !auth.logged_in().await? {
@@ -137,11 +135,11 @@ where
 }
 
 pub async fn post_user_email_add<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let Some(user) = auth.user().await? else {
@@ -156,11 +154,11 @@ where
 }
 
 pub async fn post_user_email_delete<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let Some(user) = auth.user().await? else {
@@ -175,11 +173,11 @@ where
 }
 
 pub async fn post_user_email_enable_login<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let Some(user) = auth.user().await? else {
@@ -200,11 +198,11 @@ where
 }
 
 pub async fn post_user_email_disable_login<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     let Some(user) = auth.user().await? else {
@@ -225,11 +223,11 @@ where
 }
 
 pub async fn post_password_reset<St>(
-    auth: AxumUser<St>,
+    auth: Userp<St>,
     Form(NewPasswordForm { new_password }): Form<NewPasswordForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
-    St: AxumUserStore,
+    St: UserpStore,
     St::Error: IntoResponse,
 {
     if let Some((user, session)) = auth.reset_user_session().await? {

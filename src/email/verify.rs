@@ -1,5 +1,5 @@
 use super::{EmailChallenge, SendEmailChallengeError};
-use crate::{AxumUser, AxumUserStore};
+use crate::{Userp, UserpStore};
 use chrono::Utc;
 use thiserror::Error;
 
@@ -22,7 +22,7 @@ pub enum EmailVerifyError<StoreError: std::error::Error> {
     #[error(transparent)]
     Store(#[from] StoreError),
 }
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     pub async fn email_verify_callback(
         &self,
         code: String,

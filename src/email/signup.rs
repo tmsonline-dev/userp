@@ -1,5 +1,5 @@
 use super::{EmailChallenge, SendEmailChallengeError};
-use crate::{Allow, AxumUser, AxumUserStore, LoginMethod, User};
+use crate::{Allow, LoginMethod, User, Userp, UserpStore};
 use chrono::Utc;
 use thiserror::Error;
 
@@ -35,7 +35,7 @@ pub enum EmailSignupCallbackError<StoreError: std::error::Error> {
     Store(#[from] StoreError),
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     pub async fn email_signup_init(
         &self,
         email: String,

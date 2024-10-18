@@ -10,8 +10,7 @@ pub use refresh::*;
 pub use signup::*;
 
 use self::provider::OAuthProvider;
-use super::{Allow, AxumUser, AxumUserStore, User};
-use axum_extra::extract::cookie::{Cookie, SameSite};
+use super::{Allow, User, Userp, UserpStore};
 use chrono::{DateTime, Utc};
 use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse};
 pub use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, TokenResponse};
@@ -26,7 +25,7 @@ pub use provider::custom::*;
 pub use provider::with_user_callback::*;
 pub use provider::*;
 
-const OAUTH_DATA_KEY: &str = "axum-user-state";
+const OAUTH_DATA_KEY: &str = "userp-oauth-state";
 
 #[derive(Clone)]
 pub struct OAuthProviderUser {
@@ -205,7 +204,7 @@ pub enum OAuthGenericCallbackError<StoreError: std::error::Error> {
     Refresh(#[from] OAuthRefreshCallbackError<StoreError>),
 }
 
-impl<S: AxumUserStore> AxumUser<S> {
+impl<S: UserpStore> Userp<S> {
     fn redirect_uri(&self, path: String, provider_name: &str) -> RedirectUrl {
         let path = if path.ends_with('/') {
             path
@@ -234,14 +233,8 @@ impl<S: AxumUserStore> AxumUser<S> {
             provider.scopes(),
         );
 
-        self.jar = self.jar.add(
-            Cookie::build((OAUTH_DATA_KEY, json!((csrf_state, oauth_flow)).to_string()))
-                .path("/")
-                .same_site(SameSite::Lax)
-                .secure(self.https_only)
-                .http_only(true)
-                .build(),
-        );
+        self.cookies
+            .add(OAUTH_DATA_KEY, &json!((csrf_state, oauth_flow)).to_string());
 
         (self, auth_url)
     }
@@ -260,12 +253,12 @@ impl<S: AxumUserStore> AxumUser<S> {
             .ok_or(OAuthCallbackError::NoProvider(provider_name.clone()))?;
 
         let oauth_data = self
-            .jar
+            .cookies
             .get(OAUTH_DATA_KEY)
             .ok_or(OAuthCallbackError::NoOAuthDataCookie)?;
 
         let (prev_csrf_token, oauth_flow) =
-            serde_json::from_str::<(CsrfToken, OAuthFlow)>(oauth_data.value())?;
+            serde_json::from_str::<(CsrfToken, OAuthFlow)>(&oauth_data)?;
 
         if csrf_token.secret() != prev_csrf_token.secret() {
             return Err(OAuthCallbackError::CsrfMismatch);
