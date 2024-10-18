@@ -1,16 +1,16 @@
 mod forms;
 mod queries;
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 mod templates;
 
-#[cfg(feature = "extended")]
+#[cfg(feature = "extended-store")]
 mod extended;
-#[cfg(feature = "extended")]
+#[cfg(feature = "extended-store")]
 use extended::*;
 
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 use askama_axum::IntoResponse;
-#[cfg(not(feature = "templates"))]
+#[cfg(not(feature = "axum-askama"))]
 use axum::response::IntoResponse;
 
 use axum::{
@@ -22,7 +22,7 @@ use axum::{
 use forms::*;
 use queries::*;
 use reqwest::StatusCode;
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 use templates::*;
 use urlencoding::encode;
 
@@ -39,7 +39,7 @@ use crate::{
     UserpConfig, UserpStore,
 };
 
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 use crate::{email::EmailResetCallbackError, EmailResetError};
 
 impl UserpConfig {
@@ -52,7 +52,7 @@ impl UserpConfig {
     {
         let mut router = Router::new();
 
-        #[cfg(feature = "templates")]
+        #[cfg(feature = "axum-askama")]
         {
             router = router
                 .route(self.routes.login.as_str(), get(get_login::<St>))
@@ -62,7 +62,7 @@ impl UserpConfig {
                     get(get_password_send_reset::<St>).post(post_password_send_reset::<St>),
                 );
 
-            #[cfg(feature = "extended")]
+            #[cfg(feature = "extended-store")]
             {
                 router = router
                     .route(self.routes.user.as_str(), get(get_user::<St>))
@@ -73,14 +73,14 @@ impl UserpConfig {
             }
         }
 
-        #[cfg(not(feature = "templates"))]
+        #[cfg(not(feature = "axum-askama"))]
         {
             router = router.route(
                 self.routes.password_send_reset.as_str(),
                 post(post_password_send_reset::<St>),
             );
 
-            #[cfg(feature = "extended")]
+            #[cfg(feature = "extended-store")]
             {
                 router = router.route(
                     self.routes.password_reset.as_str(),
@@ -136,7 +136,7 @@ impl UserpConfig {
                 get(get_user_email_verify::<St>).post(post_user_email_verify::<St>),
             );
 
-        #[cfg(feature = "extended")]
+        #[cfg(feature = "extended-store")]
         {
             router = router
                 .route(
@@ -237,7 +237,7 @@ impl UserpConfig {
     }
 }
 
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 async fn get_login<St>(
     auth: Userp<St>,
     Query(NextMessageErrorQuery {
@@ -448,7 +448,7 @@ where
     }
 }
 
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 async fn get_signup<St>(
     auth: Userp<St>,
     Query(NextMessageErrorQuery {
@@ -890,7 +890,7 @@ where
     }
 }
 
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 async fn get_password_send_reset<St>(
     auth: Userp<St>,
     Query(query): Query<AddressMessageSentErrorQuery>,
@@ -934,7 +934,7 @@ where
     }
 }
 
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 async fn get_password_reset<St>(
     auth: Userp<St>,
     Query(query): Query<CodeQuery>,

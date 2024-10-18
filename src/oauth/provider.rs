@@ -6,7 +6,7 @@ pub mod with_user_callback;
 
 use super::UnmatchedOAuthToken;
 use crate::Allow;
-use axum::async_trait;
+use async_trait::async_trait;
 pub use github::GitHubOAuthProvider;
 use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, RefreshToken, Scope};
 pub use spotify::SpotifyOAuthProvider;

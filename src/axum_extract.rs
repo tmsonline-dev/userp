@@ -1,12 +1,11 @@
-use std::convert::Infallible;
-
+use async_trait::async_trait;
 use axum::{
-    async_trait,
     extract::{FromRef, FromRequestParts},
     http::request::Parts,
     response::IntoResponseParts,
 };
 use axum_extra::extract::cookie::{Cookie, Expiration, Key, PrivateCookieJar, SameSite};
+use std::convert::Infallible;
 
 use crate::{Userp, UserpConfig, UserpStore};
 

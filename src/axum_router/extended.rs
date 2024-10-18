@@ -3,18 +3,18 @@ use crate::{oauth::OAuthToken, LoginSession, User, Userp, UserpStore};
 mod forms;
 use super::forms::*;
 use super::queries::*;
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 use super::templates::*;
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 use askama_axum::IntoResponse;
-#[cfg(not(feature = "templates"))]
+#[cfg(not(feature = "axum-askama"))]
 use axum::response::IntoResponse;
 use axum::{extract::Query, response::Redirect, Form};
 use forms::*;
 use reqwest::StatusCode;
 use urlencoding::encode;
 
-#[cfg(feature = "templates")]
+#[cfg(feature = "axum-askama")]
 pub async fn get_user<St>(
     auth: Userp<St>,
     Query(NextMessageErrorQuery { error, message, .. }): Query<NextMessageErrorQuery>,

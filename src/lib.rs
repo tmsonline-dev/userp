@@ -1,13 +1,13 @@
-#[cfg(feature = "axum")]
+#[cfg(feature = "axum-extract")]
 mod axum_extract;
+#[cfg(feature = "axum-router")]
+mod axum_router;
 #[cfg(feature = "email")]
 mod email;
 #[cfg(feature = "oauth")]
 mod oauth;
 #[cfg(feature = "password")]
 mod password;
-#[cfg(feature = "router")]
-mod router;
 mod routes;
 
 #[cfg(feature = "email")]
@@ -33,7 +33,7 @@ pub use url;
 pub use uuid;
 
 use async_trait::async_trait;
-#[cfg(feature = "axum")]
+#[cfg(feature = "axum-extract")]
 use axum_extract::CookieStore;
 #[cfg(any(feature = "email", feature = "oauth"))]
 use chrono::{DateTime, Utc};
@@ -193,42 +193,42 @@ pub trait UserpStore {
         token_id: Uuid,
     ) -> Result<Option<Self::OAuthToken>, Self::Error>;
 
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn get_user_sessions(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<Self::LoginSession>, Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<Self::OAuthToken>, Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn delete_oauth_token(&self, token_id: Uuid) -> Result<(), Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn delete_user(&self, id: Uuid) -> Result<(), Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid)
         -> Result<(), Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<Self::UserEmail>, Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn set_user_password(
         &self,
         user_id: Uuid,
         password: String,
         session_id: Uuid,
     ) -> Result<(), Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn set_user_email_allow_link_login(
         &self,
         user_id: Uuid,
         address: String,
         allow_login: bool,
     ) -> Result<(), Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn add_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
-    #[cfg(feature = "extended")]
+    #[cfg(feature = "extended-store")]
     async fn delete_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
 }
 
