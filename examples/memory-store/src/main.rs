@@ -81,6 +81,7 @@ async fn main() {
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 
+    println!("User example axum/memstore running at http://localhost:3000 :)");
     let tcp = TcpListener::bind("0.0.0.0:3000").await.unwrap();
     serve(tcp, app.into_make_service()).await.unwrap();
 }
