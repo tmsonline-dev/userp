@@ -5,7 +5,7 @@ edition = "2021"
 exclude = [".github/*"]
 
 [workspace]
-members = ["examples/memory-store"]
+members = ["examples/memory-store", "examples/minimal-pw-only"]
 
 [dependencies]
 thiserror = "1.0.64"

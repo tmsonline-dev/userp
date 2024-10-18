@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p>If you can see this, you are logged in! :D</p>
+<a href="/logout">Log out</a>
+<pre>{{ user }}</pre>
+<pre>{{ session }}</pre>
+{% endblock %}

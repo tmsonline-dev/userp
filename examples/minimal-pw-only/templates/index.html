@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if logged_in %}
+<p>You are logged in</p>
+<a href="/logout">Log out</a>
+<a href="/protected">Protected</a>
+{% else %}
+<p>You are not logged in</p>
+<a href="/signin">Sign up / Log in</a>
+{% endif %}
+{% endblock %}
