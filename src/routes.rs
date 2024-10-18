@@ -1,5 +1,6 @@
 #[derive(Clone)]
 pub struct Routes<T = &'static str> {
+    pub home: T,
     pub login: T,
     pub login_password: T,
     pub login_email: T,
@@ -35,6 +36,7 @@ pub struct Routes<T = &'static str> {
 impl Default for Routes<&'static str> {
     fn default() -> Self {
         Routes {
+            home: "/",
             login: "/login",
             logout: "/logout",
             post_logout: "/",
@@ -75,6 +77,50 @@ impl From<Routes<&'static str>> for Routes<String> {
     }
 }
 
+impl<T: Sized> AsRef<Routes<T>> for Routes<T> {
+    fn as_ref(&self) -> &Routes<T> {
+        self
+    }
+}
+
+impl<'a> From<&'a Routes<String>> for Routes<&'a str> {
+    fn from(value: &'a Routes<String>) -> Self {
+        Self {
+            home: &value.home,
+            login: &value.login,
+            login_password: &value.login_password,
+            login_email: &value.login_email,
+            login_oauth: &value.login_oauth,
+            login_oauth_provider: &value.login_oauth_provider,
+            signup: &value.signup,
+            signup_password: &value.signup_password,
+            signup_email: &value.signup_email,
+            signup_oauth: &value.signup_oauth,
+            signup_oauth_provider: &value.signup_oauth_provider,
+            user: &value.user,
+            user_delete: &value.user_delete,
+            logout: &value.logout,
+            post_logout: &value.post_logout,
+            user_verify_session: &value.user_verify_session,
+            user_password_set: &value.user_password_set,
+            user_password_delete: &value.user_password_delete,
+            user_oauth_link: &value.user_oauth_link,
+            user_oauth_link_provider: &value.user_oauth_link_provider,
+            user_session_delete: &value.user_session_delete,
+            user_oauth_refresh: &value.user_oauth_refresh,
+            user_oauth_refresh_provider: &value.user_oauth_refresh_provider,
+            user_oauth_delete: &value.user_oauth_delete,
+            user_email_verify: &value.user_email_verify,
+            user_email_add: &value.user_email_add,
+            user_email_delete: &value.user_email_delete,
+            user_email_enable_login: &value.user_email_enable_login,
+            user_email_disable_login: &value.user_email_disable_login,
+            password_send_reset: &value.password_send_reset,
+            password_reset: &value.password_reset,
+        }
+    }
+}
+
 impl Routes<&'static str> {
     pub fn with_prefix(self, prefix: &'static str) -> Routes<String> {
         if !prefix.is_empty() && !prefix.starts_with('/') {
@@ -98,6 +144,7 @@ impl Routes<&'static str> {
         };
 
         Routes {
+            home: format!("{prefix}{}", self.home),
             login: format!("{prefix}{}", self.login),
             login_password: format!("{prefix}{}", self.login_password),
             login_email: format!("{prefix}{}", self.login_email),
@@ -111,6 +158,7 @@ impl Routes<&'static str> {
             user: format!("{prefix}{}", self.user),
             user_delete: format!("{prefix}{}", self.user_delete),
             logout: format!("{prefix}{}", self.logout),
+            post_logout: format!("{prefix}{}", self.post_logout),
             user_verify_session: format!("{prefix}{}", self.user_verify_session),
             user_password_set: format!("{prefix}{}", self.user_password_set),
             user_password_delete: format!("{prefix}{}", self.user_password_delete),

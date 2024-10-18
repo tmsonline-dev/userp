@@ -100,15 +100,15 @@ impl SmtpSettings {
 }
 
 pub trait UserEmail: Send + Sync {
-    fn get_address(&self) -> String;
+    fn get_address(&self) -> &str;
     fn get_verified(&self) -> bool;
     fn get_allow_link_login(&self) -> bool;
 }
 
 pub trait EmailChallenge: Send + Sync {
-    fn get_address(&self) -> String;
-    fn get_code(&self) -> String;
-    fn get_next(&self) -> Option<String>;
+    fn get_address(&self) -> &str;
+    fn get_code(&self) -> &str;
+    fn get_next(&self) -> &Option<String>;
     fn get_expires(&self) -> DateTime<Utc>;
 }
 

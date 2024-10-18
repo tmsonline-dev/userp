@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container">
   <h1>Account Management
-    <a href="/" class="home-link">[ Home ]</a>
+    <a href="{{ routes.home }}" class="home-link">[ Home ]</a>
   </h1>
 
   {% if let Some(message) = message %}
@@ -37,7 +37,7 @@
           <strong>{{ session.method }}</strong>
           <p class="text-muted">Last active: Unknown</p>
         </div>
-        <form action="/user/session/delete" method="post" class="form">
+        <form action="{{ routes.user_session_delete }}" method="post" class="form">
           <input type="hidden" value="{{ session.id }}" name="id" />
           <button type="submit">Logout</button>
         </form>
@@ -68,14 +68,14 @@
             <span class="slider"></span>
           </label>
           <span style="margin-left: 10px;">Magic Login</span>
-          <form action="/user/email/delete" method="post" class="form" style="display: inline;">
+          <form action="{{ routes.user_email_delete }}" method="post" class="form" style="display: inline;">
             <input type="hidden" value="{{ email.email }}" name="email" />
             <button type="submit" style="margin-left: 10px; width: 144px;">Remove</button>
           </form>
         </div>
       </div>
       {% endfor %}
-      <form action="/user/email/add" method="post" class="form single-field-form">
+      <form action="{{ routes.user_email_add }}" method="post" class="form single-field-form">
         <input type="email" name="email" placeholder="New email address" required>
         <button type="submit">Add Email</button>
       </form>
@@ -87,11 +87,11 @@
       <h2>Password Settings</h2>
       {% if has_password %}
       <p>Password login is active</p>
-      <form action="/user/password/delete" method="post" class="form">
+      <form action="{{ routes.user_password_delete }}" method="post" class="form">
         <button type="submit">Delete password</button>
       </form>
       {% endif %}
-      <form action="/user/password/set" method="post" class="form">
+      <form action="{{ routes.user_password_set }}" method="post" class="form">
         <h3>Set New Password</h3>
         <div class="single-field-form">
           <input type="password" name="new_password" placeholder="New password" required>
@@ -111,18 +111,18 @@
       {% for token in oauth_tokens %}
       <div class="social-item">
         <strong>{{ token.provider_name }}</strong>
-        <form action="/user/oauth/delete" method="post" class="form" style="display: inline;">
+        <form action="{{ routes.user_oauth_delete }}" method="post" class="form" style="display: inline;">
           <input type="hidden" value="{{ token.id }}" name="id" />
           <button type="submit">Disconnect</button>
         </form>
-        <form action="/user/oauth/refresh" method="post" class="form" style="display: inline;">
+        <form action="{{ routes.user_oauth_refresh }}" method="post" class="form" style="display: inline;">
           <input type="hidden" value="{{ token.id }}" name="id" />
           <button type="submit">Refresh token</button>
         </form>
       </div>
       {% endfor %}
       {% for provider in oauth_providers %}
-      <form action="/user/oauth/link" method="post" class="form">
+      <form action="{{ routes.user_oauth_link }}" method="post" class="form">
         <input type="hidden" name="provider" value="{{ provider.name }}" />
         <button type="submit" style="margin-bottom: 8px;">Link {{ provider.display_name }} account</button>
       </form>
@@ -134,7 +134,7 @@
     <div class="section">
       <h2>Danger Zone</h2>
       <p><strong>Warning:</strong> Deleting your account is permanent and cannot be undone.</p>
-      <form action="/user/delete" method="post" class="form">
+      <form action="{{ routes.user_delete }}" method="post" class="form">
         <button type="submit" class="danger">Delete Account</button>
       </form>
     </div>
@@ -157,8 +157,7 @@
   }
 
   function verifyEmail(email) {
-    // This is where you would typically send a request to your server to verify the email
-    fetch('/user/email/verify', {
+    fetch('{{ routes.user_email_verify }}', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -174,8 +173,9 @@
   }
 
   function toggleMagicLogin(email, enabled) {
-    const action = enabled ? 'enable_login' : 'disable_login';
-    fetch(`/user/email/${action}`, {
+    const action = enabled ? '{{ routes.user_email_disable_login }}' : '{{ routes.user_email_enable_login }}';
+
+    fetch(action, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -189,16 +189,17 @@
   }
 
   function verifySession() {
-    fetch("/user/verify-session").then((res) => {
+    fetch("{{ routes.user_verify_session }}").then((res) => {
       if (res.ok) {
         document.getElementById("status").innerText = `Session verified ${new Date().toString().split(" ").find((s) => s.includes(":"))}`;
       } else {
-        location = "/login?message=You have been logged out&next=" + encodeURIComponent(location.pathname + location.search);
+        location = "{{ routes.login }}?message=You have been logged out&next=" + encodeURIComponent(location.pathname + location.search);
       }
     });
   }
 
   verifySession();
+
   setInterval(verifySession, 5000);
 </script>
 {% endblock %}

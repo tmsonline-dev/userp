@@ -1,15 +1,15 @@
-use crate::{provider::OAuthProvider, LoginMethod, LoginSession, OAuthToken, UserEmail};
+use crate::{provider::OAuthProvider, LoginMethod, LoginSession, OAuthToken, Routes, UserEmail};
 use askama::Template;
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub struct TemplateLoginSession {
+pub struct TemplateLoginSession<'a> {
     pub id: Uuid,
-    pub method: LoginMethod,
+    pub method: &'a LoginMethod,
 }
 
-impl<T: LoginSession> From<T> for TemplateLoginSession {
-    fn from(value: T) -> Self {
+impl<'a, T: LoginSession> From<&'a T> for TemplateLoginSession<'a> {
+    fn from(value: &'a T) -> Self {
         TemplateLoginSession {
             id: value.get_id(),
             method: value.get_method(),
@@ -17,14 +17,14 @@ impl<T: LoginSession> From<T> for TemplateLoginSession {
     }
 }
 
-pub struct TemplateUserEmail {
-    email: String,
+pub struct TemplateUserEmail<'a> {
+    email: &'a str,
     verified: bool,
     allow_link_login: bool,
 }
 
-impl<T: UserEmail> From<T> for TemplateUserEmail {
-    fn from(value: T) -> Self {
+impl<'a, T: UserEmail> From<&'a T> for TemplateUserEmail<'a> {
+    fn from(value: &'a T) -> Self {
         Self {
             email: value.get_address(),
             verified: value.get_verified(),
@@ -34,13 +34,13 @@ impl<T: UserEmail> From<T> for TemplateUserEmail {
 }
 
 #[derive(Clone, Debug)]
-pub struct TemplateOAuthToken {
+pub struct TemplateOAuthToken<'a> {
     pub id: Uuid,
-    pub provider_name: String,
+    pub provider_name: &'a str,
 }
 
-impl<T: OAuthToken> From<T> for TemplateOAuthToken {
-    fn from(value: T) -> Self {
+impl<'a, T: OAuthToken> From<&'a T> for TemplateOAuthToken<'a> {
+    fn from(value: &'a T) -> Self {
         Self {
             id: value.id(),
             provider_name: value.provider_name(),
@@ -48,13 +48,13 @@ impl<T: OAuthToken> From<T> for TemplateOAuthToken {
     }
 }
 
-pub struct TemplateOAuthProvider {
-    pub name: String,
-    pub display_name: String,
+pub struct TemplateOAuthProvider<'a> {
+    pub name: &'a str,
+    pub display_name: &'a str,
 }
 
-impl From<&Arc<dyn OAuthProvider>> for TemplateOAuthProvider {
-    fn from(value: &Arc<dyn OAuthProvider>) -> Self {
+impl<'a> From<&'a Arc<dyn OAuthProvider>> for TemplateOAuthProvider<'a> {
+    fn from(value: &'a Arc<dyn OAuthProvider>) -> Self {
         Self {
             name: value.name(),
             display_name: value.display_name(),
@@ -64,43 +64,49 @@ impl From<&Arc<dyn OAuthProvider>> for TemplateOAuthProvider {
 
 #[derive(Template)]
 #[template(path = "reset-password.html")]
-pub struct ResetPasswordTemplate;
+pub struct ResetPasswordTemplate<'a> {
+    pub routes: Routes<&'a str>,
+}
 
 #[derive(Template)]
 #[template(path = "send-reset-password.html")]
-pub struct SendResetPasswordTemplate {
+pub struct SendResetPasswordTemplate<'a> {
     pub sent: bool,
-    pub address: Option<String>,
-    pub error: Option<String>,
-    pub message: Option<String>,
+    pub address: Option<&'a str>,
+    pub error: Option<&'a str>,
+    pub message: Option<&'a str>,
+    pub routes: Routes<&'a str>,
 }
 
 #[derive(Template)]
 #[template(path = "user.html")]
-pub struct UserTemplate {
-    pub message: Option<String>,
-    pub error: Option<String>,
-    pub sessions: Vec<TemplateLoginSession>,
+pub struct UserTemplate<'a> {
+    pub message: Option<&'a str>,
+    pub error: Option<&'a str>,
+    pub sessions: Vec<TemplateLoginSession<'a>>,
     pub has_password: bool,
-    pub emails: Vec<TemplateUserEmail>,
-    pub oauth_tokens: Vec<TemplateOAuthToken>,
-    pub oauth_providers: Vec<TemplateOAuthProvider>,
+    pub emails: Vec<TemplateUserEmail<'a>>,
+    pub oauth_tokens: Vec<TemplateOAuthToken<'a>>,
+    pub oauth_providers: Vec<TemplateOAuthProvider<'a>>,
+    pub routes: Routes<&'a str>,
 }
 
 #[derive(Template)]
 #[template(path = "login.html")]
-pub struct LoginTemplate {
-    pub next: Option<String>,
-    pub message: Option<String>,
-    pub error: Option<String>,
-    pub oauth_providers: Vec<TemplateOAuthProvider>,
+pub struct LoginTemplate<'a> {
+    pub next: Option<&'a str>,
+    pub message: Option<&'a str>,
+    pub error: Option<&'a str>,
+    pub oauth_providers: &'a [TemplateOAuthProvider<'a>],
+    pub routes: Routes<&'a str>,
 }
 
 #[derive(Template)]
 #[template(path = "signup.html")]
-pub struct SignupTemplate {
-    pub next: Option<String>,
-    pub message: Option<String>,
-    pub error: Option<String>,
-    pub oauth_providers: Vec<TemplateOAuthProvider>,
+pub struct SignupTemplate<'a> {
+    pub next: Option<&'a str>,
+    pub message: Option<&'a str>,
+    pub error: Option<&'a str>,
+    pub oauth_providers: &'a [TemplateOAuthProvider<'a>],
+    pub routes: Routes<&'a str>,
 }

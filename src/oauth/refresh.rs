@@ -35,9 +35,9 @@ impl<S: AxumUserStore> AxumUser<S> {
         let provider = self
             .oauth
             .providers
-            .get(&token.provider_name())
+            .get(token.provider_name())
             .ok_or(OAuthRefreshInitError::ProviderNotFound(
-                token.provider_name(),
+                token.provider_name().to_string(),
             ))
             .cloned()?;
 
@@ -45,8 +45,8 @@ impl<S: AxumUserStore> AxumUser<S> {
             let res = provider
                 .exchange_refresh_token(
                     provider.name(),
-                    self.redirect_uri(self.oauth.refresh_path.clone(), &provider.name()),
-                    RefreshToken::new(refresh_token),
+                    &self.redirect_uri(self.oauth.refresh_path.clone(), provider.name()),
+                    &RefreshToken::new(refresh_token.to_string()),
                 )
                 .await?;
 

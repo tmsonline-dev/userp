@@ -66,37 +66,37 @@ impl OAuthProviderBaseWithBasicClient for CustomOAuthClient {
 }
 
 impl OAuthProviderBase for CustomOAuthClient {
-    fn name(&self) -> String {
-        self.name.clone()
+    fn name(&self) -> &str {
+        self.name.as_str()
     }
 
-    fn display_name(&self) -> String {
-        self.display_name.clone()
+    fn display_name(&self) -> &str {
+        self.display_name.as_str()
     }
 
-    fn scopes(&self) -> Vec<Scope> {
-        self.scopes.clone()
+    fn scopes(&self) -> &[Scope] {
+        &self.scopes
     }
 
     fn get_authorization_url_and_state(
         &self,
-        redirect_url: RedirectUrl,
-        scopes: Vec<Scope>,
+        redirect_url: &RedirectUrl,
+        scopes: &[Scope],
     ) -> (Url, CsrfToken) {
         self.client
             .clone()
-            .set_redirect_uri(redirect_url)
+            .set_redirect_uri(redirect_url.clone())
             .authorize_url(CsrfToken::new_random)
-            .add_scopes(scopes)
+            .add_scopes(scopes.to_vec())
             .url()
     }
 
     fn allow_signup(&self) -> Option<Allow> {
-        self.allow_signup.clone()
+        self.allow_signup
     }
 
     fn allow_login(&self) -> Option<Allow> {
-        self.allow_login.clone()
+        self.allow_login
     }
 
     fn allow_linking(&self) -> Option<bool> {

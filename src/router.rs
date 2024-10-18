@@ -255,14 +255,16 @@ where
         Redirect::to(&auth.routes.user).into_response()
     } else {
         LoginTemplate {
-            next,
-            message,
-            error,
+            next: next.as_deref(),
+            message: message.as_deref(),
+            error: error.as_deref(),
             oauth_providers: auth
                 .oauth_login_providers()
                 .into_iter()
                 .map(|p| p.into())
-                .collect(),
+                .collect::<Vec<_>>()
+                .as_ref(),
+            routes: auth.routes.as_ref().into(),
         }
         .into_response()
     })
@@ -282,7 +284,7 @@ where
 {
     let login_route = auth.routes.login.clone();
 
-    match auth.password_login(email, password).await {
+    match auth.password_login(&email, &password).await {
         Ok(auth) => {
             let next = next.unwrap_or(auth.routes.user.clone());
             Ok((auth, Redirect::to(&next)).into_response())
@@ -315,7 +317,7 @@ where
     match auth.email_login_init(email.clone(), next).await {
         Ok(()) => {
             let next = format!(
-                "/login?message=Login link sent to {}!",
+                "{login_route}?message=Login link sent to {}!",
                 urlencoding::encode(&email)
             );
 
@@ -461,14 +463,16 @@ where
     St::Error: IntoResponse,
 {
     Ok(SignupTemplate {
-        error,
-        message,
-        next,
+        error: error.as_deref(),
+        message: message.as_deref(),
+        next: next.as_deref(),
         oauth_providers: auth
             .oauth_signup_providers()
             .into_iter()
             .map(|p| p.into())
-            .collect(),
+            .collect::<Vec<_>>()
+            .as_ref(),
+        routes: auth.routes.as_ref().into(),
     }
     .into_response())
 }
@@ -486,10 +490,11 @@ where
     St::Error: IntoResponse,
 {
     let signup_route = auth.routes.signup.clone();
+    let user_route = auth.routes.user.clone();
 
-    match auth.password_signup(email, password).await {
+    match auth.password_signup(&email, &password).await {
         Ok(auth) => {
-            let next = next.unwrap_or("/user".into());
+            let next = next.unwrap_or(user_route.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -546,10 +551,11 @@ where
     St::Error: IntoResponse,
 {
     let signup_route = auth.routes.signup.clone();
+    let user_route = auth.routes.user.clone();
 
     match auth.email_signup_callback(code).await {
         Ok((auth, next)) => {
-            let next = next.unwrap_or("/user".into());
+            let next = next.unwrap_or(user_route.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -650,12 +656,17 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
+    let user_route = auth.routes.user.clone();
+
     match auth.oauth_link_init(provider, next).await {
         Ok((auth, redirect_url)) => Ok((auth, Redirect::to(redirect_url.as_str())).into_response()),
         Err(err) => match err {
             OAuthLinkInitError::Store(err) => Err(err),
             _ => {
-                let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+                let next = format!(
+                    "{user_route}?error={}",
+                    urlencoding::encode(&err.to_string())
+                );
                 Ok(Redirect::to(&next).into_response())
             }
         },
@@ -673,13 +684,17 @@ where
 {
     match auth.oauth_link_callback(provider, code, state).await {
         Ok(next) => {
-            let next = next.unwrap_or("/user".into());
+            let next = next.unwrap_or(auth.routes.user.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
             OAuthLinkCallbackError::Store(err) => Err(err),
             _ => {
-                let next = format!("/signup?error={}", urlencoding::encode(&err.to_string()));
+                let next = format!(
+                    "{}?error={}",
+                    auth.routes.signup,
+                    urlencoding::encode(&err.to_string())
+                );
                 Ok((auth, Redirect::to(&next)).into_response())
             }
         },
@@ -700,7 +715,9 @@ where
 
     auth.store.delete_session(id).await?;
 
-    Ok(Redirect::to("/user?message=Session deleted").into_response())
+    let user_route = auth.routes.user;
+
+    Ok(Redirect::to(&format!("{user_route}?message=Session deleted")).into_response())
 }
 
 async fn post_user_oauth_refresh<St>(
@@ -726,21 +743,31 @@ where
         }
     };
 
+    let user_route = auth.routes.user.clone();
+
     Ok(
         match auth
-            .oauth_refresh_init(token, Some("/user?message=Token refreshed".to_string()))
+            .oauth_refresh_init(
+                token,
+                Some(format!("{user_route}?message=Token refreshed").to_string()),
+            )
             .await
         {
             Ok((auth, result)) => match result {
-                RefreshInitResult::Ok => {
-                    (auth, Redirect::to("/user?message=Token refreshed")).into_response()
-                }
+                RefreshInitResult::Ok => (
+                    auth,
+                    Redirect::to(&format!("{user_route}?message=Token refreshed")),
+                )
+                    .into_response(),
                 RefreshInitResult::Redirect(redirect_url) => {
                     (auth, Redirect::to(redirect_url.as_str())).into_response()
                 }
             },
             Err(err) => {
-                let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+                let next = format!(
+                    "{user_route}?error={}",
+                    urlencoding::encode(&err.to_string())
+                );
                 Redirect::to(&next).into_response()
             }
         },
@@ -756,18 +783,26 @@ where
     St: AxumUserStore,
     St::Error: IntoResponse,
 {
+    let user_route = auth.routes.user.clone();
+
     match auth
         .oauth_refresh_callback(provider.clone(), code, state)
         .await
     {
         Ok(next) => {
-            let next = next.unwrap_or(format!("/user?message={} token refreshed!", provider));
+            let next = next.unwrap_or(format!(
+                "{user_route}?message={} token refreshed!",
+                provider
+            ));
             Ok(Redirect::to(&next).into_response())
         }
         Err(err) => match err {
             OAuthRefreshCallbackError::Store(err) => Err(err),
             _ => {
-                let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+                let next = format!(
+                    "{user_route}?error={}",
+                    urlencoding::encode(&err.to_string())
+                );
                 Ok(Redirect::to(&next).into_response())
             }
         },
@@ -782,15 +817,24 @@ where
     St: AxumUserStore,
     St::Error: IntoResponse,
 {
+    let login_route = auth.routes.login.clone();
+    let user_route = auth.routes.user.clone();
+
     match auth.email_verify_callback(code).await {
         Ok((address, next)) => {
             let next = match next {
                 Some(next) => next,
                 None => {
                     if auth.logged_in().await? {
-                        format!("/user?message={} verified!", urlencoding::encode(&address))
+                        format!(
+                            "{user_route}?message={} verified!",
+                            urlencoding::encode(&address)
+                        )
                     } else {
-                        format!("/login?message={} verified!", urlencoding::encode(&address))
+                        format!(
+                            "{login_route}?message={} verified!",
+                            urlencoding::encode(&address)
+                        )
                     }
                 }
             };
@@ -800,7 +844,10 @@ where
         Err(err) => match err {
             EmailVerifyCallbackError::Store(err) => Err(err),
             _ => {
-                let next = format!("/login?error={}", urlencoding::encode(&err.to_string()));
+                let next = format!(
+                    "{login_route}?error={}",
+                    urlencoding::encode(&err.to_string())
+                );
                 Ok(Redirect::to(&next))
             }
         },
@@ -819,10 +866,12 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
+    let user_route = auth.routes.user.clone();
+
     match auth.email_verify_init(email.clone(), next).await {
         Ok(()) => {
             let next = format!(
-                "/user?message=Verification mail sent to {}",
+                "{user_route}?message=Verification mail sent to {}",
                 urlencoding::encode(&email)
             );
 
@@ -831,7 +880,10 @@ where
         Err(err) => match err {
             SendEmailChallengeError::Store(err) => Err(err),
             _ => {
-                let next = format!("/user?error={}", urlencoding::encode(&err.to_string()));
+                let next = format!(
+                    "{user_route}?error={}",
+                    urlencoding::encode(&err.to_string())
+                );
                 Ok(Redirect::to(&next).into_response())
             }
         },
@@ -840,6 +892,7 @@ where
 
 #[cfg(feature = "templates")]
 async fn get_password_send_reset<St>(
+    auth: AxumUser<St>,
     Query(query): Query<AddressMessageSentErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -848,9 +901,10 @@ where
 {
     Ok(SendResetPasswordTemplate {
         sent: query.sent.is_some_and(|sent| sent),
-        address: query.address,
-        error: query.error,
-        message: query.message,
+        address: query.address.as_deref(),
+        error: query.error.as_deref(),
+        message: query.message.as_deref(),
+        routes: auth.routes.as_ref().into(),
     }
     .into_response())
 }
@@ -863,16 +917,18 @@ where
     St: AxumUserStore,
     St::Error: IntoResponse,
 {
+    let password_send_reset_route = auth.routes.password_send_reset.clone();
+
     if let Err(err) = auth.email_reset_init(email.clone(), next).await {
         let next = format!(
-            "/password/send-reset?error={}&address={}",
+            "{password_send_reset_route}?error={}&address={}",
             urlencoding::encode(&err.to_string()),
             email
         );
 
         Ok(Redirect::to(&next).into_response())
     } else {
-        let next = format!("/password/send-reset?sent=true&address={}", email);
+        let next = format!("{password_send_reset_route}?sent=true&address={}", email);
 
         Ok(Redirect::to(&next).into_response())
     }
@@ -887,13 +943,21 @@ where
     St: AxumUserStore,
     St::Error: IntoResponse,
 {
+    let login_route = auth.routes.login.clone();
+
     match auth.email_reset_callback(query.code).await {
-        Ok(auth) => Ok((auth, ResetPasswordTemplate).into_response()),
+        Ok(auth) => {
+            let routes = auth.routes.clone();
+            let routes = routes.as_ref().into();
+
+            Ok((auth, ResetPasswordTemplate { routes }).into_response())
+        }
         Err(err) => match err {
             EmailResetCallbackError::Store(err) => Err(err),
             EmailResetCallbackError::EmailResetError(EmailResetError::Store(err)) => Err(err),
             _ => Ok(
-                Redirect::to(&format!("/login?err={}", encode(&err.to_string()))).into_response(),
+                Redirect::to(&format!("{login_route}?err={}", encode(&err.to_string())))
+                    .into_response(),
             ),
         },
     }

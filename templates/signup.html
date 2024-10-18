@@ -17,7 +17,7 @@
   {% endif %}
 
   <div class="magic-login">
-    <form action="/signup/email" method="post" class="form">
+    <form action="{{ routes.signup_email }}" method="post" class="form">
       <div class="form-group">
         <label for="magic-email">Email for Magic Link</label>
         <input type="email" id="magic-email" name="email" required>
@@ -33,7 +33,7 @@
     <span>or</span>
   </div>
 
-  <form action="/signup/password" method="post" id="signup-form">
+  <form action="{{ routes.signup_password }}" method="post" id="signup-form">
     <div class="form-group">
       <label for="email">Email</label>
       <input type="email" id="email" name="email" required>
@@ -54,7 +54,7 @@
 
   <div class="social-login">
     {% for provider in oauth_providers %}
-    <form action="/signup/oauth" method="post" class="form">
+    <form action="{{ routes.signup_oauth }}" method="post" class="form">
       <input type="hidden" name="provider" value="{{ provider.name }}" />
       <button type="submit" class="social-button">Sign up with {{ provider.display_name }}</button>
       {% if let Some(next) = next %}
@@ -65,7 +65,7 @@
   </div>
 
   <div class="links">
-    <a href="/login">Already have an account? Log in</a>
+    <a href="{{ routes.login }}">Already have an account? Log in</a>
   </div>
 </div>
 {% endblock %}

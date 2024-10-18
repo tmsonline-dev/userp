@@ -100,12 +100,12 @@ impl<S: AxumUserStore> AxumUser<S> {
         Ok((
             self.log_in(
                 LoginMethod::Email {
-                    address: challenge.get_address(),
+                    address: challenge.get_address().to_owned(),
                 },
                 user.get_id(),
             )
             .await?,
-            challenge.get_next(),
+            challenge.get_next().clone(),
         ))
     }
 }

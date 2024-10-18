@@ -71,8 +71,8 @@ impl AxumUserStore for MemoryStore {
 
     async fn password_login(
         &self,
-        password_id: String,
-        password: String,
+        password_id: &str,
+        password: &str,
         allow_signup: bool,
     ) -> Result<Self::User, PasswordLoginError<Self::Error>> {
         let mut users = self.users.write().await;
@@ -94,9 +94,9 @@ impl AxumUserStore for MemoryStore {
                     let id = Uuid::new_v4();
                     let user = MyUser {
                         id,
-                        password_hash: Some(hash(password).await),
+                        password_hash: Some(hash(password.to_owned()).await),
                         emails: vec![MyUserEmail {
-                            email: password_id,
+                            email: password_id.to_owned(),
                             verified: false,
                             allow_link_login: false,
                         }],
@@ -114,8 +114,8 @@ impl AxumUserStore for MemoryStore {
 
     async fn password_signup(
         &self,
-        password_id: String,
-        password: String,
+        password_id: &str,
+        password: &str,
         allow_login: bool,
     ) -> Result<Self::User, PasswordSignupError<Self::Error>> {
         let mut users = self.users.write().await;
@@ -140,9 +140,9 @@ impl AxumUserStore for MemoryStore {
                 let id = Uuid::new_v4();
                 let user = MyUser {
                     id,
-                    password_hash: Some(hash(password).await),
+                    password_hash: Some(hash(password.into()).await),
                     emails: vec![MyUserEmail {
-                        email: password_id,
+                        email: password_id.into(),
                         verified: false,
                         allow_link_login: false,
                     }],
@@ -157,7 +157,7 @@ impl AxumUserStore for MemoryStore {
 
     async fn email_login(
         &self,
-        address: String,
+        address: &str,
         allow_signup: bool,
     ) -> Result<Self::User, EmailLoginError<Self::Error>> {
         let mut users = self.users.write().await;
@@ -184,7 +184,7 @@ impl AxumUserStore for MemoryStore {
                         id,
                         password_hash: None,
                         emails: vec![MyUserEmail {
-                            email: address,
+                            email: address.into(),
                             verified: true,
                             allow_link_login: true,
                         }],
@@ -201,7 +201,7 @@ impl AxumUserStore for MemoryStore {
     }
     async fn email_signup(
         &self,
-        address: String,
+        address: &str,
         allow_login: bool,
     ) -> Result<Self::User, EmailSignupError<Self::Error>> {
         let mut users = self.users.write().await;
@@ -229,7 +229,7 @@ impl AxumUserStore for MemoryStore {
                     id,
                     password_hash: None,
                     emails: vec![MyUserEmail {
-                        email: address,
+                        email: address.into(),
                         verified: true,
                         allow_link_login: true,
                     }],
@@ -243,7 +243,7 @@ impl AxumUserStore for MemoryStore {
     }
     async fn email_reset(
         &self,
-        address: String,
+        address: &str,
         require_verified_address: bool,
     ) -> Result<Self::User, EmailResetError<Self::Error>> {
         let users = self.users.read().await;
@@ -263,7 +263,7 @@ impl AxumUserStore for MemoryStore {
         }
     }
 
-    async fn email_verify(&self, address: String) -> Result<(), EmailVerifyError<Self::Error>> {
+    async fn email_verify(&self, address: &str) -> Result<(), EmailVerifyError<Self::Error>> {
         let mut users = self.users.write().await;
 
         users

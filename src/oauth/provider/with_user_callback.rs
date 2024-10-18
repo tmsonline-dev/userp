@@ -73,11 +73,11 @@ impl<'a> OAuthProviderBaseWithUserCallback<'a> {
 }
 
 impl OAuthProviderBase for OAuthProviderBaseWithUserCallback<'_> {
-    fn name(&self) -> String {
+    fn name(&self) -> &str {
         self.inner.name()
     }
 
-    fn display_name(&self) -> String {
+    fn display_name(&self) -> &str {
         self.inner.display_name()
     }
 
@@ -93,14 +93,14 @@ impl OAuthProviderBase for OAuthProviderBaseWithUserCallback<'_> {
         self.inner.allow_linking()
     }
 
-    fn scopes(&self) -> Vec<Scope> {
+    fn scopes(&self) -> &[Scope] {
         self.inner.scopes()
     }
 
     fn get_authorization_url_and_state(
         &self,
-        base_redirect_url: RedirectUrl,
-        scopes: Vec<Scope>,
+        base_redirect_url: &RedirectUrl,
+        scopes: &[Scope],
     ) -> (Url, CsrfToken) {
         self.inner
             .get_authorization_url_and_state(base_redirect_url, scopes)
@@ -111,15 +111,15 @@ impl OAuthProviderBase for OAuthProviderBaseWithUserCallback<'_> {
 impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
     async fn exchange_authorization_code(
         &self,
-        provider_name: String,
-        redirect_url: RedirectUrl,
-        code: AuthorizationCode,
+        provider_name: &str,
+        redirect_url: &RedirectUrl,
+        code: &AuthorizationCode,
     ) -> ExchangeResult {
         let res = self
             .inner
             .get_oauth2_client()
-            .set_redirect_uri(redirect_url)
-            .exchange_code(code)
+            .set_redirect_uri(redirect_url.clone())
+            .exchange_code(code.clone())
             .request_async(async_http_client)
             .await
             .context("Requesting authorization code exchange")?;
@@ -127,7 +127,7 @@ impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
         let provider_user = (self.get_user)(res.access_token().secret().to_string())?;
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
-            res,
+            &res,
             provider_name,
             provider_user,
         ))
@@ -135,15 +135,15 @@ impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
 
     async fn exchange_refresh_token(
         &self,
-        provider_name: String,
-        redirect_url: RedirectUrl,
-        refresh_token: RefreshToken,
+        provider_name: &str,
+        redirect_url: &RedirectUrl,
+        refresh_token: &RefreshToken,
     ) -> ExchangeResult {
         let res = self
             .inner
             .get_oauth2_client()
-            .set_redirect_uri(redirect_url)
-            .exchange_refresh_token(&refresh_token)
+            .set_redirect_uri(redirect_url.clone())
+            .exchange_refresh_token(refresh_token)
             .request_async(async_http_client)
             .await
             .context("Requesting refresh token exchange")?;
@@ -151,7 +151,7 @@ impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
         let provider_user = (self.get_user)(res.access_token().secret().to_string())?;
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
-            res,
+            &res,
             provider_name,
             provider_user,
         ))

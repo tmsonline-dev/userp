@@ -148,8 +148,8 @@ pub struct UnmatchedOAuthToken {
 
 impl UnmatchedOAuthToken {
     pub fn from_standard_token_response(
-        token_response: StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
-        provider_name: String,
+        token_response: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
+        provider_name: &str,
         provider_user: OAuthProviderUser,
     ) -> Self {
         Self {
@@ -160,7 +160,7 @@ impl UnmatchedOAuthToken {
                 .scopes()
                 .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
                 .unwrap_or_default(),
-            provider_name,
+            provider_name: provider_name.into(),
             provider_user,
         }
     }
@@ -169,12 +169,12 @@ impl UnmatchedOAuthToken {
 pub trait OAuthToken: Send + Sync {
     fn id(&self) -> Uuid;
     fn user_id(&self) -> Uuid;
-    fn provider_name(&self) -> String;
-    fn provider_user_id(&self) -> String;
-    fn access_token(&self) -> String;
-    fn refresh_token(&self) -> Option<String>;
+    fn provider_name(&self) -> &str;
+    fn provider_user_id(&self) -> &str;
+    fn access_token(&self) -> &str;
+    fn refresh_token(&self) -> &Option<String>;
     fn expires(&self) -> Option<DateTime<Utc>>;
-    fn scopes(&self) -> Vec<String>;
+    fn scopes(&self) -> &[String];
 }
 
 #[derive(Error, Debug)]
@@ -230,7 +230,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         oauth_flow: OAuthFlow,
     ) -> (Self, Url) {
         let (auth_url, csrf_state) = provider.get_authorization_url_and_state(
-            self.redirect_uri(path, &provider.name()),
+            &self.redirect_uri(path, provider.name()),
             provider.scopes(),
         );
 
@@ -274,8 +274,8 @@ impl<S: AxumUserStore> AxumUser<S> {
         let unmatched_token = provider
             .exchange_authorization_code(
                 provider.name(),
-                self.redirect_uri(path, &provider_name),
-                code,
+                &self.redirect_uri(path, &provider_name),
+                &code,
             )
             .await?;
 

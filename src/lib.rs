@@ -48,7 +48,7 @@ const SESSION_ID_KEY: &str = "axum-user-session-id";
 pub trait LoginSession: Send + Sync {
     fn get_id(&self) -> Uuid;
     fn get_user_id(&self) -> Uuid;
-    fn get_method(&self) -> LoginMethod;
+    fn get_method(&self) -> &LoginMethod;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +69,7 @@ impl Display for LoginMethod {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Allow {
     Never,
     OnSelf,
@@ -83,7 +83,7 @@ pub trait User: Send + Sync {
     #[cfg(feature = "password")]
     fn has_password(&self) -> bool;
     #[cfg(feature = "password")]
-    async fn validate_password(&self, password: String) -> bool;
+    async fn validate_password(&self, password: &str) -> bool;
 }
 
 #[async_trait]
@@ -118,15 +118,15 @@ pub trait AxumUserStore {
     #[cfg(feature = "password")]
     async fn password_login(
         &self,
-        password_id: String,
-        password: String,
+        password_id: &str,
+        password: &str,
         allow_signup: bool,
     ) -> Result<Self::User, PasswordLoginError<Self::Error>>;
     #[cfg(feature = "password")]
     async fn password_signup(
         &self,
-        password_id: String,
-        password: String,
+        password_id: &str,
+        password: &str,
         allow_login: bool,
     ) -> Result<Self::User, PasswordSignupError<Self::Error>>;
 
@@ -134,23 +134,23 @@ pub trait AxumUserStore {
     #[cfg(feature = "email")]
     async fn email_login(
         &self,
-        address: String,
+        address: &str,
         allow_signup: bool,
     ) -> Result<Self::User, EmailLoginError<Self::Error>>;
     #[cfg(feature = "email")]
     async fn email_signup(
         &self,
-        address: String,
+        address: &str,
         allow_login: bool,
     ) -> Result<Self::User, EmailSignupError<Self::Error>>;
     #[cfg(feature = "email")]
     async fn email_reset(
         &self,
-        address: String,
+        address: &str,
         require_verified_address: bool,
     ) -> Result<Self::User, EmailResetError<Self::Error>>;
     #[cfg(feature = "email")]
-    async fn email_verify(&self, address: String) -> Result<(), EmailVerifyError<Self::Error>>;
+    async fn email_verify(&self, address: &str) -> Result<(), EmailVerifyError<Self::Error>>;
     #[cfg(feature = "email")]
     async fn email_create_challenge(
         &self,

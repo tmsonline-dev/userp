@@ -93,7 +93,7 @@ impl<S: AxumUserStore> AxumUser<S> {
         Ok(self
             .log_in(
                 LoginMethod::PasswordReset {
-                    address: challenge.get_address(),
+                    address: challenge.get_address().to_owned(),
                 },
                 user.get_id(),
             )

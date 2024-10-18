@@ -23,28 +23,31 @@ where
     St: AxumUserStore,
     St::Error: IntoResponse,
 {
+    let login_route = auth.routes.login.clone();
+
     Ok(if let Some(user) = auth.user().await? {
         let sessions = auth.store.get_user_sessions(user.get_id()).await?;
         let oauth_tokens = auth.store.get_user_oauth_tokens(user.get_id()).await?;
         let emails = auth.store.get_user_emails(user.get_id()).await?;
 
         UserTemplate {
-            message,
-            error,
-            sessions: sessions.into_iter().map(|s| s.into()).collect(),
+            message: message.as_deref(),
+            error: error.as_deref(),
+            sessions: sessions.iter().map(|s| s.into()).collect(),
             has_password: user.has_password(),
-            emails: emails.into_iter().map(|e| e.into()).collect(),
+            emails: emails.iter().map(|e| e.into()).collect(),
             oauth_providers: auth
                 .oauth_link_providers()
                 .into_iter()
                 .filter(|p| !oauth_tokens.iter().any(|t| t.provider_name() == p.name()))
                 .map(|p| p.into())
                 .collect(),
-            oauth_tokens: oauth_tokens.into_iter().map(|t| t.into()).collect(),
+            oauth_tokens: oauth_tokens.iter().map(|t| t.into()).collect(),
+            routes: (&auth.routes).into(),
         }
         .into_response()
     } else {
-        Redirect::to("/login?next=%2Fuser").into_response()
+        Redirect::to(&format!("{login_route}?next=%2Fuser")).into_response()
     })
 }
 
@@ -54,11 +57,10 @@ where
     St::Error: IntoResponse,
 {
     Ok(if let Some(user) = auth.user().await? {
+        let signup_route = auth.routes.signup.clone();
         auth.store.delete_user(user.get_id()).await?;
 
-        let auth = auth.log_out().await?;
-
-        (auth, Redirect::to("/")).into_response()
+        (auth.log_out().await?, Redirect::to(&signup_route)).into_response()
     } else {
         StatusCode::UNAUTHORIZED.into_response()
     })
@@ -86,7 +88,9 @@ where
         .set_user_password(user.get_id(), new_password, session.get_id())
         .await?;
 
-    Ok(Redirect::to("/user?message=The password has been set!").into_response())
+    let user_route = auth.routes.user;
+
+    Ok(Redirect::to(&format!("{user_route}?message=The password has been set!")).into_response())
 }
 
 pub async fn post_user_password_delete<St>(
@@ -104,7 +108,13 @@ where
         .clear_user_password(user.get_id(), session.get_id())
         .await?;
 
-    Ok((auth, Redirect::to("/user?message=Password cleared")).into_response())
+    let user_route = auth.routes.user.clone();
+
+    Ok((
+        auth,
+        Redirect::to(&format!("{user_route}?message=Password cleared")),
+    )
+        .into_response())
 }
 
 pub async fn post_user_oauth_delete<St>(
@@ -121,7 +131,9 @@ where
 
     auth.store.delete_oauth_token(id).await?;
 
-    Ok(Redirect::to("/user?message=Token deleted").into_response())
+    let user_route = auth.routes.user;
+
+    Ok(Redirect::to(&format!("{user_route}?message=Token deleted")).into_response())
 }
 
 pub async fn post_user_email_add<St>(
@@ -138,7 +150,9 @@ where
 
     auth.store.add_user_email(user.get_id(), email).await?;
 
-    Ok(Redirect::to("/user?message=Email added").into_response())
+    let user_route = auth.routes.user;
+
+    Ok(Redirect::to(&format!("{user_route}?message=Email added")).into_response())
 }
 
 pub async fn post_user_email_delete<St>(
@@ -155,7 +169,9 @@ where
 
     auth.store.delete_user_email(user.get_id(), email).await?;
 
-    Ok(Redirect::to("/user?message=Email deleted").into_response())
+    let user_route = auth.routes.user;
+
+    Ok(Redirect::to(&format!("{user_route}?message=Email deleted")).into_response())
 }
 
 pub async fn post_user_email_enable_login<St>(
@@ -174,8 +190,10 @@ where
         .set_user_email_allow_link_login(user.get_id(), email.clone(), true)
         .await?;
 
+    let user_route = auth.routes.user;
+
     Ok(Redirect::to(&format!(
-        "/user?message={}",
+        "{user_route}?message={}",
         encode(&format!("You can now log in directly with {email}"))
     ))
     .into_response())
@@ -197,8 +215,10 @@ where
         .set_user_email_allow_link_login(user.get_id(), email.clone(), false)
         .await?;
 
+    let user_route = auth.routes.user;
+
     Ok(Redirect::to(&format!(
-        "/user?message={}",
+        "{user_route}?message={}",
         encode(&format!("You can no longer log in directly with {email}"))
     ))
     .into_response())
@@ -216,7 +236,10 @@ where
         auth.store
             .set_user_password(user.get_id(), new_password, session.get_id())
             .await?;
-        Ok(Redirect::to("/login?message=Password has been reset").into_response())
+
+        let login_route = auth.routes.login;
+
+        Ok(Redirect::to(&format!("{login_route}?message=Password has been reset")).into_response())
     } else {
         Ok(StatusCode::UNAUTHORIZED.into_response())
     }

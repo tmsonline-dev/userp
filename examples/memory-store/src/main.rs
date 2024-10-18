@@ -65,9 +65,9 @@ impl User for MyUser {
         self.id
     }
 
-    async fn validate_password(&self, password: String) -> bool {
+    async fn validate_password(&self, password: &str) -> bool {
         if let Some(hash) = self.password_hash.as_ref() {
-            password::verify(password, hash.clone()).await
+            password::verify(password.to_string(), hash.clone()).await
         } else {
             false
         }
@@ -82,8 +82,8 @@ pub struct MyUserEmail {
 }
 
 impl UserEmail for MyUserEmail {
-    fn get_address(&self) -> String {
-        self.email.clone()
+    fn get_address(&self) -> &str {
+        self.email.as_str()
     }
 
     fn get_verified(&self) -> bool {
@@ -111,8 +111,8 @@ impl LoginSession for MyLoginSession {
         self.user_id
     }
 
-    fn get_method(&self) -> LoginMethod {
-        self.method.clone()
+    fn get_method(&self) -> &LoginMethod {
+        &self.method
     }
 }
 
@@ -125,16 +125,16 @@ pub struct MyEmailChallenge {
 }
 
 impl EmailChallenge for MyEmailChallenge {
-    fn get_address(&self) -> String {
-        self.address.clone()
+    fn get_address(&self) -> &str {
+        &self.address
     }
 
-    fn get_code(&self) -> String {
-        self.code.clone()
+    fn get_code(&self) -> &str {
+        &self.code
     }
 
-    fn get_next(&self) -> Option<String> {
-        self.next.clone()
+    fn get_next(&self) -> &Option<String> {
+        &self.next
     }
 
     fn get_expires(&self) -> DateTime<Utc> {
@@ -163,28 +163,28 @@ impl OAuthToken for MyOAuthToken {
         self.user_id
     }
 
-    fn provider_name(&self) -> String {
-        self.provider_name.clone()
+    fn provider_name(&self) -> &str {
+        self.provider_name.as_str()
     }
 
-    fn provider_user_id(&self) -> String {
-        self.provider_user_id.clone()
+    fn provider_user_id(&self) -> &str {
+        self.provider_user_id.as_str()
     }
 
-    fn access_token(&self) -> String {
-        self.access_token.clone()
+    fn access_token(&self) -> &str {
+        self.access_token.as_str()
     }
 
-    fn refresh_token(&self) -> Option<String> {
-        self.refresh_token.clone()
+    fn refresh_token(&self) -> &Option<String> {
+        &self.refresh_token
     }
 
     fn expires(&self) -> Option<DateTime<Utc>> {
         self.expires
     }
 
-    fn scopes(&self) -> Vec<String> {
-        self.scopes.clone()
+    fn scopes(&self) -> &[String] {
+        &self.scopes
     }
 }
 

@@ -17,8 +17,8 @@ impl<S: AxumUserStore> AxumUser<S> {
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn password_signup(
         self,
-        password_id: String,
-        password: String,
+        password_id: &str,
+        password: &str,
     ) -> Result<Self, PasswordSignupError<S::Error>> {
         if self
             .pass

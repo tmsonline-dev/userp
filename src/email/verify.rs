@@ -42,7 +42,10 @@ impl<S: AxumUserStore> AxumUser<S> {
 
         self.store.email_verify(challenge.get_address()).await?;
 
-        Ok((challenge.get_address(), challenge.get_next()))
+        Ok((
+            challenge.get_address().to_owned(),
+            challenge.get_next().clone(),
+        ))
     }
 
     pub async fn email_verify_init(
