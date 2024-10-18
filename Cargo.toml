@@ -3,6 +3,10 @@ name = "userp"
 version = "0.0.0"
 edition = "2021"
 exclude = [".github/*"]
+description = "Userp is a user account system inspired by Next Auth, with OAuth, password and email support, a ready-made Axum router with Askama templates, and more on the way!"
+license = "ISC"
+repository = "https://github.com/StefanTerdell/userp"
+homepage = "https://github.com/StefanTerdell/userp"
 
 [workspace]
 members = ["examples/memory-store", "examples/minimal-pw-only"]
