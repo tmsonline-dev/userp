@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Routes<T = &'static str> {
     pub home: T,
     pub login: T,

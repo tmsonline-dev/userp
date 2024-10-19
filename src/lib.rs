@@ -12,14 +12,14 @@ mod routes;
 
 #[cfg(feature = "email")]
 pub use self::email::{
-    EmailChallenge, EmailConfig, EmailLoginError, EmailResetError, EmailSignupError,
-    EmailVerifyError, SmtpSettings, UserEmail,
+    EmailChallenge, EmailConfig, EmailLoginError, EmailLoginInitError, EmailResetError,
+    EmailSignupError, EmailVerifyError, SmtpSettings, UserEmail,
 };
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
     provider, AuthorizationCode, CsrfToken, CustomOAuthClient, OAuthConfig, OAuthLinkError,
-    OAuthLoginError, OAuthProviderUser, OAuthProviderUserResult, OAuthProviders, OAuthSignupError,
-    OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
+    OAuthLoginError, OAuthLoginInitError, OAuthProviderUser, OAuthProviderUserResult,
+    OAuthProviders, OAuthSignupError, OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
 };
 #[cfg(all(feature = "password", feature = "email"))]
 pub use self::password::PasswordReset;
@@ -45,7 +45,7 @@ const SESSION_ID_KEY: &str = "userp-session-id";
 pub trait LoginSession: Send + Sync {
     fn get_id(&self) -> Uuid;
     fn get_user_id(&self) -> Uuid;
-    fn get_method(&self) -> &LoginMethod;
+    fn get_method(&self) -> LoginMethod;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,10 +73,8 @@ pub enum Allow {
     OnEither,
 }
 
-#[async_trait]
 pub trait User: Send + Sync {
     fn get_id(&self) -> Uuid;
-
     #[cfg(feature = "password")]
     fn get_allow_password_login(&self) -> bool;
 }
@@ -230,12 +228,13 @@ pub trait UserpStore {
     async fn delete_user_email(&self, user_id: Uuid, address: String) -> Result<(), Self::Error>;
 }
 
+#[derive(Debug, Clone)]
 pub struct Userp<S: UserpStore> {
     allow_signup: Allow,
     allow_login: Allow,
     cookies: CookieStore,
     routes: Routes<String>,
-    store: S,
+    pub store: S,
     #[cfg(feature = "password")]
     pass: PasswordConfig,
     #[cfg(feature = "email")]
@@ -252,6 +251,10 @@ impl<S: UserpStore> Userp<S> {
             .add(SESSION_ID_KEY, &session.get_id().to_string());
 
         Ok(self)
+    }
+
+    pub fn get_encoded_cookies(&self) -> Vec<String> {
+        self.cookies.list_encoded()
     }
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]

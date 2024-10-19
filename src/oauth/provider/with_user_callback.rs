@@ -27,6 +27,18 @@ pub struct OAuthProviderBaseWithUserCallback<'a> {
     allow_linking: Option<bool>,
 }
 
+impl std::fmt::Debug for OAuthProviderBaseWithUserCallback<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuthProviderBaseWithUserCallback")
+            .field("inner", &self.inner)
+            .field("get_user", &"You dont want no part of this Dewey")
+            .field("allow_signup", &self.allow_signup)
+            .field("allow_login", &self.allow_login)
+            .field("allow_linking", &self.allow_linking)
+            .finish()
+    }
+}
+
 impl<'a> OAuthProviderBaseWithUserCallback<'a> {
     pub fn new<Fut, F>(
         client: Box<dyn OAuthProviderBaseWithBasicClient + 'a>,

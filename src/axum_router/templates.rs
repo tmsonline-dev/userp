@@ -3,13 +3,13 @@ use askama::Template;
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub struct TemplateLoginSession<'a> {
+pub struct TemplateLoginSession {
     pub id: Uuid,
-    pub method: &'a LoginMethod,
+    pub method: LoginMethod,
 }
 
-impl<'a, T: LoginSession> From<&'a T> for TemplateLoginSession<'a> {
-    fn from(value: &'a T) -> Self {
+impl<T: LoginSession> From<&T> for TemplateLoginSession {
+    fn from(value: &T) -> Self {
         TemplateLoginSession {
             id: value.get_id(),
             method: value.get_method(),
@@ -83,7 +83,7 @@ pub struct SendResetPasswordTemplate<'a> {
 pub struct UserTemplate<'a> {
     pub message: Option<&'a str>,
     pub error: Option<&'a str>,
-    pub sessions: Vec<TemplateLoginSession<'a>>,
+    pub sessions: Vec<TemplateLoginSession>,
     pub has_password: bool,
     pub emails: Vec<TemplateUserEmail<'a>>,
     pub oauth_tokens: Vec<TemplateOAuthToken<'a>>,

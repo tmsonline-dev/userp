@@ -1,5 +1,4 @@
 use crate::password;
-use axum::async_trait;
 use serde::Deserialize;
 use userp::{uuid::Uuid, LoginMethod, LoginSession, User};
 
@@ -16,7 +15,6 @@ pub struct MyUser {
     pub email: String,
 }
 
-#[async_trait]
 impl User for MyUser {
     fn get_allow_password_login(&self) -> bool {
         self.password_hash.is_some()
@@ -53,7 +51,7 @@ impl LoginSession for MyLoginSession {
         self.user_id
     }
 
-    fn get_method(&self) -> &LoginMethod {
-        &self.method
+    fn get_method(&self) -> LoginMethod {
+        self.method.clone()
     }
 }

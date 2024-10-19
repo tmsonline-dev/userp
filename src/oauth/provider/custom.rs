@@ -9,6 +9,7 @@ use super::with_user_callback::{
     OAuthProviderBaseWithBasicClient, OAuthProviderBaseWithUserCallback, OAuthProviderUserResult,
 };
 
+#[derive(Debug)]
 pub struct CustomOAuthClient {
     client: BasicClient,
     name: String,

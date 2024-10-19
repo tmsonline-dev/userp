@@ -27,7 +27,7 @@ pub use provider::*;
 
 const OAUTH_DATA_KEY: &str = "userp-oauth-state";
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OAuthProviderUser {
     pub id: String,
     pub email: Option<String>,
@@ -69,7 +69,7 @@ impl Display for OAuthFlow {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OAuthConfig {
     pub allow_login: Option<Allow>,
     pub allow_signup: Option<Allow>,
@@ -110,7 +110,7 @@ impl OAuthConfig {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct OAuthProviders(pub(super) Vec<Arc<dyn OAuthProvider>>);
 
 impl OAuthProviders {

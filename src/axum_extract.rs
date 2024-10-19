@@ -9,6 +9,7 @@ use std::convert::Infallible;
 
 use crate::{Userp, UserpConfig, UserpStore};
 
+#[derive(Debug, Clone)]
 pub struct CookieStore {
     jar: PrivateCookieJar,
     https_only: bool,
@@ -44,6 +45,10 @@ impl CookieStore {
 
     pub fn remove(&mut self, key: &str) {
         self.jar = self.jar.clone().remove(key.to_owned());
+    }
+
+    pub fn list_encoded(&self) -> Vec<String> {
+        self.jar.iter().map(|c| c.encoded().to_string()).collect()
     }
 }
 

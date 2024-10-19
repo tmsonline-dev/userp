@@ -14,7 +14,7 @@ use url::Url;
 
 pub type ExchangeResult = anyhow::Result<UnmatchedOAuthToken>;
 
-pub trait OAuthProviderBase: Send + Sync {
+pub trait OAuthProviderBase: std::fmt::Debug + Send + Sync {
     fn name(&self) -> &str;
 
     fn display_name(&self) -> &str {

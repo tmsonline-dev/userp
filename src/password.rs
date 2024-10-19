@@ -7,14 +7,14 @@ pub use signup::*;
 use crate::Allow;
 
 #[cfg(feature = "email")]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PasswordReset {
     Never,
     VerifiedEmailOnly,
     AnyUserEmail,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PasswordConfig {
     pub allow_login: Option<Allow>,
     pub allow_signup: Option<Allow>,
