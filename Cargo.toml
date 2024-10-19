@@ -1,6 +1,6 @@
 [package]
 name = "userp"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 exclude = [".github/*"]
 description = "Userp is a user account system inspired by Next Auth, with OAuth, password and email support, a ready-made Axum router with Askama templates, and more on the way!"

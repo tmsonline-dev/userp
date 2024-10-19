@@ -271,15 +271,9 @@ impl<S: UserpStore> Userp<S> {
     }
 
     fn session_id_cookie(&self) -> Option<Uuid> {
-        let Some(session_id_cookie) = self.cookies.get(SESSION_ID_KEY) else {
-            println!("No session ID cookie found");
-            return None;
-        };
+        let session_id_cookie = self.cookies.get(SESSION_ID_KEY)?;
 
-        let Ok(session_id) = Uuid::parse_str(&session_id_cookie) else {
-            println!("Session ID not a UUID");
-            return None;
-        };
+        let session_id = Uuid::parse_str(&session_id_cookie).ok()?;
 
         Some(session_id)
     }
