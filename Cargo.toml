@@ -9,7 +9,7 @@ repository = "https://github.com/StefanTerdell/userp"
 homepage = "https://github.com/StefanTerdell/userp"
 
 [workspace]
-members = ["examples/memory-store", "examples/minimal-pw-only"]
+members = ["examples/memory-store", "examples/psql-store", "examples/minimal-pw-only"]
 
 [dependencies]
 thiserror = "1.0.64"
