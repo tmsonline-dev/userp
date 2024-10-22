@@ -66,7 +66,7 @@ async fn main() {
     )
     .with_https_only(false);
 
-    let auth_router = auth.handlers::<MemoryStore, AppState>();
+    let auth_router = auth.router::<MemoryStore, AppState>();
 
     let state = AppState {
         store: MemoryStore::default(),

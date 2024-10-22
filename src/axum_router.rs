@@ -44,7 +44,7 @@ use crate::{Userp, UserpConfig, UserpStore};
 use crate::{email::EmailResetCallbackError, EmailResetError};
 
 impl UserpConfig {
-    pub fn handlers<St, S>(&self) -> Router<S>
+    pub fn router<St, S>(&self) -> Router<S>
     where
         UserpConfig: FromRef<S>,
         S: Send + Sync + Clone + 'static,

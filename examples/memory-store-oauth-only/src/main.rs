@@ -40,11 +40,7 @@ async fn main() {
 
     let auth = UserpConfig::new(
         key,
-        Routes {
-            home: "/",
-            post_logout: "/",
-            ..Routes::default()
-        },
+        Routes::default(),
         OAuthConfig::new(base_url)
             .with_client(SpotifyOAuthProvider::new(
                 req_var("SPOTIFY_CLIENT_ID"),
@@ -57,7 +53,7 @@ async fn main() {
     )
     .with_https_only(false);
 
-    let auth_router = auth.handlers::<MemoryStore, AppState>();
+    let auth_router = auth.router::<MemoryStore, AppState>();
 
     let state = AppState {
         store: MemoryStore::default(),

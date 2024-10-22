@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::UserEmail;
 #[cfg(feature = "oauth")]
 use crate::{provider::OAuthProvider, OAuthToken};
-use crate::{Allow, LoginMethod, LoginSession, User, Userp, UserpStore};
+use crate::{LoginMethod, LoginSession, User, Userp, UserpStore};
 
 #[cfg(feature = "account")]
 pub struct TemplateLoginSession {
@@ -117,6 +117,7 @@ pub struct UserTemplateOAuthInfo<'a> {
     pub delete_action_route: &'a str,
     pub refresh_action_route: &'a str,
     pub link_action_route: &'a str,
+    pub user_page_route: &'a str,
 }
 
 #[cfg(feature = "account")]
@@ -186,11 +187,21 @@ impl UserTemplate<'_> {
                     providers: auth
                         .oauth_link_providers()
                         .into_iter()
-                        .map(|p| p.into())
+                        .filter_map(|p| {
+                            if oauth_tokens
+                                .iter()
+                                .any(|t| t.get_provider_name() == p.name())
+                            {
+                                None
+                            } else {
+                                Some(p.into())
+                            }
+                        })
                         .collect(),
                     delete_action_route: &auth.routes.actions.user_oauth_delete,
                     refresh_action_route: &auth.routes.actions.user_oauth_refresh,
                     link_action_route: &auth.routes.actions.user_oauth_link,
+                    user_page_route: &auth.routes.pages.user,
                 })
             },
             #[cfg(not(feature = "oauth"))]
@@ -234,7 +245,7 @@ impl LoginTemplate<'_> {
         error: Option<&str>,
     ) -> impl IntoResponse {
         #[cfg(feature = "oauth")]
-        let oauth_providers = auth.oauth_login_providers();
+        let oauth_login_providers = auth.oauth_login_providers();
 
         LoginTemplate {
             next,
@@ -258,13 +269,14 @@ impl LoginTemplate<'_> {
             email: None,
             #[cfg(feature = "oauth")]
             oauth: ({
-                if auth.oauth.allow_login.as_ref().unwrap_or(&auth.allow_login) != &Allow::Never
-                    || oauth_providers.is_empty()
-                {
+                if oauth_login_providers.is_empty() {
                     None
                 } else {
                     Some(TemplateOAuthInfo {
-                        providers: oauth_providers.into_iter().map(|p| p.into()).collect(),
+                        providers: oauth_login_providers
+                            .into_iter()
+                            .map(|p| p.into())
+                            .collect(),
                         action_route: &auth.routes.actions.login_oauth,
                     })
                 }
@@ -297,7 +309,7 @@ impl SignupTemplate<'_> {
         error: Option<&str>,
     ) -> impl IntoResponse {
         #[cfg(feature = "oauth")]
-        let oauth_providers = auth.oauth_signup_providers();
+        let oauth_signup_providers = auth.oauth_signup_providers();
 
         SignupTemplate {
             next,
@@ -321,18 +333,14 @@ impl SignupTemplate<'_> {
             email: None,
             #[cfg(feature = "oauth")]
             oauth: ({
-                if auth
-                    .oauth
-                    .allow_signup
-                    .as_ref()
-                    .unwrap_or(&auth.allow_signup)
-                    != &Allow::Never
-                    || oauth_providers.is_empty()
-                {
+                if oauth_signup_providers.is_empty() {
                     None
                 } else {
                     Some(TemplateOAuthInfo {
-                        providers: oauth_providers.into_iter().map(|p| p.into()).collect(),
+                        providers: oauth_signup_providers
+                            .into_iter()
+                            .map(|p| p.into())
+                            .collect(),
                         action_route: &auth.routes.actions.signup_oauth,
                     })
                 }

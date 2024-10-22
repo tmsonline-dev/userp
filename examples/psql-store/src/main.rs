@@ -67,7 +67,7 @@ async fn main() {
     )
     .with_https_only(false);
 
-    let auth_router = auth.handlers::<PsqlStore, AppState>();
+    let auth_router = auth.router::<PsqlStore, AppState>();
 
     let state = AppState {
         store: PsqlStore {

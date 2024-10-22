@@ -21,11 +21,17 @@
   <p style="white-space: pre;">Welcome! <span id="status">Verifying token...</span></p>
 
   <div class="tabs">
-    <button class="tab-button active" onclick="openTab(event, 'sessions')">Sessions</button>
-    <button class="tab-button" onclick="openTab(event, 'emails')">Emails</button>
-    <button class="tab-button" onclick="openTab(event, 'password')">Password</button>
-    <button class="tab-button" onclick="openTab(event, 'social')">Social Logins</button>
-    <button class="tab-button" onclick="openTab(event, 'danger')">Danger Zone</button>
+    <button id="sessions-tab-button" class="tab-button active" onclick="openTab('sessions')">Sessions</button>
+    {% if email.is_some() %}
+    <button id="emails-tab-button" class="tab-button" onclick="openTab('emails')">Emails</button>
+    {% endif %}
+    {% if password.is_some() %}
+    <button id="password-tab-button" class="tab-button" onclick="openTab('password')">Password</button>
+    {% endif %}
+    {% if oauth.is_some() %}
+    <button id="oauth-tab-button" class="tab-button" onclick="openTab('oauth')">OAuth Logins</button>
+    {% endif %}
+    <button id="danger-tab-button" class="tab-button" onclick="openTab('danger')">Danger Zone</button>
   </div>
 
   <div id="sessions" class="tab tab-active">
@@ -148,9 +154,9 @@
   {% endif %}
 
   {% if let Some(oauth) = oauth %}
-  <div id="social" class="tab">
+  <div id="oauth" class="tab">
     <div class="section">
-      <h2>Social Login Providers</h2>
+      <h2>OAuth Login Providers</h2>
       {% for token in oauth.tokens %}
       <div class="social-item">
         <strong>{{ token.provider_name }}</strong>
@@ -167,6 +173,7 @@
       {% for provider in oauth.providers %}
       <form action="{{ oauth.link_action_route }}" method="post" class="form">
         <input type="hidden" name="provider" value="{{ provider.name }}" />
+        <input type="hidden" name="next" value="{{ oauth.user_page_route }}?tab=oauth" />
         <button type="submit" style="margin-bottom: 8px;">Link {{ provider.display_name }} account</button>
       </form>
       {% endfor %}
@@ -189,7 +196,7 @@
 
 
 <script>
-  function openTab(evt, tabName) {
+  function openTab(tabName) {
     var i, tabcontent, tablinks;
     tabcontent = document.getElementsByClassName("tab");
     for (i = 0; i < tabcontent.length; i++) {
@@ -200,7 +207,13 @@
       tablinks[i].className = tablinks[i].className.replace(" active", "");
     }
     document.getElementById(tabName).style.display = "block";
-    evt.currentTarget.className += " active";
+    document.getElementById(`${tabName}-tab-button`).className += " active";
+  }
+
+  const searchTab = new URLSearchParams(location.search).get("tab")
+
+  if (searchTab) {
+    openTab(searchTab)
   }
 
   function verifySession() {

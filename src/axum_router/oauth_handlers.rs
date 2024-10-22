@@ -66,7 +66,10 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
+    #[cfg(not(feature = "account"))]
+    let user_route = auth.routes.redirects.post_login.clone();
 
     match auth
         .oauth_refresh_callback(provider.clone(), code, state)
@@ -115,7 +118,10 @@ where
         }
     };
 
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
+    #[cfg(not(feature = "account"))]
+    let user_route = auth.routes.redirects.post_login.clone();
 
     Ok(
         match auth
@@ -219,7 +225,10 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
+    #[cfg(not(feature = "account"))]
+    let user_route = auth.routes.redirects.post_login.clone();
 
     match auth.oauth_link_init(provider, next).await {
         Ok((auth, redirect_url)) => Ok((auth, Redirect::to(redirect_url.as_str())).into_response()),
