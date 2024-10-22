@@ -15,7 +15,10 @@ use templates::SigninTemplate;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
-use userp::{Allow, PasswordConfig, Routes, Userp, UserpConfig};
+use userp::{
+    prelude::{Allow, PasswordConfig, Routes, UserpConfig},
+    Userp,
+};
 
 #[derive(Clone, FromRef)]
 struct AppState {

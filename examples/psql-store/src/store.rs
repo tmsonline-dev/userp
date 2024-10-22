@@ -6,12 +6,13 @@ use axum::response::IntoResponse;
 use sqlx::postgres::PgPool;
 use thiserror::Error;
 use userp::{
-    self,
     chrono::{DateTime, Utc},
+    prelude::{
+        EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError, LoginMethod,
+        OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
+        UnmatchedOAuthToken, UserpStore,
+    },
     uuid::Uuid,
-    EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError, LoginMethod,
-    OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
-    UnmatchedOAuthToken, UserpStore,
 };
 
 #[derive(Clone, Debug)]

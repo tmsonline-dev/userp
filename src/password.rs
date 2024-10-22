@@ -1,10 +1,7 @@
-mod login;
-mod signup;
+pub mod login;
+pub mod signup;
 
-pub use login::*;
-pub use signup::*;
-
-use crate::Allow;
+use crate::config::Allow;
 
 #[cfg(feature = "email")]
 #[derive(Debug, Clone, PartialEq, Eq)]

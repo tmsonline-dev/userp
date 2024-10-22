@@ -1,21 +1,20 @@
-mod login;
+pub mod login;
 #[cfg(feature = "password")]
-mod reset;
-mod signup;
-mod verify;
+pub mod reset;
+pub mod signup;
+pub mod verify;
 
-pub use login::*;
-#[cfg(feature = "password")]
-pub use reset::*;
-pub use signup::*;
-pub use verify::*;
-
-use super::{Allow, Userp, UserpStore};
 use chrono::{DateTime, Duration, Utc};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};
 use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
+
+use crate::{
+    config::Allow,
+    core::CoreUserp,
+    traits::{UserpCookies, UserpStore},
+};
 
 #[derive(Debug, Clone)]
 pub struct EmailConfig {
@@ -107,7 +106,7 @@ pub enum SendEmailChallengeError<StoreError: std::error::Error> {
     Store(#[from] StoreError),
 }
 
-impl<S: UserpStore> Userp<S> {
+impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     async fn send_email_challenge(
         &self,
         path: String,

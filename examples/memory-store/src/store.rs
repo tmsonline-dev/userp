@@ -3,13 +3,14 @@ use crate::password::hash;
 use axum::async_trait;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
-
 use userp::{
     chrono::{DateTime, Utc},
+    prelude::{
+        EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError, LoginMethod,
+        OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
+        UnmatchedOAuthToken, UserpStore,
+    },
     uuid::Uuid,
-    EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError, LoginMethod,
-    OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
-    UnmatchedOAuthToken, UserpStore,
 };
 
 #[derive(Clone, Default, Debug)]

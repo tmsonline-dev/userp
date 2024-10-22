@@ -1,10 +1,14 @@
+use super::{IdForm, ProviderNextForm};
 use crate::{
+    axum::AxumUserp,
     oauth::{
-        OAuthGenericCallbackError, OAuthLinkCallbackError, OAuthLinkInitError,
-        OAuthLoginCallbackError, OAuthRefreshCallbackError, OAuthSignupCallbackError,
-        RefreshInitResult,
+        link::{OAuthLinkCallbackError, OAuthLinkInitError},
+        login::OAuthLoginCallbackError,
+        refresh::OAuthRefreshCallbackError,
+        signup::OAuthSignupCallbackError,
+        OAuthGenericCallbackError, RefreshInitResult,
     },
-    Userp, UserpStore,
+    traits::UserpStore,
 };
 use axum::{
     extract::{Path, Query},
@@ -14,8 +18,6 @@ use axum::{
 };
 use oauth2::{AuthorizationCode, CsrfToken};
 use serde::Deserialize;
-
-use super::{IdForm, ProviderNextForm};
 
 #[derive(Deserialize)]
 pub struct CodeStateQuery {
@@ -29,7 +31,7 @@ pub struct ProviderPath {
 }
 
 pub async fn get_login_oauth<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -58,7 +60,7 @@ where
 }
 
 pub async fn get_user_oauth_refresh<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -96,7 +98,7 @@ where
 }
 
 pub async fn post_user_oauth_refresh<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(IdForm { id: token_id }): Form<IdForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -153,7 +155,7 @@ where
 }
 
 pub async fn get_generic_oauth<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -185,7 +187,7 @@ where
 }
 
 pub async fn get_signup_oauth<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -214,7 +216,7 @@ where
 }
 
 pub async fn post_user_oauth_link<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(ProviderNextForm { provider, next }): Form<ProviderNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -246,7 +248,7 @@ where
 }
 
 pub async fn get_user_oauth_link<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Path(ProviderPath { provider }): Path<ProviderPath>,
     Query(CodeStateQuery { code, state }): Query<CodeStateQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -274,7 +276,7 @@ where
 }
 
 pub async fn post_login_oauth<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(ProviderNextForm { provider, next }): Form<ProviderNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -296,7 +298,7 @@ where
 }
 
 pub async fn post_signup_oauth<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(ProviderNextForm { provider, next }): Form<ProviderNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where

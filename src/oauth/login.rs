@@ -1,7 +1,10 @@
 use super::provider::OAuthProvider;
-use super::{Allow, OAuthCallbackError, OAuthFlow, Userp, UserpStore};
-use crate::{LoginMethod, OAuthToken, UnmatchedOAuthToken, User};
-pub use oauth2::{AuthorizationCode, CsrfToken};
+use super::{
+    Allow, CoreUserp, OAuthCallbackError, OAuthFlow, OAuthToken, UnmatchedOAuthToken, UserpStore,
+};
+use crate::enums::LoginMethod;
+use crate::traits::{User, UserpCookies};
+use oauth2::{AuthorizationCode, CsrfToken};
 use std::sync::Arc;
 use thiserror::Error;
 use url::Url;
@@ -36,7 +39,7 @@ pub enum OAuthLoginInitError {
     ProviderNotFound(String),
 }
 
-impl<S: UserpStore> Userp<S> {
+impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     pub fn oauth_login_providers(&self) -> Vec<&Arc<dyn OAuthProvider>> {
         self.oauth
             .providers

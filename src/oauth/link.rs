@@ -1,7 +1,8 @@
-use crate::UnmatchedOAuthToken;
-
-use super::provider::OAuthProvider;
-use super::{OAuthCallbackError, OAuthFlow, User, Userp, UserpStore};
+use super::{
+    provider::OAuthProvider, CoreUserp, OAuthCallbackError, OAuthFlow, UnmatchedOAuthToken,
+    UserpStore,
+};
+use crate::traits::{User, UserpCookies};
 use oauth2::{AuthorizationCode, CsrfToken};
 use std::sync::Arc;
 use thiserror::Error;
@@ -43,7 +44,7 @@ pub enum OAuthLinkCallbackError<StoreError: std::error::Error> {
     Store(StoreError),
 }
 
-impl<S: UserpStore> Userp<S> {
+impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     pub fn oauth_link_providers(&self) -> Vec<&Arc<dyn OAuthProvider>> {
         self.oauth
             .providers

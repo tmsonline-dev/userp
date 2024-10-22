@@ -1,30 +1,29 @@
-mod link;
-mod login;
+pub mod link;
+pub mod login;
 pub mod provider;
-mod refresh;
-mod signup;
+pub mod refresh;
+pub mod signup;
 
-pub use link::*;
-pub use login::*;
-pub use refresh::*;
-pub use signup::*;
+use crate::config::Allow;
+use crate::core::CoreUserp;
+use crate::traits::UserpCookies;
+use crate::traits::UserpStore;
 
+use self::link::OAuthLinkCallbackError;
+use self::login::OAuthLoginCallbackError;
 use self::provider::OAuthProvider;
-use super::{Allow, User, Userp, UserpStore};
-use crate::CookieStoreTrait;
+use self::refresh::OAuthRefreshCallbackError;
+use self::signup::OAuthSignupCallbackError;
+
 use chrono::{DateTime, Utc};
 use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse};
-pub use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, TokenResponse};
+use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, TokenResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
-
-pub use provider::custom::*;
-pub use provider::with_user_callback::*;
-pub use provider::*;
 
 const OAUTH_DATA_KEY: &str = "userp-oauth-state";
 
@@ -184,7 +183,7 @@ pub enum OAuthGenericCallbackError<StoreError: std::error::Error> {
     Refresh(#[from] OAuthRefreshCallbackError<StoreError>),
 }
 
-impl<S: UserpStore> Userp<S> {
+impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     fn redirect_uri(&self, path: String, provider_name: &str) -> RedirectUrl {
         let path = if path.ends_with('/') {
             path

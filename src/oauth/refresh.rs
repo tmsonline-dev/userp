@@ -1,7 +1,10 @@
-use super::{OAuthCallbackError, OAuthFlow, OAuthToken, Userp, UserpStore};
-use crate::{RefreshInitResult, UnmatchedOAuthToken};
-pub use oauth2::RefreshToken;
-use oauth2::{AuthorizationCode, CsrfToken};
+use crate::traits::UserpCookies;
+
+use super::{
+    CoreUserp, OAuthCallbackError, OAuthFlow, OAuthToken, RefreshInitResult, UnmatchedOAuthToken,
+    UserpStore,
+};
+use oauth2::{AuthorizationCode, CsrfToken, RefreshToken};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -26,7 +29,7 @@ pub enum OAuthRefreshInitError {
     ExchangeError(#[from] anyhow::Error),
 }
 
-impl<S: UserpStore> Userp<S> {
+impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     pub async fn oauth_refresh_init(
         self,
         token: S::OAuthToken,

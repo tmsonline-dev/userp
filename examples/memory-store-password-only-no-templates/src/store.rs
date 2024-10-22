@@ -3,8 +3,10 @@ use crate::password::hash;
 use axum::async_trait;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
-
-use userp::{uuid::Uuid, LoginMethod, PasswordLoginError, PasswordSignupError, UserpStore};
+use userp::{
+    prelude::{LoginMethod, PasswordLoginError, PasswordSignupError, UserpStore},
+    uuid::Uuid,
+};
 
 #[derive(Clone, Default, Debug)]
 pub struct MemoryStore {

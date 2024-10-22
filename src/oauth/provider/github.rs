@@ -1,5 +1,5 @@
-use super::with_user_callback::OAuthProviderBaseWithUserCallback;
-use crate::{CustomOAuthClient, OAuthProviderUser};
+use super::{custom::CustomOAuthClient, with_user_callback::OAuthProviderBaseWithUserCallback};
+use crate::oauth::OAuthProviderUser;
 use anyhow::Context;
 use serde_json::Value;
 

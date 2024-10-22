@@ -1,7 +1,7 @@
 use userp::{
     chrono::{DateTime, Utc},
+    prelude::{LoginMethod, LoginSession, OAuthToken, User},
     uuid::Uuid,
-    LoginMethod, LoginSession, OAuthToken, User,
 };
 
 #[derive(Debug, Clone)]

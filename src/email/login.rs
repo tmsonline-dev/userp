@@ -1,5 +1,10 @@
 use super::{EmailChallenge, SendEmailChallengeError};
-use crate::{Allow, LoginMethod, User, Userp, UserpStore};
+use crate::{
+    config::Allow,
+    core::CoreUserp,
+    enums::LoginMethod,
+    traits::{User, UserpCookies, UserpStore},
+};
 use chrono::Utc;
 use thiserror::Error;
 
@@ -37,7 +42,7 @@ pub enum EmailLoginInitError<StoreError: std::error::Error> {
     NotAllowed,
 }
 
-impl<S: UserpStore> Userp<S> {
+impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     pub async fn email_login_init(
         &self,
         email: String,

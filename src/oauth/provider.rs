@@ -1,15 +1,12 @@
-mod github;
-mod spotify;
-
 pub mod custom;
+pub mod github;
+pub mod spotify;
 pub mod with_user_callback;
 
 use super::UnmatchedOAuthToken;
-use crate::Allow;
+use crate::config::Allow;
 use async_trait::async_trait;
-pub use github::GitHubOAuthProvider;
 use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, RefreshToken, Scope};
-pub use spotify::SpotifyOAuthProvider;
 use url::Url;
 
 pub type ExchangeResult = anyhow::Result<UnmatchedOAuthToken>;

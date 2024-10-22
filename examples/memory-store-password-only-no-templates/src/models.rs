@@ -1,6 +1,9 @@
 use crate::password;
 use serde::Deserialize;
-use userp::{uuid::Uuid, LoginMethod, LoginSession, User};
+use userp::{
+    prelude::{LoginMethod, LoginSession, User},
+    uuid::Uuid,
+};
 
 #[derive(Deserialize)]
 pub struct SigninForm {

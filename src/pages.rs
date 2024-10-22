@@ -1,15 +1,17 @@
+#[cfg(feature = "email")]
+use crate::email::UserEmail;
+#[cfg(feature = "oauth")]
+use crate::oauth::{provider::OAuthProvider, OAuthToken};
+use crate::{
+    core::CoreUserp,
+    enums::LoginMethod,
+    traits::{LoginSession, User, UserpCookies, UserpStore},
+};
 use askama::Template;
-// TODO: add actix-askama
-#[cfg(feature = "axum-askama")]
+#[cfg(feature = "axum-pages")]
 use askama_axum::IntoResponse;
 use std::sync::Arc;
 use uuid::Uuid;
-
-#[cfg(feature = "email")]
-use crate::UserEmail;
-#[cfg(feature = "oauth")]
-use crate::{provider::OAuthProvider, OAuthToken};
-use crate::{LoginMethod, LoginSession, User, Userp, UserpStore};
 
 #[cfg(feature = "account")]
 pub struct TemplateLoginSession {
@@ -141,16 +143,16 @@ pub struct UserTemplate<'a> {
 #[cfg(feature = "account")]
 impl UserTemplate<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub fn response_from<S: UserpStore>(
-        auth: &Userp<S>,
-        user: &S::User,
-        session: &S::LoginSession,
-        sessions: &[S::LoginSession],
-        message: Option<&str>,
-        error: Option<&str>,
-        #[cfg(feature = "email")] emails: &[S::UserEmail],
-        #[cfg(feature = "oauth")] oauth_tokens: &[S::OAuthToken],
-    ) -> impl IntoResponse {
+    fn with<'a, S: UserpStore, C: UserpCookies>(
+        auth: &'a CoreUserp<S, C>,
+        user: &'a S::User,
+        session: &'a S::LoginSession,
+        sessions: &'a [S::LoginSession],
+        message: Option<&'a str>,
+        error: Option<&'a str>,
+        #[cfg(feature = "email")] emails: &'a [S::UserEmail],
+        #[cfg(feature = "oauth")] oauth_tokens: &'a [S::OAuthToken],
+    ) -> UserTemplate<'a> {
         UserTemplate {
             message,
             error,
@@ -207,6 +209,59 @@ impl UserTemplate<'_> {
             #[cfg(not(feature = "oauth"))]
             oauth: None,
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[cfg(feature = "axum-pages")]
+    pub fn render_with<S: UserpStore, C: UserpCookies>(
+        auth: &CoreUserp<S, C>,
+        user: &S::User,
+        session: &S::LoginSession,
+        sessions: &[S::LoginSession],
+        message: Option<&str>,
+        error: Option<&str>,
+        #[cfg(feature = "email")] emails: &[S::UserEmail],
+        #[cfg(feature = "oauth")] oauth_tokens: &[S::OAuthToken],
+    ) -> Result<String, askama::Error> {
+        Self::with(
+            auth,
+            user,
+            session,
+            sessions,
+            message,
+            error,
+            #[cfg(feature = "email")]
+            emails,
+            #[cfg(feature = "oauth")]
+            oauth_tokens,
+        )
+        .render()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[cfg(feature = "axum-pages")]
+    pub fn into_response_with<S: UserpStore, C: UserpCookies>(
+        auth: &CoreUserp<S, C>,
+        user: &S::User,
+        session: &S::LoginSession,
+        sessions: &[S::LoginSession],
+        message: Option<&str>,
+        error: Option<&str>,
+        #[cfg(feature = "email")] emails: &[S::UserEmail],
+        #[cfg(feature = "oauth")] oauth_tokens: &[S::OAuthToken],
+    ) -> impl IntoResponse {
+        Self::with(
+            auth,
+            user,
+            session,
+            sessions,
+            message,
+            error,
+            #[cfg(feature = "email")]
+            emails,
+            #[cfg(feature = "oauth")]
+            oauth_tokens,
+        )
         .into_response()
     }
 }
@@ -238,12 +293,12 @@ pub struct LoginTemplate<'a> {
 }
 
 impl LoginTemplate<'_> {
-    pub fn response_from<S: UserpStore>(
-        auth: &Userp<S>,
-        next: Option<&str>,
-        message: Option<&str>,
-        error: Option<&str>,
-    ) -> impl IntoResponse {
+    fn with<'a, S: UserpStore, C: UserpCookies>(
+        auth: &'a CoreUserp<S, C>,
+        next: Option<&'a str>,
+        message: Option<&'a str>,
+        error: Option<&'a str>,
+    ) -> LoginTemplate<'a> {
         #[cfg(feature = "oauth")]
         let oauth_login_providers = auth.oauth_login_providers();
 
@@ -285,7 +340,25 @@ impl LoginTemplate<'_> {
             oauth: None,
             signup_route: &auth.routes.pages.signup,
         }
-        .into_response()
+    }
+
+    pub fn render_with<S: UserpStore, C: UserpCookies>(
+        auth: &CoreUserp<S, C>,
+        next: Option<&str>,
+        message: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<String, askama::Error> {
+        Self::with(auth, next, message, error).render()
+    }
+
+    #[cfg(feature = "axum-pages")]
+    pub fn into_response_with<S: UserpStore, C: UserpCookies>(
+        auth: &CoreUserp<S, C>,
+        next: Option<&str>,
+        message: Option<&str>,
+        error: Option<&str>,
+    ) -> impl IntoResponse {
+        Self::with(auth, next, message, error).into_response()
     }
 }
 
@@ -302,12 +375,12 @@ pub struct SignupTemplate<'a> {
 }
 
 impl SignupTemplate<'_> {
-    pub fn response_from<S: UserpStore>(
-        auth: &Userp<S>,
-        next: Option<&str>,
-        message: Option<&str>,
-        error: Option<&str>,
-    ) -> impl IntoResponse {
+    fn with<'a, S: UserpStore, C: UserpCookies>(
+        auth: &'a CoreUserp<S, C>,
+        next: Option<&'a str>,
+        message: Option<&'a str>,
+        error: Option<&'a str>,
+    ) -> SignupTemplate<'a> {
         #[cfg(feature = "oauth")]
         let oauth_signup_providers = auth.oauth_signup_providers();
 
@@ -349,6 +422,24 @@ impl SignupTemplate<'_> {
             oauth: None,
             login_route: &auth.routes.pages.login,
         }
-        .into_response()
+    }
+
+    pub fn render_with<S: UserpStore, C: UserpCookies>(
+        auth: &CoreUserp<S, C>,
+        next: Option<&str>,
+        message: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<String, askama::Error> {
+        Self::with(auth, next, message, error).render()
+    }
+
+    #[cfg(feature = "axum-pages")]
+    pub fn response_from<S: UserpStore, C: UserpCookies>(
+        auth: &CoreUserp<S, C>,
+        next: Option<&str>,
+        message: Option<&str>,
+        error: Option<&str>,
+    ) -> impl IntoResponse {
+        Self::with(auth, next, message, error).into_response()
     }
 }

@@ -2,8 +2,8 @@ use std::{future::Future, sync::Arc};
 
 use super::{ExchangeResult, OAuthProvider, OAuthProviderBase};
 use crate::{
+    config::Allow,
     oauth::{OAuthProviderUser, UnmatchedOAuthToken},
-    Allow,
 };
 use anyhow::Context;
 use async_trait::async_trait;

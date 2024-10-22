@@ -4,8 +4,11 @@ use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
 
 use userp::{
-    uuid::Uuid, LoginMethod, OAuthLinkError, OAuthLoginError, OAuthSignupError,
-    UnmatchedOAuthToken, UserpStore,
+    prelude::{
+        LoginMethod, OAuthLinkError, OAuthLoginError, OAuthSignupError, UnmatchedOAuthToken,
+        UserpStore,
+    },
+    uuid::Uuid,
 };
 
 #[derive(Clone, Default, Debug)]

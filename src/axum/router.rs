@@ -1,18 +1,14 @@
+#[cfg(feature = "account")]
+mod account;
 mod forms;
 mod queries;
-
 #[cfg(feature = "account")]
-mod extended;
-#[cfg(feature = "account")]
-use extended::*;
-
-#[cfg(feature = "axum-askama")]
-use askama_axum::IntoResponse;
-#[cfg(not(feature = "axum-askama"))]
+use account::*;
 use axum::response::IntoResponse;
 
-#[cfg(feature = "axum-askama")]
-use crate::templates::*;
+#[cfg(feature = "axum-pages")]
+use crate::pages::*;
+use crate::{config::UserpConfig, traits::UserpStore};
 use axum::{
     extract::{FromRef, Query},
     http::StatusCode,
@@ -28,20 +24,18 @@ use urlencoding::encode;
 use oauth_handlers::*;
 #[cfg(feature = "oauth")]
 mod oauth_handlers;
-
+use super::AxumUserp;
+#[cfg(all(feature = "axum-pages", feature = "email", feature = "password"))]
+use crate::email::reset::{EmailResetCallbackError, EmailResetError};
 #[cfg(feature = "email")]
 use crate::email::{
-    EmailLoginCallbackError, EmailLoginError, EmailLoginInitError, EmailSignupCallbackError,
-    EmailSignupInitError, EmailVerifyCallbackError, SendEmailChallengeError,
+    login::{EmailLoginCallbackError, EmailLoginError, EmailLoginInitError},
+    signup::{EmailSignupCallbackError, EmailSignupInitError},
+    verify::EmailVerifyCallbackError,
+    SendEmailChallengeError,
 };
-
 #[cfg(feature = "password")]
-use crate::{PasswordLoginError, PasswordSignupError};
-
-use crate::{Userp, UserpConfig, UserpStore};
-
-#[cfg(all(feature = "axum-askama", feature = "email", feature = "password"))]
-use crate::{email::EmailResetCallbackError, EmailResetError};
+use crate::password::{login::PasswordLoginError, signup::PasswordSignupError};
 
 impl UserpConfig {
     pub fn router<St, S>(&self) -> Router<S>
@@ -53,7 +47,7 @@ impl UserpConfig {
     {
         let mut router = Router::new();
 
-        #[cfg(feature = "axum-askama")]
+        #[cfg(feature = "axum-pages")]
         {
             router = router
                 .route(self.routes.pages.login.as_str(), get(get_login::<St>))
@@ -73,11 +67,15 @@ impl UserpConfig {
                     .route(
                         self.routes.pages.password_reset.as_str(),
                         get(get_password_reset::<St>),
-                    )
-                    .route(
+                    );
+
+                #[cfg(feature = "account")]
+                {
+                    router = router.route(
                         self.routes.actions.password_reset.as_str(),
                         post(post_password_reset::<St>),
                     );
+                }
             }
 
             #[cfg(feature = "account")]
@@ -86,17 +84,17 @@ impl UserpConfig {
             }
         }
 
-        #[cfg(all(not(feature = "axum-askama"), feature = "password", feature = "email"))]
+        #[cfg(all(not(feature = "axum-pages"), feature = "password", feature = "email"))]
         {
             router = router.route(
-                self.routes.actions.x_password_send_reset.as_str(),
+                self.routes.actions.password_send_reset.as_str(),
                 post(post_password_send_reset::<St>),
             );
 
             #[cfg(feature = "account")]
             {
                 router = router.route(
-                    self.routes.actions.x_password_reset.as_str(),
+                    self.routes.actions.password_reset.as_str(),
                     post(post_password_reset::<St>),
                 );
             }
@@ -332,9 +330,9 @@ impl UserpConfig {
     }
 }
 
-#[cfg(feature = "axum-askama")]
+#[cfg(feature = "axum-pages")]
 async fn get_login<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(NextMessageErrorQuery {
         next,
         message,
@@ -349,14 +347,19 @@ where
     Ok(if auth.logged_in().await? {
         Redirect::to(&auth.routes.redirects.post_login).into_response()
     } else {
-        LoginTemplate::response_from(&auth, next.as_deref(), message.as_deref(), error.as_deref())
-            .into_response()
+        LoginTemplate::into_response_with(
+            &auth,
+            next.as_deref(),
+            message.as_deref(),
+            error.as_deref(),
+        )
+        .into_response()
     })
 }
 
 #[cfg(feature = "password")]
 async fn post_login_password<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailPasswordNextForm {
         email,
         password,
@@ -391,7 +394,7 @@ where
 
 #[cfg(feature = "email")]
 async fn post_login_email<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -424,7 +427,7 @@ where
 
 #[cfg(feature = "email")]
 async fn get_login_email<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -452,9 +455,9 @@ where
     }
 }
 
-#[cfg(feature = "axum-askama")]
+#[cfg(feature = "axum-pages")]
 async fn get_signup<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(NextMessageErrorQuery {
         error,
         message,
@@ -474,7 +477,7 @@ where
 
 #[cfg(feature = "password")]
 async fn post_signup_password<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailPasswordNextForm {
         email,
         password,
@@ -507,7 +510,7 @@ where
 
 #[cfg(feature = "email")]
 async fn post_signup_email<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -540,7 +543,7 @@ where
 
 #[cfg(feature = "email")]
 async fn get_signup_email<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -567,7 +570,7 @@ where
     }
 }
 
-async fn get_user_logout<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
+async fn get_user_logout<St>(auth: AxumUserp<St>) -> Result<impl IntoResponse, St::Error>
 where
     St: UserpStore,
     St::Error: IntoResponse,
@@ -577,7 +580,7 @@ where
     Ok((auth.log_out().await?, Redirect::to(&post_logout)))
 }
 
-async fn get_user_verify_session<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
+async fn get_user_verify_session<St>(auth: AxumUserp<St>) -> Result<impl IntoResponse, St::Error>
 where
     St: UserpStore,
     St::Error: IntoResponse,
@@ -591,7 +594,7 @@ where
 
 #[cfg(feature = "email")]
 async fn get_user_email_verify<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -599,7 +602,10 @@ where
     St::Error: IntoResponse,
 {
     let login_route = auth.routes.pages.login.clone();
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
+    #[cfg(not(feature = "account"))]
+    let user_route = auth.routes.redirects.post_login.clone();
 
     match auth.email_verify_callback(code).await {
         Ok((address, next)) => {
@@ -637,7 +643,7 @@ where
 
 #[cfg(feature = "email")]
 async fn post_user_email_verify<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -648,7 +654,10 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
+    #[cfg(not(feature = "account"))]
+    let user_route = auth.routes.redirects.post_login.clone();
 
     match auth.email_verify_init(email.clone(), next).await {
         Ok(()) => {
@@ -672,9 +681,9 @@ where
     }
 }
 
-#[cfg(all(feature = "axum-askama", feature = "email", feature = "password"))]
+#[cfg(all(feature = "axum-pages", feature = "email", feature = "password"))]
 async fn get_password_send_reset<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(query): Query<AddressMessageSentErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -693,7 +702,7 @@ where
 
 #[cfg(all(feature = "email", feature = "password"))]
 async fn post_password_send_reset<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -717,9 +726,9 @@ where
     }
 }
 
-#[cfg(all(feature = "axum-askama", feature = "email", feature = "password"))]
+#[cfg(all(feature = "axum-pages", feature = "email", feature = "password"))]
 async fn get_password_reset<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(query): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where

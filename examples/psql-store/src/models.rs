@@ -2,8 +2,8 @@ use crate::password;
 
 use userp::{
     chrono::{DateTime, Utc},
+    prelude::{EmailChallenge, LoginMethod, LoginSession, OAuthToken, User, UserEmail},
     uuid::Uuid,
-    EmailChallenge, LoginMethod, LoginSession, OAuthToken, User, UserEmail,
 };
 
 #[derive(Debug, Clone)]

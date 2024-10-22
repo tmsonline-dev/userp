@@ -1,12 +1,17 @@
-use crate::{provider::OAuthProviderBase, Allow};
 use oauth2::{
     basic::BasicClient, AuthUrl, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope, TokenUrl,
 };
 use std::{fmt::Display, future::Future, sync::Arc};
 use url::Url;
 
-use super::with_user_callback::{
-    OAuthProviderBaseWithBasicClient, OAuthProviderBaseWithUserCallback, OAuthProviderUserResult,
+use crate::config::Allow;
+
+use super::{
+    with_user_callback::{
+        OAuthProviderBaseWithBasicClient, OAuthProviderBaseWithUserCallback,
+        OAuthProviderUserResult,
+    },
+    OAuthProviderBase,
 };
 
 #[derive(Debug)]

@@ -13,9 +13,9 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 use userp::{
-    provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
+    prelude::{GitHubOAuthProvider, OAuthConfig, Routes, SpotifyOAuthProvider, UserpConfig},
     url::Url,
-    OAuthConfig, Routes, Userp, UserpConfig,
+    Userp,
 };
 
 #[derive(Clone, FromRef)]

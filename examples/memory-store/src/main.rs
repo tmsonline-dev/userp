@@ -14,10 +14,12 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 use userp::{
-    provider::{GitHubOAuthProvider, SpotifyOAuthProvider},
+    prelude::{
+        EmailConfig, GitHubOAuthProvider, OAuthConfig, PasswordConfig, PasswordReset, Routes,
+        SmtpSettings, SpotifyOAuthProvider, UserpConfig,
+    },
     url::Url,
-    EmailConfig, OAuthConfig, PasswordConfig, PasswordReset, Routes, SmtpSettings, Userp,
-    UserpConfig,
+    Userp,
 };
 
 #[derive(Clone, FromRef)]

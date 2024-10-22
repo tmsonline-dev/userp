@@ -1,21 +1,19 @@
-use crate::{LoginSession, User, Userp, UserpStore};
-
 mod forms;
+
 use super::forms::*;
 use super::queries::*;
-#[cfg(feature = "axum-askama")]
-use crate::templates::*;
-#[cfg(feature = "axum-askama")]
-use askama_axum::IntoResponse;
-#[cfg(not(feature = "axum-askama"))]
+use crate::axum::AxumUserp;
+#[cfg(feature = "axum-pages")]
+use crate::pages::*;
+use crate::traits::{LoginSession, User, UserpStore};
 use axum::response::IntoResponse;
 use axum::{extract::Query, http::StatusCode, response::Redirect, Form};
 use forms::*;
 use urlencoding::encode;
 
-#[cfg(feature = "axum-askama")]
+#[cfg(feature = "axum-pages")]
 pub async fn get_user<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Query(NextMessageErrorQuery { error, message, .. }): Query<NextMessageErrorQuery>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -31,7 +29,7 @@ where
         #[cfg(feature = "oauth")]
         let oauth_tokens = auth.store.get_user_oauth_tokens(user.get_id()).await?;
 
-        UserTemplate::response_from(
+        UserTemplate::into_response_with(
             &auth,
             &user,
             &session,
@@ -49,7 +47,7 @@ where
     })
 }
 
-pub async fn post_user_delete<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
+pub async fn post_user_delete<St>(auth: AxumUserp<St>) -> Result<impl IntoResponse, St::Error>
 where
     St: UserpStore,
     St::Error: IntoResponse,
@@ -66,7 +64,7 @@ where
 
 #[cfg(feature = "password")]
 pub async fn post_user_password_set<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(NewPasswordForm { new_password }): Form<NewPasswordForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -94,7 +92,9 @@ where
 }
 
 #[cfg(feature = "password")]
-pub async fn post_user_password_delete<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
+pub async fn post_user_password_delete<St>(
+    auth: AxumUserp<St>,
+) -> Result<impl IntoResponse, St::Error>
 where
     St: UserpStore,
     St::Error: IntoResponse,
@@ -118,7 +118,7 @@ where
 
 #[cfg(feature = "oauth")]
 pub async fn post_user_oauth_delete<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(IdForm { id }): Form<IdForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -138,7 +138,7 @@ where
 
 #[cfg(feature = "email")]
 pub async fn post_user_email_add<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -158,7 +158,7 @@ where
 
 #[cfg(feature = "email")]
 pub async fn post_user_email_delete<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -178,7 +178,7 @@ where
 
 #[cfg(feature = "email")]
 pub async fn post_user_email_enable_login<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -204,7 +204,7 @@ where
 
 #[cfg(feature = "email")]
 pub async fn post_user_email_disable_login<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -230,7 +230,7 @@ where
 
 #[cfg(all(feature = "password", feature = "email"))]
 pub async fn post_password_reset<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(NewPasswordForm { new_password }): Form<NewPasswordForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
@@ -251,7 +251,7 @@ where
 }
 
 pub async fn post_user_session_delete<St>(
-    auth: Userp<St>,
+    auth: AxumUserp<St>,
     Form(IdForm { id }): Form<IdForm>,
 ) -> Result<impl IntoResponse, St::Error>
 where
