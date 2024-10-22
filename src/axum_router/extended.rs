@@ -4,7 +4,7 @@ mod forms;
 use super::forms::*;
 use super::queries::*;
 #[cfg(feature = "axum-askama")]
-use super::templates::*;
+use crate::templates::*;
 #[cfg(feature = "axum-askama")]
 use askama_axum::IntoResponse;
 #[cfg(not(feature = "axum-askama"))]

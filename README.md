@@ -54,7 +54,7 @@ Before you ask: design PRs are most welcome 😅
   - Multiple sessions
 
 ## Todo
-- [ ] Granular feature-controlled templates
+- [x] Granular feature-controlled templates
 - [ ] Replacable templates (by typed Fns returning impl IntoResponse)
 - [ ] Webauthn
 - [ ] MFA

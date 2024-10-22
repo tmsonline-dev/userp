@@ -15,6 +15,7 @@ pub struct Routes<T = &'static str> {
     pub user_delete: T,
     pub logout: T,
     pub post_logout: T,
+    pub post_login: T,
     pub user_verify_session: T,
     pub user_password_set: T,
     pub user_password_delete: T,
@@ -40,6 +41,7 @@ impl Default for Routes<&'static str> {
             login: "/login",
             logout: "/logout",
             post_logout: "/",
+            post_login: "/",
             login_password: "/login/password",
             login_email: "/login/email",
             login_oauth: "/login/oauth",
@@ -101,6 +103,7 @@ impl<'a> From<&'a Routes<String>> for Routes<&'a str> {
             user_delete: &value.user_delete,
             logout: &value.logout,
             post_logout: &value.post_logout,
+            post_login: &value.post_login,
             user_verify_session: &value.user_verify_session,
             user_password_set: &value.user_password_set,
             user_password_delete: &value.user_password_delete,
@@ -122,6 +125,7 @@ impl<'a> From<&'a Routes<String>> for Routes<&'a str> {
 }
 
 impl Routes<&'static str> {
+    /// Adds a prefix to all routes EXCEPT home, post_logout or post_login
     pub fn with_prefix(self, prefix: &'static str) -> Routes<String> {
         if !prefix.is_empty() && !prefix.starts_with('/') {
             panic!("Prefix must be empty or start with /");
@@ -144,7 +148,10 @@ impl Routes<&'static str> {
         };
 
         Routes {
-            home: format!("{prefix}{}", self.home),
+            home: self.home.to_string(),
+            post_logout: self.post_logout.to_string(),
+            post_login: self.post_login.to_string(),
+
             login: format!("{prefix}{}", self.login),
             login_password: format!("{prefix}{}", self.login_password),
             login_email: format!("{prefix}{}", self.login_email),
@@ -158,7 +165,6 @@ impl Routes<&'static str> {
             user: format!("{prefix}{}", self.user),
             user_delete: format!("{prefix}{}", self.user_delete),
             logout: format!("{prefix}{}", self.logout),
-            post_logout: format!("{prefix}{}", self.post_logout),
             user_verify_session: format!("{prefix}{}", self.user_verify_session),
             user_password_set: format!("{prefix}{}", self.user_password_set),
             user_password_delete: format!("{prefix}{}", self.user_password_delete),

@@ -7,7 +7,7 @@ use axum::{
 use axum_extra::extract::cookie::{Cookie, Expiration, Key, PrivateCookieJar, SameSite};
 use std::convert::Infallible;
 
-use crate::{Userp, UserpConfig, UserpStore};
+use crate::{CookieStoreTrait, Userp, UserpConfig, UserpStore};
 
 #[derive(Debug, Clone)]
 pub struct CookieStore {
@@ -26,8 +26,8 @@ impl IntoResponseParts for CookieStore {
     }
 }
 
-impl CookieStore {
-    pub fn add(&mut self, key: &str, value: &str) {
+impl CookieStoreTrait for CookieStore {
+    fn add(&mut self, key: &str, value: &str) {
         self.jar = self.jar.clone().add(
             Cookie::build((key.to_owned(), value.to_owned()))
                 .same_site(SameSite::Lax)
@@ -39,15 +39,15 @@ impl CookieStore {
         );
     }
 
-    pub fn get(&self, key: &str) -> Option<String> {
+    fn get(&self, key: &str) -> Option<String> {
         self.jar.get(key).map(|c| c.value().to_owned())
     }
 
-    pub fn remove(&mut self, key: &str) {
+    fn remove(&mut self, key: &str) {
         self.jar = self.jar.clone().remove(key.to_owned());
     }
 
-    pub fn list_encoded(&self) -> Vec<String> {
+    fn list_encoded(&self) -> Vec<String> {
         self.jar.iter().map(|c| c.encoded().to_string()).collect()
     }
 }

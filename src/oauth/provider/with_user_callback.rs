@@ -127,6 +127,8 @@ impl OAuthProvider for OAuthProviderBaseWithUserCallback<'_> {
         redirect_url: &RedirectUrl,
         code: &AuthorizationCode,
     ) -> ExchangeResult {
+        dbg!(provider_name, redirect_url, code);
+
         let res = self
             .inner
             .get_oauth2_client()

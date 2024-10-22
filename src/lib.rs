@@ -10,10 +10,16 @@ mod oauth;
 mod password;
 mod routes;
 
+// TODO: add actix-askama
+#[cfg(feature = "axum-askama")]
+mod templates;
+
+#[cfg(all(feature = "password", feature = "email"))]
+pub use self::email::EmailResetError;
 #[cfg(feature = "email")]
 pub use self::email::{
-    EmailChallenge, EmailConfig, EmailLoginError, EmailLoginInitError, EmailResetError,
-    EmailSignupError, EmailVerifyError, SmtpSettings, UserEmail,
+    EmailChallenge, EmailConfig, EmailLoginError, EmailLoginInitError, EmailSignupError,
+    EmailVerifyError, SmtpSettings, UserEmail,
 };
 #[cfg(feature = "oauth")]
 pub use self::oauth::{
@@ -79,6 +85,13 @@ pub trait User: Send + Sync {
     fn get_allow_password_login(&self) -> bool;
 }
 
+trait CookieStoreTrait {
+    fn add(&mut self, key: &str, value: &str);
+    fn get(&self, key: &str) -> Option<String>;
+    fn remove(&mut self, key: &str);
+    fn list_encoded(&self) -> Vec<String>;
+}
+
 #[async_trait]
 pub trait UserpStore {
     type User: User;
@@ -136,7 +149,7 @@ pub trait UserpStore {
         address: &str,
         allow_login: bool,
     ) -> Result<Self::User, EmailSignupError<Self::Error>>;
-    #[cfg(feature = "email")]
+    #[cfg(all(feature = "email", feature = "password"))]
     async fn email_reset(
         &self,
         address: &str,
@@ -232,6 +245,7 @@ pub trait UserpStore {
 pub struct Userp<S: UserpStore> {
     allow_signup: Allow,
     allow_login: Allow,
+    #[cfg(feature = "axum-extract")]
     cookies: CookieStore,
     routes: Routes<String>,
     pub store: S,
@@ -247,12 +261,14 @@ impl<S: UserpStore> Userp<S> {
     async fn log_in(mut self, method: LoginMethod, user_id: Uuid) -> Result<Self, S::Error> {
         let session = self.store.create_session(user_id, method).await?;
 
+        #[cfg(feature = "axum-extract")]
         self.cookies
             .add(SESSION_ID_KEY, &session.get_id().to_string());
 
         Ok(self)
     }
 
+    #[cfg(feature = "axum-extract")]
     pub fn get_encoded_cookies(&self) -> Vec<String> {
         self.cookies.list_encoded()
     }

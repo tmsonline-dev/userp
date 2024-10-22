@@ -16,6 +16,7 @@
   </div>
   {% endif %}
 
+  {% if show_email %}
   <div class="magic-login">
     <form action="{{ routes.signup_email }}" method="post" class="form">
       <div class="form-group">
@@ -29,10 +30,14 @@
     </form>
   </div>
 
+  {% if show_password || show_oauth %}
   <div class="or-divider">
     <span>or</span>
   </div>
+  {% endif %}
+  {% endif %}
 
+  {% if show_password %}
   <form action="{{ routes.signup_password }}" method="post" id="signup-form">
     <div class="form-group">
       <label for="email">Email</label>
@@ -48,10 +53,14 @@
     {% endif %}
   </form>
 
+  {% if show_oauth %}
   <div class="or-divider">
     <span>or</span>
   </div>
+  {% endif %}
+  {% endif %}
 
+  {% if show_oauth %}
   <div class="social-login">
     {% for provider in oauth_providers %}
     <form action="{{ routes.signup_oauth }}" method="post" class="form">
@@ -63,6 +72,7 @@
     </form>
     {% endfor %}
   </div>
+  {% endif %}
 
   <div class="links">
     <a href="{{ routes.login }}">Already have an account? Log in</a>

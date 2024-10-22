@@ -11,6 +11,7 @@ pub use signup::*;
 
 use self::provider::OAuthProvider;
 use super::{Allow, User, Userp, UserpStore};
+use crate::CookieStoreTrait;
 use chrono::{DateTime, Utc};
 use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse};
 pub use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, TokenResponse};
