@@ -48,7 +48,7 @@ impl<S: UserpStore> Userp<S> {
         }
 
         self.send_email_challenge(
-            self.routes.login_email.clone(),
+            self.routes.actions.login_email.clone(),
             email,
             "Click here to log in".into(),
             next,

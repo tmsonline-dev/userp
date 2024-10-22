@@ -9,13 +9,15 @@ use uuid::Uuid;
 use crate::UserEmail;
 #[cfg(feature = "oauth")]
 use crate::{provider::OAuthProvider, OAuthToken};
-use crate::{Allow, LoginMethod, LoginSession, Routes, Userp, UserpStore};
+use crate::{Allow, LoginMethod, LoginSession, User, Userp, UserpStore};
 
+#[cfg(feature = "account")]
 pub struct TemplateLoginSession {
     pub id: Uuid,
     pub method: LoginMethod,
 }
 
+#[cfg(feature = "account")]
 impl<T: LoginSession> From<&T> for TemplateLoginSession {
     fn from(value: &T) -> Self {
         TemplateLoginSession {
@@ -26,7 +28,7 @@ impl<T: LoginSession> From<&T> for TemplateLoginSession {
 }
 
 pub struct TemplateUserEmail<'a> {
-    email: &'a str,
+    address: &'a str,
     verified: bool,
     allow_link_login: bool,
 }
@@ -35,7 +37,7 @@ pub struct TemplateUserEmail<'a> {
 impl<'a, T: UserEmail> From<&'a T> for TemplateUserEmail<'a> {
     fn from(value: &'a T) -> Self {
         Self {
-            email: value.get_address(),
+            address: value.get_address(),
             verified: value.get_verified(),
             allow_link_login: value.get_allow_link_login(),
         }
@@ -73,12 +75,14 @@ impl<'a> From<&'a Arc<dyn OAuthProvider>> for TemplateOAuthProvider<'a> {
     }
 }
 
+#[cfg(all(feature = "password", feature = "email"))]
 #[derive(Template)]
 #[template(path = "reset-password.html")]
 pub struct ResetPasswordTemplate<'a> {
-    pub routes: Routes<&'a str>,
+    pub reset_password_action_route: &'a str,
 }
 
+#[cfg(all(feature = "password", feature = "email"))]
 #[derive(Template)]
 #[template(path = "send-reset-password.html")]
 pub struct SendResetPasswordTemplate<'a> {
@@ -86,20 +90,128 @@ pub struct SendResetPasswordTemplate<'a> {
     pub address: Option<&'a str>,
     pub error: Option<&'a str>,
     pub message: Option<&'a str>,
-    pub routes: Routes<&'a str>,
+    pub send_reset_password_action_route: &'a str,
 }
 
+#[cfg(feature = "account")]
+pub struct UserTemplatePasswordInfo<'a> {
+    pub has_password: bool,
+    pub delete_action_route: &'a str,
+    pub set_action_route: &'a str,
+}
+
+#[cfg(feature = "account")]
+pub struct UserTemplateEmailInfo<'a> {
+    pub emails: Vec<TemplateUserEmail<'a>>,
+    pub delete_action_route: &'a str,
+    pub add_action_route: &'a str,
+    pub verify_action_route: &'a str,
+    pub enable_login_action_route: &'a str,
+    pub disable_login_action_route: &'a str,
+}
+
+#[cfg(feature = "account")]
+pub struct UserTemplateOAuthInfo<'a> {
+    pub tokens: Vec<TemplateOAuthToken<'a>>,
+    pub providers: Vec<TemplateOAuthProvider<'a>>,
+    pub delete_action_route: &'a str,
+    pub refresh_action_route: &'a str,
+    pub link_action_route: &'a str,
+}
+
+#[cfg(feature = "account")]
 #[derive(Template)]
 #[template(path = "user.html")]
 pub struct UserTemplate<'a> {
     pub message: Option<&'a str>,
     pub error: Option<&'a str>,
+    pub session_id: Uuid,
     pub sessions: Vec<TemplateLoginSession>,
-    pub has_password: bool,
-    pub emails: Vec<TemplateUserEmail<'a>>,
-    pub oauth_tokens: Vec<TemplateOAuthToken<'a>>,
-    pub oauth_providers: Vec<TemplateOAuthProvider<'a>>,
-    pub routes: Routes<&'a str>,
+    pub home_page_route: &'a str,
+    pub login_page_route: &'a str,
+    pub session_delete_action_route: &'a str,
+    pub user_delete_action_route: &'a str,
+    pub verify_session_action_route: &'a str,
+    pub password: Option<UserTemplatePasswordInfo<'a>>,
+    pub email: Option<UserTemplateEmailInfo<'a>>,
+    pub oauth: Option<UserTemplateOAuthInfo<'a>>,
+}
+
+#[cfg(feature = "account")]
+impl UserTemplate<'_> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn response_from<S: UserpStore>(
+        auth: &Userp<S>,
+        user: &S::User,
+        session: &S::LoginSession,
+        sessions: &[S::LoginSession],
+        message: Option<&str>,
+        error: Option<&str>,
+        #[cfg(feature = "email")] emails: &[S::UserEmail],
+        #[cfg(feature = "oauth")] oauth_tokens: &[S::OAuthToken],
+    ) -> impl IntoResponse {
+        UserTemplate {
+            message,
+            error,
+            session_id: session.get_id(),
+            sessions: sessions.iter().map(|s| s.into()).collect(),
+            home_page_route: &auth.routes.pages.home,
+            login_page_route: &auth.routes.pages.login,
+            session_delete_action_route: &auth.routes.actions.user_session_delete,
+            user_delete_action_route: &auth.routes.actions.user_delete,
+            verify_session_action_route: &auth.routes.actions.user_verify_session,
+            #[cfg(feature = "password")]
+            password: Some(UserTemplatePasswordInfo {
+                has_password: user.get_allow_password_login(),
+                delete_action_route: &auth.routes.actions.user_password_delete,
+                set_action_route: &auth.routes.actions.user_password_set,
+            }),
+            #[cfg(not(feature = "password"))]
+            password: None,
+            #[cfg(feature = "email")]
+            email: Some(UserTemplateEmailInfo {
+                emails: emails.iter().map(|e| e.into()).collect(),
+                delete_action_route: &auth.routes.actions.user_email_delete,
+                add_action_route: &auth.routes.actions.user_email_add,
+                verify_action_route: &auth.routes.actions.user_email_verify,
+                enable_login_action_route: &auth.routes.actions.user_email_enable_login,
+                disable_login_action_route: &auth.routes.actions.user_email_disable_login,
+            }),
+            #[cfg(not(feature = "email"))]
+            email: None,
+            #[cfg(feature = "oauth")]
+            oauth: {
+                Some(UserTemplateOAuthInfo {
+                    tokens: oauth_tokens.iter().map(|t| t.into()).collect(),
+                    providers: auth
+                        .oauth_link_providers()
+                        .into_iter()
+                        .map(|p| p.into())
+                        .collect(),
+                    delete_action_route: &auth.routes.actions.user_oauth_delete,
+                    refresh_action_route: &auth.routes.actions.user_oauth_refresh,
+                    link_action_route: &auth.routes.actions.user_oauth_link,
+                })
+            },
+            #[cfg(not(feature = "oauth"))]
+            oauth: None,
+        }
+        .into_response()
+    }
+}
+
+pub struct TemplateOAuthInfo<'a> {
+    pub providers: Vec<TemplateOAuthProvider<'a>>,
+    pub action_route: &'a str,
+}
+
+pub struct TemplateEmailInfo<'a> {
+    pub action_route: &'a str,
+}
+
+pub struct TemplatePasswordInfo<'a> {
+    pub action_route: &'a str,
+    pub reset_route: Option<&'a str>,
 }
 
 #[derive(Template)]
@@ -108,11 +220,10 @@ pub struct LoginTemplate<'a> {
     pub next: Option<&'a str>,
     pub message: Option<&'a str>,
     pub error: Option<&'a str>,
-    pub oauth_providers: &'a [TemplateOAuthProvider<'a>],
-    pub routes: Routes<&'a str>,
-    pub show_password: bool,
-    pub show_email: bool,
-    pub show_oauth: bool,
+    pub password: Option<TemplatePasswordInfo<'a>>,
+    pub email: Option<TemplateEmailInfo<'a>>,
+    pub oauth: Option<TemplateOAuthInfo<'a>>,
+    pub signup_route: &'a str,
 }
 
 impl LoginTemplate<'_> {
@@ -129,30 +240,38 @@ impl LoginTemplate<'_> {
             next,
             message,
             error,
-            routes: auth.routes.as_ref().into(),
             #[cfg(feature = "password")]
-            show_password: auth.pass.allow_login.as_ref().unwrap_or(&auth.allow_login)
-                != &Allow::Never,
+            password: Some(TemplatePasswordInfo {
+                action_route: &auth.routes.actions.login_password,
+                #[cfg(feature = "email")]
+                reset_route: Some(&auth.routes.pages.password_send_reset),
+                #[cfg(not(feature = "email"))]
+                reset_route: None,
+            }),
             #[cfg(not(feature = "password"))]
-            show_password: false,
+            password: None,
             #[cfg(feature = "email")]
-            show_email: auth.email.allow_login.as_ref().unwrap_or(&auth.allow_login)
-                != &Allow::Never,
+            email: Some(TemplateEmailInfo {
+                action_route: &auth.routes.actions.login_email,
+            }),
             #[cfg(not(feature = "email"))]
-            show_email: false,
+            email: None,
             #[cfg(feature = "oauth")]
-            show_oauth: !oauth_providers.is_empty()
-                && auth.oauth.allow_login.as_ref().unwrap_or(&auth.allow_login) != &Allow::Never,
-            #[cfg(feature = "oauth")]
-            oauth_providers: oauth_providers
-                .into_iter()
-                .map(|p| p.into())
-                .collect::<Vec<_>>()
-                .as_ref(),
+            oauth: ({
+                if auth.oauth.allow_login.as_ref().unwrap_or(&auth.allow_login) != &Allow::Never
+                    || oauth_providers.is_empty()
+                {
+                    None
+                } else {
+                    Some(TemplateOAuthInfo {
+                        providers: oauth_providers.into_iter().map(|p| p.into()).collect(),
+                        action_route: &auth.routes.actions.login_oauth,
+                    })
+                }
+            }),
             #[cfg(not(feature = "oauth"))]
-            show_oauth: false,
-            #[cfg(not(feature = "oauth"))]
-            oauth_providers: &vec![],
+            oauth: None,
+            signup_route: &auth.routes.pages.signup,
         }
         .into_response()
     }
@@ -164,11 +283,10 @@ pub struct SignupTemplate<'a> {
     pub next: Option<&'a str>,
     pub message: Option<&'a str>,
     pub error: Option<&'a str>,
-    pub oauth_providers: &'a [TemplateOAuthProvider<'a>],
-    pub routes: Routes<&'a str>,
-    pub show_password: bool,
-    pub show_email: bool,
-    pub show_oauth: bool,
+    pub password: Option<TemplatePasswordInfo<'a>>,
+    pub email: Option<TemplateEmailInfo<'a>>,
+    pub oauth: Option<TemplateOAuthInfo<'a>>,
+    pub login_route: &'a str,
 }
 
 impl SignupTemplate<'_> {
@@ -185,43 +303,43 @@ impl SignupTemplate<'_> {
             next,
             message,
             error,
-            routes: auth.routes.as_ref().into(),
             #[cfg(feature = "password")]
-            show_password: auth
-                .pass
-                .allow_signup
-                .as_ref()
-                .unwrap_or(&auth.allow_signup)
-                != &Allow::Never,
+            password: Some(TemplatePasswordInfo {
+                action_route: &auth.routes.actions.signup_password,
+                #[cfg(feature = "email")]
+                reset_route: Some(&auth.routes.pages.password_send_reset),
+                #[cfg(not(feature = "email"))]
+                reset_route: None,
+            }),
             #[cfg(not(feature = "password"))]
-            show_password: false,
+            password: None,
             #[cfg(feature = "email")]
-            show_email: auth
-                .email
-                .allow_signup
-                .as_ref()
-                .unwrap_or(&auth.allow_signup)
-                != &Allow::Never,
+            email: Some(TemplateEmailInfo {
+                action_route: &auth.routes.actions.signup_email,
+            }),
             #[cfg(not(feature = "email"))]
-            show_email: false,
+            email: None,
             #[cfg(feature = "oauth")]
-            show_oauth: !oauth_providers.is_empty()
-                && auth
+            oauth: ({
+                if auth
                     .oauth
                     .allow_signup
                     .as_ref()
                     .unwrap_or(&auth.allow_signup)
-                    != &Allow::Never,
-            #[cfg(feature = "oauth")]
-            oauth_providers: oauth_providers
-                .into_iter()
-                .map(|p| p.into())
-                .collect::<Vec<_>>()
-                .as_ref(),
+                    != &Allow::Never
+                    || oauth_providers.is_empty()
+                {
+                    None
+                } else {
+                    Some(TemplateOAuthInfo {
+                        providers: oauth_providers.into_iter().map(|p| p.into()).collect(),
+                        action_route: &auth.routes.actions.signup_oauth,
+                    })
+                }
+            }),
             #[cfg(not(feature = "oauth"))]
-            show_oauth: false,
-            #[cfg(not(feature = "oauth"))]
-            oauth_providers: &vec![],
+            oauth: None,
+            login_route: &auth.routes.pages.login,
         }
         .into_response()
     }

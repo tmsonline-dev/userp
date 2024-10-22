@@ -79,7 +79,7 @@ impl<S: UserpStore> Userp<S> {
             return Err(OAuthLinkInitError::NotAllowed);
         };
 
-        let path = self.routes.user_oauth_link_provider.clone();
+        let path = self.routes.actions.user_oauth_link_provider.clone();
 
         Ok(self
             .oauth_init(
@@ -125,7 +125,7 @@ impl<S: UserpStore> Userp<S> {
                 provider_name.clone(),
                 code,
                 state,
-                self.routes.user_oauth_link_provider.clone(),
+                self.routes.actions.user_oauth_link_provider.clone(),
             )
             .await?;
 

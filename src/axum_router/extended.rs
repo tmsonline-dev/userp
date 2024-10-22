@@ -1,4 +1,4 @@
-use crate::{oauth::OAuthToken, LoginSession, User, Userp, UserpStore};
+use crate::{LoginSession, User, Userp, UserpStore};
 
 mod forms;
 use super::forms::*;
@@ -9,9 +9,8 @@ use crate::templates::*;
 use askama_axum::IntoResponse;
 #[cfg(not(feature = "axum-askama"))]
 use axum::response::IntoResponse;
-use axum::{extract::Query, response::Redirect, Form};
+use axum::{extract::Query, http::StatusCode, response::Redirect, Form};
 use forms::*;
-use reqwest::StatusCode;
 use urlencoding::encode;
 
 #[cfg(feature = "axum-askama")]
@@ -23,32 +22,27 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
-    Ok(if let Some(user) = auth.user().await? {
+    Ok(if let Some((user, session)) = auth.user_session().await? {
         let sessions = auth.store.get_user_sessions(user.get_id()).await?;
-        let oauth_tokens = auth.store.get_user_oauth_tokens(user.get_id()).await?;
+        #[cfg(feature = "email")]
         let emails = auth.store.get_user_emails(user.get_id()).await?;
+        #[cfg(feature = "oauth")]
+        let oauth_tokens = auth.store.get_user_oauth_tokens(user.get_id()).await?;
 
-        UserTemplate {
-            message: message.as_deref(),
-            error: error.as_deref(),
-            sessions: sessions.iter().map(|s| s.into()).collect(),
-            has_password: user.get_allow_password_login(),
-            emails: emails.iter().map(|e| e.into()).collect(),
-            oauth_providers: auth
-                .oauth_link_providers()
-                .into_iter()
-                .filter(|p| {
-                    !oauth_tokens
-                        .iter()
-                        .any(|t| t.get_provider_name() == p.name())
-                })
-                .map(|p| p.into())
-                .collect(),
-            oauth_tokens: oauth_tokens.iter().map(|t| t.into()).collect(),
-            routes: (&auth.routes).into(),
-        }
+        UserTemplate::response_from(
+            &auth,
+            &user,
+            &session,
+            &sessions,
+            message.as_deref(),
+            error.as_deref(),
+            #[cfg(feature = "email")]
+            &emails,
+            #[cfg(feature = "oauth")]
+            &oauth_tokens,
+        )
         .into_response()
     } else {
         Redirect::to(&format!("{login_route}?next=%2Fuser")).into_response()
@@ -61,7 +55,7 @@ where
     St::Error: IntoResponse,
 {
     Ok(if let Some(user) = auth.user().await? {
-        let signup_route = auth.routes.signup.clone();
+        let signup_route = auth.routes.pages.signup.clone();
         auth.store.delete_user(user.get_id()).await?;
 
         (auth.log_out().await?, Redirect::to(&signup_route)).into_response()
@@ -70,6 +64,7 @@ where
     })
 }
 
+#[cfg(feature = "password")]
 pub async fn post_user_password_set<St>(
     auth: Userp<St>,
     Form(NewPasswordForm { new_password }): Form<NewPasswordForm>,
@@ -80,6 +75,7 @@ where
 {
     let mut user_session = auth.user_session().await?;
 
+    #[cfg(all(feature = "password", feature = "email"))]
     if user_session.is_none() {
         user_session = auth.reset_user_session().await?;
     }
@@ -92,11 +88,12 @@ where
         .set_user_password(user.get_id(), new_password, session.get_id())
         .await?;
 
-    let user_route = auth.routes.user;
+    let user_route = auth.routes.pages.user;
 
     Ok(Redirect::to(&format!("{user_route}?message=The password has been set!")).into_response())
 }
 
+#[cfg(feature = "password")]
 pub async fn post_user_password_delete<St>(auth: Userp<St>) -> Result<impl IntoResponse, St::Error>
 where
     St: UserpStore,
@@ -110,7 +107,7 @@ where
         .clear_user_password(user.get_id(), session.get_id())
         .await?;
 
-    let user_route = auth.routes.user.clone();
+    let user_route = auth.routes.pages.user.clone();
 
     Ok((
         auth,
@@ -119,6 +116,7 @@ where
         .into_response())
 }
 
+#[cfg(feature = "oauth")]
 pub async fn post_user_oauth_delete<St>(
     auth: Userp<St>,
     Form(IdForm { id }): Form<IdForm>,
@@ -133,11 +131,12 @@ where
 
     auth.store.delete_oauth_token(id).await?;
 
-    let user_route = auth.routes.user;
+    let user_route = auth.routes.pages.user;
 
     Ok(Redirect::to(&format!("{user_route}?message=Token deleted")).into_response())
 }
 
+#[cfg(feature = "email")]
 pub async fn post_user_email_add<St>(
     auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
@@ -152,11 +151,12 @@ where
 
     auth.store.add_user_email(user.get_id(), email).await?;
 
-    let user_route = auth.routes.user;
+    let user_route = auth.routes.pages.user;
 
     Ok(Redirect::to(&format!("{user_route}?message=Email added")).into_response())
 }
 
+#[cfg(feature = "email")]
 pub async fn post_user_email_delete<St>(
     auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
@@ -171,11 +171,12 @@ where
 
     auth.store.delete_user_email(user.get_id(), email).await?;
 
-    let user_route = auth.routes.user;
+    let user_route = auth.routes.pages.user;
 
     Ok(Redirect::to(&format!("{user_route}?message=Email deleted")).into_response())
 }
 
+#[cfg(feature = "email")]
 pub async fn post_user_email_enable_login<St>(
     auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
@@ -192,7 +193,7 @@ where
         .set_user_email_allow_link_login(user.get_id(), email.clone(), true)
         .await?;
 
-    let user_route = auth.routes.user;
+    let user_route = auth.routes.pages.user;
 
     Ok(Redirect::to(&format!(
         "{user_route}?message={}",
@@ -201,6 +202,7 @@ where
     .into_response())
 }
 
+#[cfg(feature = "email")]
 pub async fn post_user_email_disable_login<St>(
     auth: Userp<St>,
     Form(EmailForm { email }): Form<EmailForm>,
@@ -217,7 +219,7 @@ where
         .set_user_email_allow_link_login(user.get_id(), email.clone(), false)
         .await?;
 
-    let user_route = auth.routes.user;
+    let user_route = auth.routes.pages.user;
 
     Ok(Redirect::to(&format!(
         "{user_route}?message={}",
@@ -226,6 +228,7 @@ where
     .into_response())
 }
 
+#[cfg(all(feature = "password", feature = "email"))]
 pub async fn post_password_reset<St>(
     auth: Userp<St>,
     Form(NewPasswordForm { new_password }): Form<NewPasswordForm>,
@@ -239,10 +242,29 @@ where
             .set_user_password(user.get_id(), new_password, session.get_id())
             .await?;
 
-        let login_route = auth.routes.login;
+        let login_route = auth.routes.pages.login;
 
         Ok(Redirect::to(&format!("{login_route}?message=Password has been reset")).into_response())
     } else {
         Ok(StatusCode::UNAUTHORIZED.into_response())
     }
+}
+
+pub async fn post_user_session_delete<St>(
+    auth: Userp<St>,
+    Form(IdForm { id }): Form<IdForm>,
+) -> Result<impl IntoResponse, St::Error>
+where
+    St: UserpStore,
+    St::Error: IntoResponse,
+{
+    if !auth.logged_in().await? {
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
+    };
+
+    auth.store.delete_session(id).await?;
+
+    let user_route = auth.routes.pages.user;
+
+    Ok(Redirect::to(&format!("{user_route}?message=Session deleted")).into_response())
 }

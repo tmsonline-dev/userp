@@ -48,7 +48,7 @@ impl<S: UserpStore> Userp<S> {
         }
 
         self.send_email_challenge(
-            self.routes.password_reset.clone(),
+            self.routes.pages.password_reset.clone(),
             email,
             "Click here to reset password".into(),
             next,

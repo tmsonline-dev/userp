@@ -1,9 +1,9 @@
 mod forms;
 mod queries;
 
-#[cfg(feature = "extended-store")]
+#[cfg(feature = "account")]
 mod extended;
-#[cfg(feature = "extended-store")]
+#[cfg(feature = "account")]
 use extended::*;
 
 #[cfg(feature = "axum-askama")]
@@ -14,7 +14,7 @@ use axum::response::IntoResponse;
 #[cfg(feature = "axum-askama")]
 use crate::templates::*;
 use axum::{
-    extract::{FromRef, Path, Query},
+    extract::{FromRef, Query},
     http::StatusCode,
     response::Redirect,
     routing::{get, post},
@@ -56,39 +56,47 @@ impl UserpConfig {
         #[cfg(feature = "axum-askama")]
         {
             router = router
-                .route(self.routes.login.as_str(), get(get_login::<St>))
-                .route(self.routes.signup.as_str(), get(get_signup::<St>));
+                .route(self.routes.pages.login.as_str(), get(get_login::<St>))
+                .route(self.routes.pages.signup.as_str(), get(get_signup::<St>));
 
             #[cfg(all(feature = "password", feature = "email"))]
             {
-                router = router.route(
-                    self.routes.password_send_reset.as_str(),
-                    get(get_password_send_reset::<St>).post(post_password_send_reset::<St>),
-                );
+                router = router
+                    .route(
+                        self.routes.pages.password_send_reset.as_str(),
+                        get(get_password_send_reset::<St>),
+                    )
+                    .route(
+                        self.routes.actions.password_send_reset.as_str(),
+                        post(post_password_send_reset::<St>),
+                    )
+                    .route(
+                        self.routes.pages.password_reset.as_str(),
+                        get(get_password_reset::<St>),
+                    )
+                    .route(
+                        self.routes.actions.password_reset.as_str(),
+                        post(post_password_reset::<St>),
+                    );
             }
 
-            #[cfg(feature = "extended-store")]
+            #[cfg(feature = "account")]
             {
-                router = router
-                    .route(self.routes.user.as_str(), get(get_user::<St>))
-                    .route(
-                        self.routes.password_reset.as_str(),
-                        get(get_password_reset::<St>).post(post_password_reset::<St>),
-                    );
+                router = router.route(self.routes.pages.user.as_str(), get(get_user::<St>));
             }
         }
 
         #[cfg(all(not(feature = "axum-askama"), feature = "password", feature = "email"))]
         {
             router = router.route(
-                self.routes.password_send_reset.as_str(),
+                self.routes.actions.x_password_send_reset.as_str(),
                 post(post_password_send_reset::<St>),
             );
 
-            #[cfg(feature = "extended-store")]
+            #[cfg(feature = "account")]
             {
                 router = router.route(
-                    self.routes.password_reset.as_str(),
+                    self.routes.actions.x_password_reset.as_str(),
                     post(post_password_reset::<St>),
                 );
             }
@@ -98,11 +106,11 @@ impl UserpConfig {
         {
             router = router
                 .route(
-                    self.routes.login_password.as_str(),
+                    self.routes.actions.login_password.as_str(),
                     post(post_login_password::<St>),
                 )
                 .route(
-                    self.routes.signup_password.as_str(),
+                    self.routes.actions.signup_password.as_str(),
                     post(post_signup_password::<St>),
                 )
         }
@@ -111,183 +119,210 @@ impl UserpConfig {
         {
             router = router
                 .route(
-                    self.routes.login_email.as_str(),
+                    self.routes.actions.login_email.as_str(),
                     post(post_login_email::<St>).get(get_login_email::<St>),
                 )
                 .route(
-                    self.routes.signup_email.as_str(),
+                    self.routes.actions.signup_email.as_str(),
                     post(post_signup_email::<St>).get(get_signup_email::<St>),
                 )
                 .route(
-                    self.routes.user_email_verify.as_str(),
+                    self.routes.actions.user_email_verify.as_str(),
                     get(get_user_email_verify::<St>).post(post_user_email_verify::<St>),
                 );
         }
 
         router = router
-            .route(self.routes.logout.as_str(), get(get_user_logout::<St>))
             .route(
-                self.routes.user_verify_session.as_str(),
-                get(get_user_verify_session::<St>),
+                self.routes.actions.logout.as_str(),
+                get(get_user_logout::<St>),
             )
             .route(
-                self.routes.user_session_delete.as_str(),
-                post(post_user_session_delete::<St>),
+                self.routes.actions.user_verify_session.as_str(),
+                get(get_user_verify_session::<St>),
             );
 
-        #[cfg(feature = "extended-store")]
+        #[cfg(feature = "account")]
         {
             router = router
                 .route(
-                    self.routes.user_delete.as_str(),
+                    self.routes.actions.user_delete.as_str(),
                     post(post_user_delete::<St>),
                 )
                 .route(
-                    self.routes.user_password_set.as_str(),
-                    post(post_user_password_set::<St>),
-                )
-                .route(
-                    self.routes.user_password_delete.as_str(),
-                    post(post_user_password_delete::<St>),
-                )
-                .route(
-                    self.routes.user_oauth_delete.as_str(),
-                    post(post_user_oauth_delete::<St>),
-                )
-                .route(
-                    self.routes.user_email_add.as_str(),
-                    post(post_user_email_add::<St>),
-                )
-                .route(
-                    self.routes.user_email_delete.as_str(),
-                    post(post_user_email_delete::<St>),
-                )
-                .route(
-                    self.routes.user_email_enable_login.as_str(),
-                    post(post_user_email_enable_login::<St>),
-                )
-                .route(
-                    self.routes.user_email_disable_login.as_str(),
-                    post(post_user_email_disable_login::<St>),
+                    self.routes.actions.user_session_delete.as_str(),
+                    post(post_user_session_delete::<St>),
                 );
+
+            #[cfg(feature = "password")]
+            {
+                router = router
+                    .route(
+                        self.routes.actions.user_password_set.as_str(),
+                        post(post_user_password_set::<St>),
+                    )
+                    .route(
+                        self.routes.actions.user_password_delete.as_str(),
+                        post(post_user_password_delete::<St>),
+                    );
+            }
+
+            #[cfg(feature = "oauth")]
+            {
+                router = router.route(
+                    self.routes.actions.user_oauth_delete.as_str(),
+                    post(post_user_oauth_delete::<St>),
+                );
+            }
+
+            #[cfg(feature = "email")]
+            {
+                router = router
+                    .route(
+                        self.routes.actions.user_email_add.as_str(),
+                        post(post_user_email_add::<St>),
+                    )
+                    .route(
+                        self.routes.actions.user_email_delete.as_str(),
+                        post(post_user_email_delete::<St>),
+                    )
+                    .route(
+                        self.routes.actions.user_email_enable_login.as_str(),
+                        post(post_user_email_enable_login::<St>),
+                    )
+                    .route(
+                        self.routes.actions.user_email_disable_login.as_str(),
+                        post(post_user_email_disable_login::<St>),
+                    );
+            }
         }
 
         #[cfg(feature = "oauth")]
         {
             router = router
                 .route(
-                    self.routes.login_oauth.as_str(),
+                    self.routes.actions.login_oauth.as_str(),
                     post(post_login_oauth::<St>),
                 )
                 .route(
-                    self.routes.signup_oauth.as_str(),
+                    self.routes.actions.signup_oauth.as_str(),
                     post(post_signup_oauth::<St>),
                 )
                 .route(
-                    self.routes.user_oauth_link.as_str(),
+                    self.routes.actions.user_oauth_link.as_str(),
                     post(post_user_oauth_link::<St>),
                 )
                 .route(
-                    self.routes.user_oauth_refresh.as_str(),
+                    self.routes.actions.user_oauth_refresh.as_str(),
                     post(post_user_oauth_refresh::<St>),
                 );
 
-            if self.routes.login_oauth_provider == self.routes.signup_oauth_provider
-                || self.routes.login_oauth_provider == self.routes.user_oauth_link_provider
-                || self.routes.login_oauth_provider == self.routes.user_oauth_refresh_provider
+            if self.routes.actions.login_oauth_provider == self.routes.actions.signup_oauth_provider
+                || self.routes.actions.login_oauth_provider
+                    == self.routes.actions.user_oauth_link_provider
+                || self.routes.actions.login_oauth_provider
+                    == self.routes.actions.user_oauth_refresh_provider
             {
                 router = router
                     .route(
-                        self.routes.login_oauth_provider.as_str(),
+                        self.routes.actions.login_oauth_provider.as_str(),
                         get(get_generic_oauth::<St>),
                     )
                     .route(
-                        &(self.routes.login_oauth_provider.to_owned() + "/"),
+                        &(self.routes.actions.login_oauth_provider.to_owned() + "/"),
                         get(get_generic_oauth::<St>),
                     );
             } else {
                 router = router
                     .route(
-                        self.routes.login_oauth_provider.as_str(),
+                        self.routes.actions.login_oauth_provider.as_str(),
                         get(get_login_oauth::<St>),
                     )
                     .route(
-                        &(self.routes.login_oauth_provider.to_owned() + "/"),
+                        &(self.routes.actions.login_oauth_provider.to_owned() + "/"),
                         get(get_login_oauth::<St>),
                     );
             }
 
-            if self.routes.signup_oauth_provider == self.routes.login_oauth_provider
-                || self.routes.signup_oauth_provider == self.routes.user_oauth_link_provider
-                || self.routes.signup_oauth_provider == self.routes.user_oauth_refresh_provider
+            if self.routes.actions.signup_oauth_provider == self.routes.actions.login_oauth_provider
+                || self.routes.actions.signup_oauth_provider
+                    == self.routes.actions.user_oauth_link_provider
+                || self.routes.actions.signup_oauth_provider
+                    == self.routes.actions.user_oauth_refresh_provider
             {
                 router = router
                     .route(
-                        self.routes.signup_oauth_provider.as_str(),
+                        self.routes.actions.signup_oauth_provider.as_str(),
                         get(get_generic_oauth::<St>),
                     )
                     .route(
-                        &(self.routes.signup_oauth_provider.to_owned() + "/"),
+                        &(self.routes.actions.signup_oauth_provider.to_owned() + "/"),
                         get(get_generic_oauth::<St>),
                     );
             } else {
                 router = router
                     .route(
-                        self.routes.signup_oauth_provider.as_str(),
+                        self.routes.actions.signup_oauth_provider.as_str(),
                         get(get_signup_oauth::<St>),
                     )
                     .route(
-                        &(self.routes.signup_oauth_provider.to_owned() + "/"),
+                        &(self.routes.actions.signup_oauth_provider.to_owned() + "/"),
                         get(get_signup_oauth::<St>),
                     );
             }
 
-            if self.routes.user_oauth_link_provider == self.routes.signup_oauth_provider
-                || self.routes.user_oauth_link_provider == self.routes.login_oauth_provider
-                || self.routes.user_oauth_link_provider == self.routes.user_oauth_refresh_provider
+            if self.routes.actions.user_oauth_link_provider
+                == self.routes.actions.signup_oauth_provider
+                || self.routes.actions.user_oauth_link_provider
+                    == self.routes.actions.login_oauth_provider
+                || self.routes.actions.user_oauth_link_provider
+                    == self.routes.actions.user_oauth_refresh_provider
             {
                 router = router
                     .route(
-                        self.routes.user_oauth_link_provider.as_str(),
+                        self.routes.actions.user_oauth_link_provider.as_str(),
                         get(get_generic_oauth::<St>),
                     )
                     .route(
-                        &(self.routes.user_oauth_link_provider.to_owned() + "/"),
+                        &(self.routes.actions.user_oauth_link_provider.to_owned() + "/"),
                         get(get_generic_oauth::<St>),
                     );
             } else {
                 router = router
                     .route(
-                        self.routes.user_oauth_link_provider.as_str(),
+                        self.routes.actions.user_oauth_link_provider.as_str(),
                         get(get_user_oauth_link::<St>),
                     )
                     .route(
-                        &(self.routes.user_oauth_link_provider.to_owned() + "/"),
+                        &(self.routes.actions.user_oauth_link_provider.to_owned() + "/"),
                         get(get_user_oauth_link::<St>),
                     );
             }
 
-            if self.routes.user_oauth_refresh_provider == self.routes.signup_oauth_provider
-                || self.routes.user_oauth_refresh_provider == self.routes.user_oauth_link_provider
-                || self.routes.user_oauth_refresh_provider == self.routes.login_oauth_provider
+            if self.routes.actions.user_oauth_refresh_provider
+                == self.routes.actions.signup_oauth_provider
+                || self.routes.actions.user_oauth_refresh_provider
+                    == self.routes.actions.user_oauth_link_provider
+                || self.routes.actions.user_oauth_refresh_provider
+                    == self.routes.actions.login_oauth_provider
             {
                 router = router
                     .route(
-                        self.routes.user_oauth_refresh_provider.as_str(),
+                        self.routes.actions.user_oauth_refresh_provider.as_str(),
                         get(get_generic_oauth::<St>),
                     )
                     .route(
-                        &(self.routes.user_oauth_refresh_provider.to_owned() + "/"),
+                        &(self.routes.actions.user_oauth_refresh_provider.to_owned() + "/"),
                         get(get_generic_oauth::<St>),
                     );
             } else {
                 router = router
                     .route(
-                        self.routes.user_oauth_refresh_provider.as_str(),
+                        self.routes.actions.user_oauth_refresh_provider.as_str(),
                         get(get_user_oauth_refresh::<St>),
                     )
                     .route(
-                        &(self.routes.user_oauth_refresh_provider.to_owned() + "/"),
+                        &(self.routes.actions.user_oauth_refresh_provider.to_owned() + "/"),
                         get(get_user_oauth_refresh::<St>),
                     );
             }
@@ -312,7 +347,7 @@ where
     St::Error: IntoResponse,
 {
     Ok(if auth.logged_in().await? {
-        Redirect::to(&auth.routes.post_login).into_response()
+        Redirect::to(&auth.routes.redirects.post_login).into_response()
     } else {
         LoginTemplate::response_from(&auth, next.as_deref(), message.as_deref(), error.as_deref())
             .into_response()
@@ -332,11 +367,11 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
     match auth.password_login(&email, &password).await {
         Ok(auth) => {
-            let next = next.unwrap_or(auth.routes.post_login.clone());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -363,7 +398,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
     match auth.email_login_init(email.clone(), next).await {
         Ok(()) => {
@@ -396,11 +431,11 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
     match auth.email_login_callback(code).await {
         Ok((auth, next)) => {
-            let next = next.unwrap_or(auth.routes.post_login.clone());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -450,11 +485,11 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let signup_route = auth.routes.signup.clone();
+    let signup_route = auth.routes.pages.signup.clone();
 
     match auth.password_signup(&email, &password).await {
         Ok(auth) => {
-            let next = next.unwrap_or(auth.routes.post_login.clone());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -479,7 +514,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let signup_route = auth.routes.signup.clone();
+    let signup_route = auth.routes.pages.signup.clone();
 
     match auth.email_signup_init(email.clone(), next).await {
         Ok(()) => {
@@ -512,11 +547,11 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let signup_route = auth.routes.signup.clone();
+    let signup_route = auth.routes.pages.signup.clone();
 
     match auth.email_signup_callback(code).await {
         Ok((auth, next)) => {
-            let next = next.unwrap_or(auth.routes.post_login.clone());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -537,7 +572,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let post_logout = auth.routes.post_logout.clone();
+    let post_logout = auth.routes.redirects.post_logout.clone();
 
     Ok((auth.log_out().await?, Redirect::to(&post_logout)))
 }
@@ -554,25 +589,6 @@ where
     })
 }
 
-async fn post_user_session_delete<St>(
-    auth: Userp<St>,
-    Form(IdForm { id }): Form<IdForm>,
-) -> Result<impl IntoResponse, St::Error>
-where
-    St: UserpStore,
-    St::Error: IntoResponse,
-{
-    if !auth.logged_in().await? {
-        return Ok(StatusCode::UNAUTHORIZED.into_response());
-    };
-
-    auth.store.delete_session(id).await?;
-
-    let user_route = auth.routes.user;
-
-    Ok(Redirect::to(&format!("{user_route}?message=Session deleted")).into_response())
-}
-
 #[cfg(feature = "email")]
 async fn get_user_email_verify<St>(
     auth: Userp<St>,
@@ -582,8 +598,8 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
-    let user_route = auth.routes.user.clone();
+    let login_route = auth.routes.pages.login.clone();
+    let user_route = auth.routes.pages.user.clone();
 
     match auth.email_verify_callback(code).await {
         Ok((address, next)) => {
@@ -632,7 +648,7 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
-    let user_route = auth.routes.user.clone();
+    let user_route = auth.routes.pages.user.clone();
 
     match auth.email_verify_init(email.clone(), next).await {
         Ok(()) => {
@@ -670,7 +686,7 @@ where
         address: query.address.as_deref(),
         error: query.error.as_deref(),
         message: query.message.as_deref(),
-        routes: auth.routes.as_ref().into(),
+        send_reset_password_action_route: &auth.routes.actions.password_send_reset,
     }
     .into_response())
 }
@@ -684,7 +700,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let password_send_reset_route = auth.routes.password_send_reset.clone();
+    let password_send_reset_route = auth.routes.pages.password_send_reset.clone();
 
     if let Err(err) = auth.email_reset_init(email.clone(), next).await {
         let next = format!(
@@ -710,14 +726,19 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
     match auth.email_reset_callback(query.code).await {
         Ok(auth) => {
-            let routes = auth.routes.clone();
-            let routes = routes.as_ref().into();
+            let reset_password_action_route = auth.routes.actions.password_reset.clone();
 
-            Ok((auth, ResetPasswordTemplate { routes }).into_response())
+            Ok((
+                auth,
+                ResetPasswordTemplate {
+                    reset_password_action_route: &reset_password_action_route,
+                },
+            )
+                .into_response())
         }
         Err(err) => match err {
             EmailResetCallbackError::Store(err) => Err(err),

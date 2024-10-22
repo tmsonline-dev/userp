@@ -262,7 +262,7 @@ impl<S: UserpStore> Userp<S> {
                 provider_name.clone(),
                 code,
                 state,
-                self.routes.signup_oauth_provider.clone(),
+                self.routes.actions.signup_oauth_provider.clone(),
             )
             .await?;
 

@@ -54,7 +54,7 @@ impl<S: UserpStore> Userp<S> {
         next: Option<String>,
     ) -> Result<(), SendEmailChallengeError<S::Error>> {
         self.send_email_challenge(
-            self.routes.user_email_verify.clone(),
+            self.routes.actions.user_email_verify.clone(),
             email,
             "Click here to verify email".into(),
             next,

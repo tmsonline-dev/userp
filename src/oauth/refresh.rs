@@ -46,7 +46,7 @@ impl<S: UserpStore> Userp<S> {
                 .exchange_refresh_token(
                     provider.name(),
                     &self.redirect_uri(
-                        self.routes.user_oauth_refresh_provider.clone(),
+                        self.routes.actions.user_oauth_refresh_provider.clone(),
                         provider.name(),
                     ),
                     &RefreshToken::new(refresh_token.to_string()),
@@ -57,7 +57,7 @@ impl<S: UserpStore> Userp<S> {
 
             Ok((self, RefreshInitResult::Ok))
         } else {
-            let path = self.routes.user_oauth_refresh_provider.clone();
+            let path = self.routes.actions.user_oauth_refresh_provider.clone();
             let (new_self, url) = self
                 .oauth_init(
                     path,
@@ -110,7 +110,7 @@ impl<S: UserpStore> Userp<S> {
                 provider_name.clone(),
                 code,
                 state,
-                self.routes.user_oauth_refresh_provider.clone(),
+                self.routes.actions.user_oauth_refresh_provider.clone(),
             )
             .await?;
 

@@ -16,9 +16,9 @@
   </div>
   {% endif %}
 
-  {% if show_email %}
+  {% if let Some(email) = email %}
   <div class="magic-login">
-    <form action="{{ routes.signup_email }}" method="post" class="form">
+    <form action="{{ email.action_route }}" method="post" class="form">
       <div class="form-group">
         <label for="magic-email">Email for Magic Link</label>
         <input type="email" id="magic-email" name="email" required>
@@ -30,15 +30,15 @@
     </form>
   </div>
 
-  {% if show_password || show_oauth %}
+  {% if password.is_some() || oauth.is_some() %}
   <div class="or-divider">
     <span>or</span>
   </div>
   {% endif %}
   {% endif %}
 
-  {% if show_password %}
-  <form action="{{ routes.signup_password }}" method="post" id="signup-form">
+  {% if let Some(password) = password %}
+  <form action="{{ password.action_route }}" method="post" id="signup-form">
     <div class="form-group">
       <label for="email">Email</label>
       <input type="email" id="email" name="email" required>
@@ -53,17 +53,17 @@
     {% endif %}
   </form>
 
-  {% if show_oauth %}
+  {% if oauth.is_some() %}
   <div class="or-divider">
     <span>or</span>
   </div>
   {% endif %}
   {% endif %}
 
-  {% if show_oauth %}
+  {% if let Some(oauth) = oauth %}
   <div class="social-login">
-    {% for provider in oauth_providers %}
-    <form action="{{ routes.signup_oauth }}" method="post" class="form">
+    {% for provider in oauth.providers %}
+    <form action="{{ oauth.action_route }}" method="post" class="form">
       <input type="hidden" name="provider" value="{{ provider.name }}" />
       <button type="submit" class="social-button">Sign up with {{ provider.display_name }}</button>
       {% if let Some(next) = next %}
@@ -75,7 +75,7 @@
   {% endif %}
 
   <div class="links">
-    <a href="{{ routes.login }}">Already have an account? Log in</a>
+    <a href="{{ login_route }}">Already have an account? Log in</a>
   </div>
 </div>
 {% endblock %}

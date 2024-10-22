@@ -37,11 +37,11 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
     match auth.oauth_login_callback(provider, code, state).await {
         Ok((auth, next)) => {
-            let next = next.unwrap_or(auth.routes.post_login.to_string());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.to_string());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -66,7 +66,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let user_route = auth.routes.user.clone();
+    let user_route = auth.routes.pages.user.clone();
 
     match auth
         .oauth_refresh_callback(provider.clone(), code, state)
@@ -115,7 +115,7 @@ where
         }
     };
 
-    let user_route = auth.routes.user.clone();
+    let user_route = auth.routes.pages.user.clone();
 
     Ok(
         match auth
@@ -155,11 +155,11 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
     match auth.oauth_generic_callback(provider, code, state).await {
         Ok((auth, next)) => {
-            let next = next.unwrap_or(auth.routes.post_login.clone());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -187,11 +187,11 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let signup_route = auth.routes.signup.clone();
+    let signup_route = auth.routes.pages.signup.clone();
 
     match auth.oauth_signup_callback(provider, code, state).await {
         Ok((auth, next)) => {
-            let next = next.unwrap_or(auth.routes.post_login.clone());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -219,7 +219,7 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
-    let user_route = auth.routes.user.clone();
+    let user_route = auth.routes.pages.user.clone();
 
     match auth.oauth_link_init(provider, next).await {
         Ok((auth, redirect_url)) => Ok((auth, Redirect::to(redirect_url.as_str())).into_response()),
@@ -247,7 +247,7 @@ where
 {
     match auth.oauth_link_callback(provider, code, state).await {
         Ok(next) => {
-            let next = next.unwrap_or(auth.routes.post_login.clone());
+            let next = next.unwrap_or(auth.routes.redirects.post_login.clone());
             Ok((auth, Redirect::to(&next)).into_response())
         }
         Err(err) => match err {
@@ -255,7 +255,7 @@ where
             _ => {
                 let next = format!(
                     "{}?error={}",
-                    auth.routes.signup,
+                    auth.routes.pages.signup,
                     urlencoding::encode(&err.to_string())
                 );
                 Ok((auth, Redirect::to(&next)).into_response())
@@ -272,7 +272,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let login_route = auth.routes.login.clone();
+    let login_route = auth.routes.pages.login.clone();
 
     match auth.oauth_login_init(provider, next).await {
         Ok((auth, redirect_url)) => Ok((auth, Redirect::to(redirect_url.as_str())).into_response()),
@@ -294,7 +294,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    let signup_route = auth.routes.signup.clone();
+    let signup_route = auth.routes.pages.signup.clone();
 
     match auth.oauth_signup_init(provider, next).await {
         Ok((auth, redirect_url)) => Ok((auth, Redirect::to(redirect_url.as_str())).into_response()),
