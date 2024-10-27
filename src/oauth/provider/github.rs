@@ -1,4 +1,4 @@
-use super::{custom::CustomOAuthClient, with_user_callback::OAuthProviderBaseWithUserCallback};
+use super::custom::OAuthCustomProvider;
 use crate::oauth::OAuthProviderUser;
 use anyhow::Context;
 use serde_json::Value;
@@ -7,11 +7,11 @@ pub struct GitHubOAuthProvider;
 
 impl GitHubOAuthProvider {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new<'a>(
+    pub fn new(
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
-    ) -> OAuthProviderBaseWithUserCallback<'a> {
-        CustomOAuthClient::new_with_callback(
+    ) -> OAuthCustomProvider {
+        OAuthCustomProvider::new_with_callback(
             "github",
             "GitHub",
             client_id,

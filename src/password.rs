@@ -1,7 +1,10 @@
+pub mod hasher;
 pub mod login;
 pub mod signup;
 
+use self::hasher::{DefaultPasswordHasher, PasswordHasher};
 use crate::config::Allow;
+use std::sync::Arc;
 
 #[cfg(feature = "email")]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,6 +20,7 @@ pub struct PasswordConfig {
     pub allow_signup: Option<Allow>,
     #[cfg(feature = "email")]
     pub allow_reset: PasswordReset,
+    pub hasher: Arc<dyn PasswordHasher>,
 }
 
 impl PasswordConfig {
@@ -26,6 +30,7 @@ impl PasswordConfig {
             allow_signup: None,
             #[cfg(feature = "email")]
             allow_reset: PasswordReset::VerifiedEmailOnly,
+            hasher: Arc::new(DefaultPasswordHasher),
         }
     }
 
@@ -42,6 +47,11 @@ impl PasswordConfig {
     #[cfg(feature = "email")]
     pub fn with_allow_reset(mut self, allow_reset: PasswordReset) -> Self {
         self.allow_reset = allow_reset;
+        self
+    }
+
+    pub fn with_hasher(mut self, hasher: impl PasswordHasher + 'static) -> Self {
+        self.hasher = Arc::new(hasher);
         self
     }
 }

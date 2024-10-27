@@ -54,6 +54,10 @@ impl OAuthToken for MyOAuthToken {
         self.id
     }
 
+    fn get_user_id(&self) -> Uuid {
+        self.user_id
+    }
+
     fn get_provider_name(&self) -> &str {
         self.provider_name.as_str()
     }

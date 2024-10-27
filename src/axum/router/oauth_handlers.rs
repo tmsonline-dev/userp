@@ -109,7 +109,7 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
-    let token = match auth.store.oauth_get_token(token_id).await {
+    let token = match auth.store.oauth_get_token_by_id(token_id).await {
         Ok(Some(token)) => token,
         Ok(None) => {
             return Ok(StatusCode::NOT_FOUND.into_response());

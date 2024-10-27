@@ -1,10 +1,9 @@
 use crate::models::{MyLoginSession, MyUser};
-use crate::password::hash;
 use axum::async_trait;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
 use userp::{
-    prelude::{LoginMethod, PasswordLoginError, PasswordSignupError, UserpStore},
+    prelude::{LoginMethod, UserpStore},
     uuid::Uuid,
 };
 
@@ -61,77 +60,34 @@ impl UserpStore for MemoryStore {
         Ok(users.get(&user_id).cloned())
     }
 
-    async fn password_login(
+    async fn password_get_user_by_password_id(
         &self,
         password_id: &str,
-        password: &str,
-        allow_signup: bool,
-    ) -> Result<Self::User, PasswordLoginError<Self::Error>> {
-        let mut users = self.users.write().await;
+    ) -> Result<Option<MyUser>, Self::Error> {
+        let users = self.users.read().await;
 
-        let user = users.values().find(|user| user.email == password_id);
-
-        match user {
-            Some(user) => {
-                if user.validate_password(password).await {
-                    Ok(user.clone())
-                } else {
-                    Err(PasswordLoginError::WrongPassword)
-                }
-            }
-            None => {
-                if allow_signup {
-                    let id = Uuid::new_v4();
-                    let user = MyUser {
-                        id,
-                        password_hash: Some(hash(password.to_owned()).await),
-                        email: password_id.to_owned(),
-                    };
-
-                    users.insert(id, user.clone());
-
-                    Ok(user)
-                } else {
-                    Err(PasswordLoginError::NoUser)
-                }
-            }
-        }
+        Ok(users.values().find(|u| u.email == password_id).cloned())
     }
 
-    async fn password_signup(
+    async fn password_create_user(
         &self,
         password_id: &str,
-        password: &str,
-        allow_login: bool,
-    ) -> Result<Self::User, PasswordSignupError<Self::Error>> {
+        password_hash: &str,
+    ) -> Result<MyUser, Self::Error> {
         let mut users = self.users.write().await;
 
-        let user = users.values().find(|user| user.email == password_id);
+        if users.values().find(|u| u.email == password_id).is_some() {
+            panic!("Address in use");
+        };
 
-        match user {
-            Some(user) => {
-                if allow_login {
-                    if user.validate_password(password).await {
-                        Ok(user.clone())
-                    } else {
-                        Err(PasswordSignupError::WrongPassword)
-                    }
-                } else {
-                    Err(PasswordSignupError::UserExists)
-                }
-            }
-            None => {
-                let id = Uuid::new_v4();
-                let user = MyUser {
-                    id,
-                    password_hash: Some(hash(password.into()).await),
-                    email: password_id.into(),
-                };
+        let user = MyUser {
+            id: Uuid::new_v4(),
+            password_hash: Some(password_hash.into()),
+            email: password_id.into(),
+        };
 
-                users.insert(id, user.clone());
+        users.insert(user.id, user.clone());
 
-                Ok(user)
-            }
-        }
+        Ok(user)
     }
 }

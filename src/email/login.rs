@@ -1,4 +1,4 @@
-use super::{EmailChallenge, SendEmailChallengeError};
+use super::{EmailChallenge, SendEmailChallengeError, UserEmail};
 use crate::{
     config::Allow,
     core::CoreUserp,
@@ -85,17 +85,27 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(EmailLoginCallbackError::ChallengeExpired);
         }
 
-        let user = self
+        let allow_signup = self
+            .email
+            .allow_signup
+            .as_ref()
+            .unwrap_or(&self.allow_signup)
+            == &Allow::OnEither;
+
+        let user = match self
             .store
-            .email_login(
-                challenge.get_address(),
-                self.email
-                    .allow_signup
-                    .as_ref()
-                    .unwrap_or(&self.allow_signup)
-                    == &Allow::OnEither,
-            )
-            .await?;
+            .email_get_user_by_email_address(challenge.get_address())
+            .await?
+        {
+            Some((user, email)) if email.get_allow_link_login() => Ok(user),
+            Some(_) => Err(EmailLoginError::NotAllowed),
+            None if allow_signup => Ok(self
+                .store
+                .email_create_user_by_email_address(challenge.get_address())
+                .await?
+                .0),
+            None => Err(EmailLoginError::NoUser),
+        }?;
 
         Ok((
             self.log_in(

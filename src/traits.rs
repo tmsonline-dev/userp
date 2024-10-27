@@ -1,20 +1,20 @@
 mod store;
 
+pub use store::UserpStore;
+
 use crate::enums::LoginMethod;
 use uuid::Uuid;
 
-pub use store::UserpStore;
-
-pub trait LoginSession: Send + Sync {
+pub trait LoginSession: Send + Sync + Sized {
     fn get_id(&self) -> Uuid;
     fn get_user_id(&self) -> Uuid;
     fn get_method(&self) -> LoginMethod;
 }
 
-pub trait User: Send + Sync {
+pub trait User: Send + Sync + Sized {
     fn get_id(&self) -> Uuid;
     #[cfg(feature = "password")]
-    fn get_allow_password_login(&self) -> bool;
+    fn get_password_hash(&self) -> Option<String>;
 }
 
 pub trait UserpCookies {

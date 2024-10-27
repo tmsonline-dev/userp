@@ -1,4 +1,4 @@
-use super::{EmailChallenge, SendEmailChallengeError};
+use super::{EmailChallenge, SendEmailChallengeError, UserEmail};
 use crate::{
     core::CoreUserp,
     enums::LoginMethod,
@@ -87,13 +87,19 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(EmailResetCallbackError::ChallengeExpired);
         }
 
-        let user = self
+        let user = match self
             .store
-            .email_reset(
-                challenge.get_address(),
-                self.pass.allow_reset == PasswordReset::VerifiedEmailOnly,
-            )
-            .await?;
+            .email_get_user_by_email_address(challenge.get_address())
+            .await?
+        {
+            Some((user, email))
+                if self.pass.allow_reset == PasswordReset::AnyUserEmail || email.get_verified() =>
+            {
+                Ok(user)
+            }
+            Some(_) => Err(EmailResetError::NotVerified),
+            None => Err(EmailResetError::NoUser),
+        }?;
 
         Ok(self
             .log_in(

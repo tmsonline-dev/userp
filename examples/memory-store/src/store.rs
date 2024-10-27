@@ -1,15 +1,15 @@
 use crate::models::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
-use crate::password::hash;
-use axum::async_trait;
-use std::{collections::HashMap, convert::Infallible, sync::Arc};
+use axum::{
+    async_trait,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use userp::{
     chrono::{DateTime, Utc},
-    prelude::{
-        EmailLoginError, EmailResetError, EmailSignupError, EmailVerifyError, LoginMethod,
-        OAuthLinkError, OAuthLoginError, OAuthSignupError, PasswordLoginError, PasswordSignupError,
-        UnmatchedOAuthToken, UserpStore,
-    },
+    prelude::{LoginMethod, UnmatchedOAuthToken, UserEmail, UserpStore},
+    thiserror,
     uuid::Uuid,
 };
 
@@ -21,6 +21,20 @@ pub struct MemoryStore {
     oauth_tokens: Arc<RwLock<HashMap<Uuid, MyOAuthToken>>>,
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum MemoryStoreError {
+    #[error("The email address is already in use: {0}")]
+    AddressInUse(String),
+    #[error("The token was not found: {0}")]
+    TokenNotFound(String),
+}
+
+impl IntoResponse for MemoryStoreError {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+    }
+}
+
 #[async_trait]
 impl UserpStore for MemoryStore {
     type User = MyUser;
@@ -28,7 +42,7 @@ impl UserpStore for MemoryStore {
     type LoginSession = MyLoginSession;
     type EmailChallenge = MyEmailChallenge;
     type OAuthToken = MyOAuthToken;
-    type Error = Infallible;
+    type Error = MemoryStoreError;
 
     async fn get_session(
         &self,
@@ -71,208 +85,18 @@ impl UserpStore for MemoryStore {
         Ok(users.get(&user_id).cloned())
     }
 
-    async fn password_login(
-        &self,
-        password_id: &str,
-        password: &str,
-        allow_signup: bool,
-    ) -> Result<Self::User, PasswordLoginError<Self::Error>> {
+    async fn email_set_verified(&self, address: &str) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
 
-        let user = users
-            .values()
-            .find(|user| user.emails.iter().any(|e| e.email == password_id));
-
-        match user {
-            Some(user) => {
-                if user.validate_password(password).await {
-                    Ok(user.clone())
-                } else {
-                    Err(PasswordLoginError::WrongPassword)
+        users.values_mut().for_each(|u| {
+            u.emails.iter_mut().for_each(|e| {
+                if e.email == address {
+                    e.verified = true
                 }
-            }
-            None => {
-                if allow_signup {
-                    let id = Uuid::new_v4();
-                    let user = MyUser {
-                        id,
-                        password_hash: Some(hash(password.to_owned()).await),
-                        emails: vec![MyUserEmail {
-                            email: password_id.to_owned(),
-                            verified: false,
-                            allow_link_login: false,
-                        }],
-                    };
-
-                    users.insert(id, user.clone());
-
-                    Ok(user)
-                } else {
-                    Err(PasswordLoginError::NoUser)
-                }
-            }
-        }
-    }
-
-    async fn password_signup(
-        &self,
-        password_id: &str,
-        password: &str,
-        allow_login: bool,
-    ) -> Result<Self::User, PasswordSignupError<Self::Error>> {
-        let mut users = self.users.write().await;
-
-        let user = users
-            .values()
-            .find(|user| user.emails.iter().any(|e| e.email == password_id));
-
-        match user {
-            Some(user) => {
-                if allow_login {
-                    if user.validate_password(password).await {
-                        Ok(user.clone())
-                    } else {
-                        Err(PasswordSignupError::WrongPassword)
-                    }
-                } else {
-                    Err(PasswordSignupError::UserExists)
-                }
-            }
-            None => {
-                let id = Uuid::new_v4();
-                let user = MyUser {
-                    id,
-                    password_hash: Some(hash(password.into()).await),
-                    emails: vec![MyUserEmail {
-                        email: password_id.into(),
-                        verified: false,
-                        allow_link_login: false,
-                    }],
-                };
-
-                users.insert(id, user.clone());
-
-                Ok(user)
-            }
-        }
-    }
-
-    async fn email_login(
-        &self,
-        address: &str,
-        allow_signup: bool,
-    ) -> Result<Self::User, EmailLoginError<Self::Error>> {
-        let mut users = self.users.write().await;
-
-        let user_email = users.values().find_map(|user| {
-            user.emails
-                .iter()
-                .find(|e| e.email == address)
-                .map(|email| (user, email))
+            });
         });
 
-        match user_email {
-            Some((user, email)) => {
-                if email.allow_link_login {
-                    Ok(user.clone())
-                } else {
-                    Err(EmailLoginError::NotAllowed)
-                }
-            }
-            None => {
-                if allow_signup {
-                    let id = Uuid::new_v4();
-                    let user = MyUser {
-                        id,
-                        password_hash: None,
-                        emails: vec![MyUserEmail {
-                            email: address.into(),
-                            verified: true,
-                            allow_link_login: true,
-                        }],
-                    };
-
-                    users.insert(id, user.clone());
-
-                    Ok(user)
-                } else {
-                    Err(EmailLoginError::NoUser)
-                }
-            }
-        }
-    }
-    async fn email_signup(
-        &self,
-        address: &str,
-        allow_login: bool,
-    ) -> Result<Self::User, EmailSignupError<Self::Error>> {
-        let mut users = self.users.write().await;
-
-        let user_email = users.values().find_map(|user| {
-            user.emails
-                .iter()
-                .find(|e| e.email == address)
-                .map(|email| (user, email))
-        });
-
-        match user_email {
-            Some((user, email)) => {
-                if !email.allow_link_login {
-                    Err(EmailSignupError::NotAllowed)
-                } else if !allow_login {
-                    Err(EmailSignupError::UserExists)
-                } else {
-                    Ok(user.clone())
-                }
-            }
-            None => {
-                let id = Uuid::new_v4();
-                let user = MyUser {
-                    id,
-                    password_hash: None,
-                    emails: vec![MyUserEmail {
-                        email: address.into(),
-                        verified: true,
-                        allow_link_login: true,
-                    }],
-                };
-
-                users.insert(id, user.clone());
-
-                Ok(user)
-            }
-        }
-    }
-    async fn email_reset(
-        &self,
-        address: &str,
-        require_verified_address: bool,
-    ) -> Result<Self::User, EmailResetError<Self::Error>> {
-        let users = self.users.read().await;
-        let user_email = users
-            .values()
-            .find_map(|u| u.emails.iter().find(|e| e.email == address).map(|e| (u, e)));
-
-        match user_email {
-            Some((user, email)) => {
-                if !require_verified_address || email.verified {
-                    Ok(user.clone())
-                } else {
-                    Err(EmailResetError::NotVerified)
-                }
-            }
-            None => Err(EmailResetError::NoUser),
-        }
-    }
-
-    async fn email_verify(&self, address: &str) -> Result<(), EmailVerifyError<Self::Error>> {
-        let mut users = self.users.write().await;
-
-        users
-            .values_mut()
-            .find_map(|u| u.emails.iter_mut().find(|e| e.email == address))
-            .map(|e| e.verified = true)
-            .ok_or(EmailVerifyError::NoUser)
+        Ok(())
     }
 
     async fn email_create_challenge(
@@ -306,202 +130,6 @@ impl UserpStore for MemoryStore {
         };
 
         Ok(challenge)
-    }
-
-    async fn oauth_link(
-        &self,
-        user_id: Uuid,
-        unmatched_token: UnmatchedOAuthToken,
-    ) -> Result<Self::OAuthToken, OAuthLinkError<Self::Error>> {
-        let UnmatchedOAuthToken {
-            access_token,
-            refresh_token,
-            expires,
-            scopes,
-            provider_name,
-            provider_user,
-        } = unmatched_token;
-
-        let mut oauth_tokens = self.oauth_tokens.write().await;
-
-        let existing_token = oauth_tokens
-            .values()
-            .find(|t| t.provider_name == provider_name && t.provider_user_id == provider_user.id);
-
-        if existing_token.is_some_and(|t| t.user_id != user_id) {
-            return Err(OAuthLinkError::UserConflict);
-        };
-
-        let token = MyOAuthToken {
-            id: existing_token.map(|t| t.id).unwrap_or(Uuid::new_v4()),
-            user_id,
-            provider_name,
-            provider_user_id: provider_user.id,
-            access_token,
-            refresh_token,
-            expires,
-            scopes,
-        };
-
-        oauth_tokens.insert(token.id, token.clone());
-
-        Ok(token)
-    }
-
-    async fn oauth_signup(
-        &self,
-        unmatched_token: UnmatchedOAuthToken,
-        allow_login: bool,
-    ) -> Result<(Self::User, Self::OAuthToken), OAuthSignupError<Self::Error>> {
-        let mut tokens = self.oauth_tokens.write().await;
-        let mut users = self.users.write().await;
-
-        let user_token = tokens
-            .values()
-            .find(|t| {
-                t.provider_name == unmatched_token.provider_name
-                    && t.provider_user_id == unmatched_token.provider_user.id
-            })
-            .and_then(|t| users.get(&t.user_id).map(|u| (u, t)));
-
-        if let Some((user, token)) = user_token {
-            if allow_login {
-                Ok((user.clone(), token.clone()))
-            } else {
-                Err(OAuthSignupError::UserExists)
-            }
-        } else {
-            let user_id = Uuid::new_v4();
-            let user = MyUser {
-                id: user_id,
-                password_hash: None,
-                emails: unmatched_token
-                    .provider_user
-                    .email
-                    .map(|e| {
-                        vec![MyUserEmail {
-                            email: e,
-                            verified: unmatched_token.provider_user.email_verified,
-                            allow_link_login: unmatched_token.provider_user.email_verified,
-                        }]
-                    })
-                    .unwrap_or_default(),
-            };
-
-            let token_id = Uuid::new_v4();
-
-            let token = MyOAuthToken {
-                id: token_id,
-                user_id,
-                provider_name: unmatched_token.provider_name,
-                provider_user_id: unmatched_token.provider_user.id,
-                access_token: unmatched_token.access_token,
-                refresh_token: unmatched_token.refresh_token,
-                expires: unmatched_token.expires,
-                scopes: unmatched_token.scopes,
-            };
-
-            users.insert(user_id, user.clone());
-            tokens.insert(token_id, token.clone());
-
-            Ok((user, token))
-        }
-    }
-
-    async fn oauth_login(
-        &self,
-        unmatched_token: UnmatchedOAuthToken,
-        allow_signup: bool,
-    ) -> Result<(Self::User, Self::OAuthToken), OAuthLoginError<Self::Error>> {
-        let mut tokens = self.oauth_tokens.write().await;
-        let mut users = self.users.write().await;
-
-        let user_token = tokens
-            .values()
-            .find(|t| {
-                t.provider_name == unmatched_token.provider_name
-                    && t.provider_user_id == unmatched_token.provider_user.id
-            })
-            .and_then(|t| users.get(&t.user_id).map(|u| (u, t)));
-
-        if let Some((user, token)) = user_token {
-            Ok((user.clone(), token.clone()))
-        } else if allow_signup {
-            let user_id = Uuid::new_v4();
-            let user = MyUser {
-                id: user_id,
-                password_hash: None,
-                emails: unmatched_token
-                    .provider_user
-                    .email
-                    .map(|e| {
-                        vec![MyUserEmail {
-                            email: e,
-                            verified: unmatched_token.provider_user.email_verified,
-                            allow_link_login: unmatched_token.provider_user.email_verified,
-                        }]
-                    })
-                    .unwrap_or_default(),
-            };
-
-            let token_id = Uuid::new_v4();
-
-            let token = MyOAuthToken {
-                id: token_id,
-                user_id,
-                provider_name: unmatched_token.provider_name,
-                provider_user_id: unmatched_token.provider_user.id,
-                access_token: unmatched_token.access_token,
-                refresh_token: unmatched_token.refresh_token,
-                expires: unmatched_token.expires,
-                scopes: unmatched_token.scopes,
-            };
-
-            users.insert(user_id, user.clone());
-            tokens.insert(token_id, token.clone());
-
-            Ok((user, token))
-        } else {
-            Err(OAuthLoginError::NoUser)
-        }
-    }
-
-    async fn oauth_update_token(
-        &self,
-        prev_token: Self::OAuthToken,
-        unmatched_token: UnmatchedOAuthToken,
-    ) -> Result<Self::OAuthToken, Self::Error> {
-        let UnmatchedOAuthToken {
-            access_token,
-            refresh_token,
-            expires,
-            scopes,
-            provider_name,
-            provider_user,
-        } = unmatched_token;
-
-        let token = MyOAuthToken {
-            access_token,
-            refresh_token,
-            expires,
-            scopes,
-            provider_name,
-            provider_user_id: provider_user.id,
-            ..prev_token
-        };
-
-        let mut tokens = self.oauth_tokens.write().await;
-        tokens.insert(token.id, token.clone());
-
-        Ok(token)
-    }
-
-    async fn oauth_get_token(
-        &self,
-        token_id: Uuid,
-    ) -> Result<Option<Self::OAuthToken>, Self::Error> {
-        let tokens = self.oauth_tokens.read().await;
-        Ok(tokens.get(&token_id).cloned())
     }
 
     async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<MyUserEmail>, Self::Error> {
@@ -549,7 +177,7 @@ impl UserpStore for MemoryStore {
         Ok(())
     }
 
-    async fn clear_user_password(
+    async fn clear_user_password_hash(
         &self,
         user_id: Uuid,
         session_id: Uuid,
@@ -569,10 +197,10 @@ impl UserpStore for MemoryStore {
         Ok(())
     }
 
-    async fn set_user_password(
+    async fn set_user_password_hash(
         &self,
         user_id: Uuid,
-        password: String,
+        password_hash: String,
         session_id: Uuid,
     ) -> Result<(), Self::Error> {
         let mut users = self.users.write().await;
@@ -585,7 +213,7 @@ impl UserpStore for MemoryStore {
                     || session.id == session_id
             });
 
-            user.password_hash = Some(hash(password).await)
+            user.password_hash = Some(password_hash)
         };
         Ok(())
     }
@@ -614,18 +242,20 @@ impl UserpStore for MemoryStore {
             .values()
             .any(|u| u.id != user_id && u.emails.iter().any(|e| e.email == address))
         {
-            panic!("Email already in use");
+            return Err(MemoryStoreError::AddressInUse(address));
         }
 
         let emails = &mut users.get_mut(&user_id).expect("User not found").emails;
 
         if !emails.iter().any(|e| e.email == address) {
             emails.push(MyUserEmail {
+                user_id,
                 email: address,
                 verified: false,
                 allow_link_login: false,
             });
         }
+
         Ok(())
     }
 
@@ -638,5 +268,240 @@ impl UserpStore for MemoryStore {
             .emails
             .retain(|e| e.email != address);
         Ok(())
+    }
+
+    async fn password_get_user_by_password_id(
+        &self,
+        password_id: &str,
+    ) -> Result<Option<Self::User>, Self::Error> {
+        let users = self.users.read().await;
+
+        Ok(users
+            .values()
+            .find(|u| u.emails.iter().any(|e| e.get_address() == password_id))
+            .cloned())
+    }
+
+    async fn password_create_user(
+        &self,
+        password_id: &str,
+        password_hash: &str,
+    ) -> Result<Self::User, Self::Error> {
+        let mut users = self.users.write().await;
+
+        if users
+            .values()
+            .any(|u| u.emails.iter().any(|e| e.get_address() == password_id))
+        {
+            return Err(MemoryStoreError::AddressInUse(password_id.to_string()));
+        }
+
+        let user_id = Uuid::new_v4();
+
+        let user = Self::User {
+            id: user_id,
+            password_hash: Some(password_hash.into()),
+            emails: vec![Self::UserEmail {
+                user_id,
+                email: password_id.into(),
+                verified: false,
+                allow_link_login: false,
+            }],
+        };
+
+        users.insert(user_id, user.clone());
+
+        Ok(user)
+    }
+
+    // user store
+    async fn email_get_user_by_email_address(
+        &self,
+        address: &str,
+    ) -> Result<Option<(Self::User, Self::UserEmail)>, Self::Error> {
+        let users = self.users.read().await;
+
+        Ok(users.values().find_map(|u| {
+            u.emails
+                .iter()
+                .find(|e| e.get_address() == address)
+                .map(|e| (u.clone(), e.clone()))
+        }))
+    }
+
+    async fn email_create_user_by_email_address(
+        &self,
+        address: &str,
+    ) -> Result<(Self::User, Self::UserEmail), Self::Error> {
+        let mut users = self.users.write().await;
+
+        if users
+            .values()
+            .any(|u| u.emails.iter().any(|e| e.get_address() == address))
+        {
+            return Err(MemoryStoreError::AddressInUse(address.into()));
+        }
+
+        let user_id = Uuid::new_v4();
+
+        let email = Self::UserEmail {
+            user_id,
+            email: address.into(),
+            verified: true,
+            allow_link_login: true,
+        };
+
+        let user = Self::User {
+            id: user_id,
+            password_hash: None,
+            emails: vec![email.clone()],
+        };
+
+        users.insert(user_id, user.clone());
+
+        Ok((user, email))
+    }
+
+    async fn update_token_by_unmatched_token(
+        &self,
+        token_id: Uuid,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<Self::OAuthToken, Self::Error> {
+        let mut tokens = self.oauth_tokens.write().await;
+
+        let prev = tokens
+            .get_mut(&token_id)
+            .ok_or(MemoryStoreError::TokenNotFound(token_id.to_string()))?;
+
+        prev.provider_name = unmatched_token.provider_name;
+        prev.provider_user_id = unmatched_token.provider_user.id;
+        prev.access_token = unmatched_token.access_token;
+        prev.refresh_token = unmatched_token.refresh_token;
+        prev.expires = unmatched_token.expires;
+        prev.scopes = unmatched_token.scopes;
+
+        Ok(prev.clone())
+    }
+
+    async fn oauth_get_token_by_id(
+        &self,
+        token_id: Uuid,
+    ) -> Result<Option<Self::OAuthToken>, Self::Error> {
+        let tokens = self.oauth_tokens.read().await;
+
+        Ok(tokens.get(&token_id).cloned())
+    }
+
+    async fn get_token_by_unmatched_token(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<Option<Self::OAuthToken>, Self::Error> {
+        let tokens = self.oauth_tokens.read().await;
+
+        Ok(tokens
+            .values()
+            .find(|t| {
+                t.provider_name == unmatched_token.provider_name
+                    && t.provider_user_id == unmatched_token.provider_user.id
+            })
+            .cloned())
+    }
+
+    async fn create_user_token_from_unmatched_token(
+        &self,
+        user_id: Uuid,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<Self::OAuthToken, Self::Error> {
+        let mut tokens = self.oauth_tokens.write().await;
+
+        if let Some(address) = unmatched_token.provider_user.email {
+            let mut users = self.users.write().await;
+
+            if let Some(u) = users.get_mut(&user_id) {
+                u.emails.push(Self::UserEmail {
+                    user_id: u.id,
+                    email: address,
+                    verified: unmatched_token.provider_user.email_verified,
+                    allow_link_login: unmatched_token.provider_user.email_verified,
+                })
+            }
+        };
+
+        let token = Self::OAuthToken {
+            id: Uuid::new_v4(),
+            user_id,
+            provider_name: unmatched_token.provider_name,
+            provider_user_id: unmatched_token.provider_user.id,
+            access_token: unmatched_token.access_token,
+            refresh_token: unmatched_token.refresh_token,
+            expires: unmatched_token.expires,
+            scopes: unmatched_token.scopes,
+        };
+
+        tokens.insert(token.id, token.clone());
+
+        Ok(token)
+    }
+
+    async fn create_user_from_unmatched_token(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<(Self::User, Self::OAuthToken), Self::Error> {
+        let mut tokens = self.oauth_tokens.write().await;
+        let mut users = self.users.write().await;
+
+        let mut user = Self::User {
+            id: Uuid::new_v4(),
+            password_hash: None,
+            emails: vec![],
+        };
+
+        if let Some(address) = unmatched_token.provider_user.email {
+            if users
+                .values()
+                .any(|u| u.emails.iter().any(|e| e.email == address))
+            {
+                return Err(MemoryStoreError::AddressInUse(address));
+            };
+
+            user.emails.push(Self::UserEmail {
+                user_id: user.id,
+                email: address,
+                verified: unmatched_token.provider_user.email_verified,
+                allow_link_login: unmatched_token.provider_user.email_verified,
+            });
+        };
+
+        let token = Self::OAuthToken {
+            id: Uuid::new_v4(),
+            user_id: user.id,
+            provider_name: unmatched_token.provider_name,
+            provider_user_id: unmatched_token.provider_user.id,
+            access_token: unmatched_token.access_token,
+            refresh_token: unmatched_token.refresh_token,
+            expires: unmatched_token.expires,
+            scopes: unmatched_token.scopes,
+        };
+
+        tokens.insert(token.id, token.clone());
+        users.insert(user.id, user.clone());
+
+        Ok((user, token))
+    }
+
+    async fn get_user_by_unmatched_token(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<Option<(Self::User, Self::OAuthToken)>, Self::Error> {
+        let tokens = self.oauth_tokens.read().await;
+        let users = self.users.read().await;
+
+        Ok(tokens
+            .values()
+            .find(|t| {
+                t.provider_name == unmatched_token.provider_name
+                    && t.provider_user_id == unmatched_token.provider_user.id
+            })
+            .and_then(|t| users.get(&t.user_id).map(|u| (u.clone(), t.clone()))))
     }
 }

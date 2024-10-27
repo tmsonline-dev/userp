@@ -10,23 +10,13 @@ use thiserror::Error;
 use url::Url;
 
 #[derive(Error, Debug)]
-pub enum OAuthLoginError<StoreError: std::error::Error> {
-    #[error("OAuth signup not allowed")]
-    NotAllowed,
-    #[error("No user found")]
-    NoUser,
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Error, Debug)]
 pub enum OAuthLoginCallbackError<StoreError: std::error::Error> {
     #[error(transparent)]
     OAuthCallbackError(#[from] OAuthCallbackError),
     #[error("Expected a login flow, got {0}")]
     UnexpectedFlow(OAuthFlow),
-    #[error(transparent)]
-    Login(#[from] OAuthLoginError<StoreError>),
+    #[error("User doesn't exists")]
+    NoUser,
     #[error(transparent)]
     Store(StoreError),
 }
@@ -93,18 +83,27 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(OAuthLoginCallbackError::UnexpectedFlow(flow));
         };
 
-        let (user, token) = self
+        let allow_signup = provider.allow_signup().as_ref().unwrap_or(
+            self.oauth
+                .allow_signup
+                .as_ref()
+                .unwrap_or(&self.allow_signup),
+        ) == &Allow::OnEither;
+
+        let (user, token) = match self
             .store
-            .oauth_login(
-                unmatched_token,
-                provider.allow_signup().as_ref().unwrap_or(
-                    self.oauth
-                        .allow_signup
-                        .as_ref()
-                        .unwrap_or(&self.allow_signup),
-                ) == &Allow::OnEither,
-            )
-            .await?;
+            .get_user_by_unmatched_token(unmatched_token.clone())
+            .await
+            .map_err(OAuthLoginCallbackError::Store)?
+        {
+            Some(user_token) => Ok(user_token),
+            None if allow_signup => Ok(self
+                .store
+                .create_user_from_unmatched_token(unmatched_token)
+                .await
+                .map_err(OAuthLoginCallbackError::Store)?),
+            None => Err(OAuthLoginCallbackError::NoUser),
+        }?;
 
         Ok((
             self.log_in(

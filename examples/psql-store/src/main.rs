@@ -1,5 +1,4 @@
 mod models;
-mod password;
 mod store;
 mod templates;
 

@@ -26,6 +26,7 @@ pub use core::CoreUserp as Userp;
 pub use chrono;
 #[cfg(feature = "oauth")]
 pub use oauth2;
+pub use thiserror;
 #[cfg(any(feature = "email", feature = "oauth"))]
 pub use url;
 pub use uuid;

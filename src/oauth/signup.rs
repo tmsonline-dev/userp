@@ -15,8 +15,8 @@ pub enum OAuthSignupCallbackError<StoreError: std::error::Error> {
     OAuthCallbackError(#[from] OAuthCallbackError),
     #[error("Expected a signup flow, got {0}")]
     UnexpectedFlow(OAuthFlow),
-    #[error(transparent)]
-    SignupError(#[from] OAuthSignupError<StoreError>),
+    #[error("User already exists")]
+    UserExists,
     #[error(transparent)]
     Store(StoreError),
 }
@@ -27,16 +27,6 @@ pub enum OAuthSignupInitError {
     NotAllowed,
     #[error("No provider found with name: {0}")]
     ProviderNotFound(String),
-}
-
-#[derive(Error, Debug)]
-pub enum OAuthSignupError<StoreError: std::error::Error> {
-    #[error("OAuth signup not allowed")]
-    NotAllowed,
-    #[error("User already exists")]
-    UserExists,
-    #[error(transparent)]
-    Store(#[from] StoreError),
 }
 
 impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
@@ -112,17 +102,26 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(OAuthSignupCallbackError::UnexpectedFlow(flow));
         };
 
-        let (user, token) = self
+        let allow_login = provider
+            .allow_login()
+            .as_ref()
+            .unwrap_or(self.oauth.allow_login.as_ref().unwrap_or(&self.allow_login))
+            == &Allow::OnEither;
+
+        let (user, token) = match self
             .store
-            .oauth_signup(
-                unmatched_token,
-                provider
-                    .allow_login()
-                    .as_ref()
-                    .unwrap_or(self.oauth.allow_login.as_ref().unwrap_or(&self.allow_login))
-                    == &Allow::OnEither,
-            )
-            .await?;
+            .get_user_by_unmatched_token(unmatched_token.clone())
+            .await
+            .map_err(OAuthSignupCallbackError::Store)?
+        {
+            Some(user_token) if allow_login => Ok(user_token),
+            Some(_) => Err(OAuthSignupCallbackError::UserExists),
+            None => Ok(self
+                .store
+                .create_user_from_unmatched_token(unmatched_token)
+                .await
+                .map_err(OAuthSignupCallbackError::Store)?),
+        }?;
 
         Ok((
             self.log_in(

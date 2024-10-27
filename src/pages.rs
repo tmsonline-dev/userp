@@ -165,7 +165,7 @@ impl UserTemplate<'_> {
             verify_session_action_route: &auth.routes.actions.user_verify_session,
             #[cfg(feature = "password")]
             password: Some(UserTemplatePasswordInfo {
-                has_password: user.get_allow_password_login(),
+                has_password: user.get_password_hash().is_some(),
                 delete_action_route: &auth.routes.actions.user_password_delete,
                 set_action_route: &auth.routes.actions.user_password_set,
             }),

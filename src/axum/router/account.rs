@@ -82,8 +82,10 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
+    let new_password_hash = auth.pass.hasher.genereate_hash(new_password).await;
+
     auth.store
-        .set_user_password(user.get_id(), new_password, session.get_id())
+        .set_user_password_hash(user.get_id(), new_password_hash, session.get_id())
         .await?;
 
     let user_route = auth.routes.pages.user;
@@ -104,7 +106,7 @@ where
     };
 
     auth.store
-        .clear_user_password(user.get_id(), session.get_id())
+        .clear_user_password_hash(user.get_id(), session.get_id())
         .await?;
 
     let user_route = auth.routes.pages.user.clone();
@@ -238,8 +240,9 @@ where
     St::Error: IntoResponse,
 {
     if let Some((user, session)) = auth.reset_user_session().await? {
+        let new_password_hash = auth.pass.hasher.genereate_hash(new_password).await;
         auth.store
-            .set_user_password(user.get_id(), new_password, session.get_id())
+            .set_user_password_hash(user.get_id(), new_password_hash, session.get_id())
             .await?;
 
         let login_route = auth.routes.pages.login;

@@ -40,7 +40,7 @@ impl UserpConfig {
             key,
             https_only: true,
             allow_signup: Allow::OnSelf,
-            allow_login: Allow::OnEither,
+            allow_login: Allow::OnSelf,
             routes: routes.into(),
             #[cfg(feature = "password")]
             pass,

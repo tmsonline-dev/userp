@@ -1,18 +1,7 @@
-#[cfg(all(feature = "password", feature = "email"))]
-use crate::email::reset::EmailResetError;
 #[cfg(feature = "email")]
-use crate::email::{
-    login::EmailLoginError, signup::EmailSignupError, verify::EmailVerifyError, EmailChallenge,
-    UserEmail,
-};
+use crate::email::{EmailChallenge, UserEmail};
 #[cfg(feature = "oauth")]
-use crate::oauth::{
-    link::OAuthLinkError, login::OAuthLoginError, signup::OAuthSignupError, OAuthToken,
-    UnmatchedOAuthToken,
-};
-#[cfg(feature = "password")]
-use crate::password::{login::PasswordLoginError, signup::PasswordSignupError};
-
+use crate::oauth::{OAuthToken, UnmatchedOAuthToken};
 use crate::{
     enums::LoginMethod,
     traits::{LoginSession, User},
@@ -23,7 +12,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[async_trait]
-pub trait UserpStore {
+pub trait UserpStore: Send + Sync {
     type User: User;
     type LoginSession: LoginSession;
     type Error: std::error::Error + Send;
@@ -35,7 +24,8 @@ pub trait UserpStore {
     #[cfg(feature = "oauth")]
     type OAuthToken: OAuthToken;
 
-    // session store
+    // basic store
+    async fn get_user(&self, user_id: Uuid) -> Result<Option<Self::User>, Self::Error>;
     async fn create_session(
         &self,
         user_id: Uuid,
@@ -47,46 +37,32 @@ pub trait UserpStore {
     ) -> Result<Option<Self::LoginSession>, Self::Error>;
     async fn delete_session(&self, session_id: Uuid) -> Result<(), Self::Error>;
 
-    // user store
-    async fn get_user(&self, user_id: Uuid) -> Result<Option<Self::User>, Self::Error>;
-
-    // password user store
+    // password store
     #[cfg(feature = "password")]
-    async fn password_login(
+    async fn password_get_user_by_password_id(
         &self,
         password_id: &str,
-        password: &str,
-        allow_signup: bool,
-    ) -> Result<Self::User, PasswordLoginError<Self::Error>>;
+    ) -> Result<Option<Self::User>, Self::Error>;
     #[cfg(feature = "password")]
-    async fn password_signup(
+    async fn password_create_user(
         &self,
         password_id: &str,
-        password: &str,
-        allow_login: bool,
-    ) -> Result<Self::User, PasswordSignupError<Self::Error>>;
+        password_hash: &str,
+    ) -> Result<Self::User, Self::Error>;
 
-    // email user store
+    // email store
     #[cfg(feature = "email")]
-    async fn email_login(
+    async fn email_get_user_by_email_address(
         &self,
         address: &str,
-        allow_signup: bool,
-    ) -> Result<Self::User, EmailLoginError<Self::Error>>;
+    ) -> Result<Option<(Self::User, Self::UserEmail)>, Self::Error>;
     #[cfg(feature = "email")]
-    async fn email_signup(
+    async fn email_create_user_by_email_address(
         &self,
         address: &str,
-        allow_login: bool,
-    ) -> Result<Self::User, EmailSignupError<Self::Error>>;
-    #[cfg(all(feature = "email", feature = "password"))]
-    async fn email_reset(
-        &self,
-        address: &str,
-        require_verified_address: bool,
-    ) -> Result<Self::User, EmailResetError<Self::Error>>;
+    ) -> Result<(Self::User, Self::UserEmail), Self::Error>;
     #[cfg(feature = "email")]
-    async fn email_verify(&self, address: &str) -> Result<(), EmailVerifyError<Self::Error>>;
+    async fn email_set_verified(&self, address: &str) -> Result<(), Self::Error>;
     #[cfg(feature = "email")]
     async fn email_create_challenge(
         &self,
@@ -101,37 +77,41 @@ pub trait UserpStore {
         code: String,
     ) -> Result<Option<Self::EmailChallenge>, Self::Error>;
 
-    // oauth token store
+    // oauth store
     #[cfg(feature = "oauth")]
-    async fn oauth_signup(
+    async fn update_token_by_unmatched_token(
         &self,
-        unmatched_token: UnmatchedOAuthToken,
-        allow_login: bool,
-    ) -> Result<(Self::User, Self::OAuthToken), OAuthSignupError<Self::Error>>;
-    #[cfg(feature = "oauth")]
-    async fn oauth_login(
-        &self,
-        unmatched_token: UnmatchedOAuthToken,
-        allow_signup: bool,
-    ) -> Result<(Self::User, Self::OAuthToken), OAuthLoginError<Self::Error>>;
-    #[cfg(feature = "oauth")]
-    async fn oauth_link(
-        &self,
-        user_id: Uuid,
-        unmatched_token: UnmatchedOAuthToken,
-    ) -> Result<Self::OAuthToken, OAuthLinkError<Self::Error>>;
-    #[cfg(feature = "oauth")]
-    async fn oauth_update_token(
-        &self,
-        token: Self::OAuthToken,
+        token_id: Uuid,
         unmatched_token: UnmatchedOAuthToken,
     ) -> Result<Self::OAuthToken, Self::Error>;
     #[cfg(feature = "oauth")]
-    async fn oauth_get_token(
+    async fn oauth_get_token_by_id(
         &self,
         token_id: Uuid,
     ) -> Result<Option<Self::OAuthToken>, Self::Error>;
+    #[cfg(feature = "oauth")]
+    async fn get_token_by_unmatched_token(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<Option<Self::OAuthToken>, Self::Error>;
+    #[cfg(feature = "oauth")]
+    async fn create_user_token_from_unmatched_token(
+        &self,
+        user_id: Uuid,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<Self::OAuthToken, Self::Error>;
+    #[cfg(feature = "oauth")]
+    async fn create_user_from_unmatched_token(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<(Self::User, Self::OAuthToken), Self::Error>;
+    #[cfg(feature = "oauth")]
+    async fn get_user_by_unmatched_token(
+        &self,
+        unmatched_token: UnmatchedOAuthToken,
+    ) -> Result<Option<(Self::User, Self::OAuthToken)>, Self::Error>;
 
+    // account store
     #[cfg(feature = "account")]
     async fn get_user_sessions(
         &self,
@@ -147,15 +127,18 @@ pub trait UserpStore {
     #[cfg(feature = "account")]
     async fn delete_user(&self, id: Uuid) -> Result<(), Self::Error>;
     #[cfg(all(feature = "account", feature = "password"))]
-    async fn clear_user_password(&self, user_id: Uuid, session_id: Uuid)
-        -> Result<(), Self::Error>;
+    async fn clear_user_password_hash(
+        &self,
+        user_id: Uuid,
+        session_id: Uuid,
+    ) -> Result<(), Self::Error>;
     #[cfg(all(feature = "account", feature = "email"))]
     async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<Self::UserEmail>, Self::Error>;
     #[cfg(all(feature = "account", feature = "password"))]
-    async fn set_user_password(
+    async fn set_user_password_hash(
         &self,
         user_id: Uuid,
-        password: String,
+        password_hash: String,
         session_id: Uuid,
     ) -> Result<(), Self::Error>;
     #[cfg(all(feature = "account", feature = "email"))]

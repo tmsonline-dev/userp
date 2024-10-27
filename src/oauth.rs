@@ -151,6 +151,7 @@ impl UnmatchedOAuthToken {
 
 pub trait OAuthToken: Send + Sync {
     fn get_id(&self) -> Uuid;
+    fn get_user_id(&self) -> Uuid;
     fn get_provider_name(&self) -> &str;
     fn get_refresh_token(&self) -> &Option<String>;
 }

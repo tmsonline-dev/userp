@@ -1,5 +1,3 @@
-use crate::password;
-
 use userp::{
     chrono::{DateTime, Utc},
     prelude::{EmailChallenge, LoginMethod, LoginSession, OAuthToken, User, UserEmail},
@@ -15,22 +13,12 @@ pub struct MyUser {
 }
 
 impl User for MyUser {
-    fn get_allow_password_login(&self) -> bool {
-        self.password_hash.is_some()
+    fn get_password_hash(&self) -> Option<String> {
+        self.password_hash.clone()
     }
 
     fn get_id(&self) -> Uuid {
         self.id
-    }
-}
-
-impl MyUser {
-    pub async fn validate_password(&self, password: &str) -> bool {
-        if let Some(hash) = self.password_hash.as_ref() {
-            password::verify(password.to_string(), hash.clone()).await
-        } else {
-            false
-        }
     }
 }
 
@@ -46,6 +34,10 @@ pub struct MyUserEmail {
 }
 
 impl UserEmail for MyUserEmail {
+    fn get_user_id(&self) -> Uuid {
+        self.user_id
+    }
+
     fn get_address(&self) -> &str {
         self.address.as_str()
     }
@@ -148,6 +140,10 @@ pub struct MyOAuthToken {
 impl OAuthToken for MyOAuthToken {
     fn get_id(&self) -> Uuid {
         self.id
+    }
+
+    fn get_user_id(&self) -> Uuid {
+        self.user_id
     }
 
     fn get_provider_name(&self) -> &str {

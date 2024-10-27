@@ -29,18 +29,42 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(PasswordLoginError::NotAllowed);
         };
 
-        let user = self
+        let allow_signup = self
+            .pass
+            .allow_signup
+            .as_ref()
+            .unwrap_or(&self.allow_signup)
+            == &Allow::OnEither;
+
+        let user = match self
             .store
-            .password_login(
-                password_id,
-                password,
-                self.pass
-                    .allow_signup
-                    .as_ref()
-                    .unwrap_or(&self.allow_signup)
-                    == &Allow::OnEither,
-            )
-            .await?;
+            .password_get_user_by_password_id(password_id)
+            .await?
+        {
+            Some(user) => match user.get_password_hash() {
+                Some(hash) => {
+                    if self
+                        .pass
+                        .hasher
+                        .verify_password(password.into(), hash)
+                        .await
+                    {
+                        Ok(user)
+                    } else {
+                        Err(PasswordLoginError::WrongPassword)
+                    }
+                }
+                None => Err(PasswordLoginError::NotAllowed),
+            },
+            None if allow_signup => Ok(self
+                .store
+                .password_create_user(
+                    password_id,
+                    &self.pass.hasher.genereate_hash(password.to_string()).await,
+                )
+                .await?),
+            None => Err(PasswordLoginError::NoUser),
+        }?;
 
         Ok(self.log_in(LoginMethod::Password, user.get_id()).await?)
     }

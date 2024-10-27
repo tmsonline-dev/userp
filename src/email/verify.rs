@@ -13,16 +13,6 @@ pub enum EmailVerifyCallbackError<StoreError: std::error::Error> {
     #[error("Challenge not found")]
     ChallengeNotFound,
     #[error(transparent)]
-    EmailVerifyError(#[from] EmailVerifyError<StoreError>),
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
-
-#[derive(Error, Debug)]
-pub enum EmailVerifyError<StoreError: std::error::Error> {
-    #[error("Email user not found")]
-    NoUser,
-    #[error(transparent)]
     Store(#[from] StoreError),
 }
 
@@ -31,12 +21,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
         &self,
         code: String,
     ) -> Result<(String, Option<String>), EmailVerifyCallbackError<S::Error>> {
-        let Some(challenge) = self
-            .store
-            .email_consume_challenge(code)
-            .await
-            .map_err(EmailVerifyError::Store)?
-        else {
+        let Some(challenge) = self.store.email_consume_challenge(code).await? else {
             return Err(EmailVerifyCallbackError::ChallengeNotFound);
         };
 
@@ -44,7 +29,9 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(EmailVerifyCallbackError::ChallengeExpired);
         }
 
-        self.store.email_verify(challenge.get_address()).await?;
+        self.store
+            .email_set_verified(challenge.get_address())
+            .await?;
 
         Ok((
             challenge.get_address().to_owned(),

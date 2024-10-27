@@ -1,22 +1,12 @@
 use super::{
-    provider::OAuthProvider, CoreUserp, OAuthCallbackError, OAuthFlow, UnmatchedOAuthToken,
-    UserpStore,
+    provider::OAuthProvider, CoreUserp, OAuthCallbackError, OAuthFlow, OAuthToken,
+    UnmatchedOAuthToken, UserpStore,
 };
 use crate::traits::{User, UserpCookies};
 use oauth2::{AuthorizationCode, CsrfToken};
 use std::sync::Arc;
 use thiserror::Error;
 use url::Url;
-
-#[derive(Error, Debug)]
-pub enum OAuthLinkError<StoreError: std::error::Error> {
-    #[error("OAuth linking not allowed")]
-    NotAllowed,
-    #[error("OAuth account already in use")]
-    UserConflict,
-    #[error(transparent)]
-    Store(#[from] StoreError),
-}
 
 #[derive(Debug, Error)]
 pub enum OAuthLinkInitError<StoreError: std::error::Error> {
@@ -38,8 +28,8 @@ pub enum OAuthLinkCallbackError<StoreError: std::error::Error> {
     NotAllowed,
     #[error("Expected a login flow, got {0}")]
     UnexpectedFlow(OAuthFlow),
-    #[error(transparent)]
-    Link(OAuthLinkError<StoreError>),
+    #[error("OAuth account already in use")]
+    UserConflict,
     #[error(transparent)]
     Store(StoreError),
 }
@@ -108,11 +98,22 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(OAuthLinkCallbackError::NotAllowed);
         }
 
-        if let Err(err) = self.store.oauth_link(user_id, unmatched_token).await {
-            Err(OAuthLinkCallbackError::Link(err))
-        } else {
-            Ok(next)
-        }
+        match self
+            .store
+            .get_token_by_unmatched_token(unmatched_token.clone())
+            .await
+            .map_err(OAuthLinkCallbackError::Store)?
+        {
+            Some(token) if token.get_user_id() == user_id => Ok(token),
+            Some(_) => Err(OAuthLinkCallbackError::UserConflict),
+            None => Ok(self
+                .store
+                .create_user_token_from_unmatched_token(user_id, unmatched_token)
+                .await
+                .map_err(OAuthLinkCallbackError::Store)?),
+        }?;
+
+        Ok(next)
     }
 
     pub async fn oauth_link_callback(

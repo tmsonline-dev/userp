@@ -56,7 +56,10 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
                 )
                 .await?;
 
-            let _ = self.store.oauth_update_token(token, res).await;
+            let _ = self
+                .store
+                .update_token_by_unmatched_token(token.get_id(), res)
+                .await;
 
             Ok((self, RefreshInitResult::Ok))
         } else {
@@ -87,7 +90,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
 
         let Some(old_token) = self
             .store
-            .oauth_get_token(token_id)
+            .oauth_get_token_by_id(token_id)
             .await
             .map_err(OAuthRefreshCallbackError::Store)?
         else {
@@ -95,7 +98,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
         };
 
         self.store
-            .oauth_update_token(old_token, unmatched_token)
+            .update_token_by_unmatched_token(old_token.get_id(), unmatched_token)
             .await
             .map_err(OAuthRefreshCallbackError::Store)?;
 

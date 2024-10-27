@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% if let Some(message) = message %}
+<strong>{{ message }}</strong>
+{% endif %}
 <form action="/signin" method="post">
   <input type="email" name="email_address">
   <input type="password" name="password">

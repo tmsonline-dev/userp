@@ -1,4 +1,4 @@
-use std::{fmt::Display, future::Future, pin::Pin};
+use std::{fmt::Display, future::Future};
 
 use super::{ExchangeResult, OAuthProvider};
 use crate::{
@@ -15,38 +15,26 @@ use url::Url;
 
 pub type OAuthProviderUserCallbackResult = anyhow::Result<OAuthProviderUser>;
 
-trait AsyncOAuthProviderUserCallback: Send + Sync {
-    fn call(
-        &self,
-        access_token: String,
-    ) -> Pin<Box<dyn Future<Output = OAuthProviderUserCallbackResult> + Send>>;
-}
-
-impl<T, F> AsyncOAuthProviderUserCallback for T
+pub struct OAuthCustomProvider<F, Fut>
 where
-    T: Fn(String) -> F + Sync + Send,
-    F: Future<Output = OAuthProviderUserCallbackResult> + Send + 'static,
+    Fut: Future<Output = OAuthProviderUserCallbackResult> + Send + Sync + 'static,
+    F: Fn(String) -> Fut + Send + Sync + 'static,
 {
-    fn call(
-        &self,
-        access_token: String,
-    ) -> Pin<Box<dyn Future<Output = OAuthProviderUserCallbackResult> + Send>> {
-        Box::pin(self(access_token))
-    }
-}
-
-pub struct OAuthCustomProvider {
     client: BasicClient,
     name: String,
     display_name: String,
     scopes: Vec<Scope>,
-    get_user: Box<dyn AsyncOAuthProviderUserCallback>,
+    get_user: Box<F>,
     allow_signup: Option<Allow>,
     allow_login: Option<Allow>,
     allow_linking: Option<bool>,
 }
 
-impl std::fmt::Debug for OAuthCustomProvider {
+impl<
+        F: Fn(String) -> Fut + Send + Sync,
+        Fut: Send + Sync + Future<Output = OAuthProviderUserCallbackResult>,
+    > std::fmt::Debug for OAuthCustomProvider<F, Fut>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OAuthProviderBaseWithUserCallback")
             .field("client", &self.client)
@@ -61,19 +49,18 @@ impl std::fmt::Debug for OAuthCustomProvider {
     }
 }
 
-impl OAuthCustomProvider {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_with_client_and_callback<Fut, F>(
+impl<F, Fut> OAuthCustomProvider<F, Fut>
+where
+    Fut: Future<Output = OAuthProviderUserCallbackResult> + Send + Sync + 'static,
+    F: Fn(String) -> Fut + Send + Sync + 'static,
+{
+    pub fn new_with_client_and_callback(
         name: impl Into<String>,
         display_name: impl Into<String>,
         scopes: &[impl Display],
         client: BasicClient,
         get_user: F,
-    ) -> Result<OAuthCustomProvider, anyhow::Error>
-    where
-        Fut: Future<Output = OAuthProviderUserCallbackResult> + Send + 'static,
-        F: Fn(String) -> Fut + Send + Sync + 'static,
-    {
+    ) -> Result<OAuthCustomProvider<F, Fut>, anyhow::Error> {
         Ok(Self {
             allow_login: None,
             allow_signup: None,
@@ -87,7 +74,7 @@ impl OAuthCustomProvider {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new_with_callback<Fut, F>(
+    pub fn new_with_callback(
         name: impl Into<String>,
         display_name: impl Into<String>,
         client_id: impl Into<String>,
@@ -96,11 +83,7 @@ impl OAuthCustomProvider {
         token_url: impl Into<String>,
         scopes: &[impl Display],
         get_user: F,
-    ) -> Result<OAuthCustomProvider, anyhow::Error>
-    where
-        Fut: Future<Output = OAuthProviderUserCallbackResult> + Send + 'static,
-        F: Fn(String) -> Fut + Send + Sync + 'static,
-    {
+    ) -> Result<OAuthCustomProvider<F, Fut>, anyhow::Error> {
         let client = BasicClient::new(
             ClientId::new(client_id.into()),
             Some(ClientSecret::new(client_secret.into())),
@@ -128,7 +111,11 @@ impl OAuthCustomProvider {
 }
 
 #[async_trait]
-impl OAuthProvider for OAuthCustomProvider {
+impl<F, Fut> OAuthProvider for OAuthCustomProvider<F, Fut>
+where
+    Fut: Future<Output = OAuthProviderUserCallbackResult> + Send + Sync + 'static,
+    F: Fn(String) -> Fut + Send + Sync + 'static,
+{
     fn name(&self) -> &str {
         self.name.as_str()
     }
@@ -181,10 +168,7 @@ impl OAuthProvider for OAuthCustomProvider {
             .await
             .context("Requesting authorization code exchange")?;
 
-        let provider_user = self
-            .get_user
-            .call(res.access_token().secret().to_string())
-            .await?;
+        let provider_user = (self.get_user)(res.access_token().secret().to_string()).await?;
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
             &res,
@@ -208,9 +192,7 @@ impl OAuthProvider for OAuthCustomProvider {
             .await
             .context("Requesting refresh token exchange")?;
 
-        let provider_user = (self.get_user)
-            .call(res.access_token().secret().to_string())
-            .await?;
+        let provider_user = (self.get_user)(res.access_token().secret().to_string()).await?;
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
             &res,

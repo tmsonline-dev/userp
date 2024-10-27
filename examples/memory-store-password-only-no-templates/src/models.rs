@@ -1,4 +1,3 @@
-use crate::password;
 use serde::Deserialize;
 use userp::{
     prelude::{LoginMethod, LoginSession, User},
@@ -19,22 +18,12 @@ pub struct MyUser {
 }
 
 impl User for MyUser {
-    fn get_allow_password_login(&self) -> bool {
-        self.password_hash.is_some()
+    fn get_password_hash(&self) -> Option<String> {
+        self.password_hash.clone()
     }
 
     fn get_id(&self) -> Uuid {
         self.id
-    }
-}
-
-impl MyUser {
-    pub async fn validate_password(&self, password: &str) -> bool {
-        if let Some(hash) = self.password_hash.as_ref() {
-            password::verify(password.to_string(), hash.clone()).await
-        } else {
-            false
-        }
     }
 }
 

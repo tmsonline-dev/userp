@@ -12,6 +12,7 @@ use dotenv::var;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
+use userp::config::Allow;
 use userp::{
     prelude::{GitHubOAuthProvider, OAuthConfig, Routes, SpotifyOAuthProvider, UserpConfig},
     url::Url,
@@ -51,6 +52,8 @@ async fn main() {
                 req_var("GITHUB_CLIENT_SECRET"),
             )),
     )
+    .with_allow_signup(Allow::OnSelf)
+    .with_allow_login(Allow::OnSelf)
     .with_https_only(false);
 
     let auth_router = auth.router::<MemoryStore, AppState>();
