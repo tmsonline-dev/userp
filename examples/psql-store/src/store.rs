@@ -554,7 +554,7 @@ impl UserpStore for PsqlStore {
             ",
             token_id,
             unmatched_token.provider_name,
-            unmatched_token.provider_user.id,
+            unmatched_token.provider_user_id,
             unmatched_token.access_token,
             unmatched_token.refresh_token,
             unmatched_token.expires,
@@ -591,7 +591,7 @@ impl UserpStore for PsqlStore {
                 AND provider_user_id = $2
             ",
             unmatched_token.provider_name,
-            unmatched_token.provider_user.id,
+            unmatched_token.provider_user_id,
         )
         .fetch_optional(&self.pool)
         .await?)
@@ -616,7 +616,7 @@ impl UserpStore for PsqlStore {
             Uuid::new_v4(),
             user_id,
             unmatched_token.provider_name,
-            unmatched_token.provider_user.id,
+            unmatched_token.provider_user_id,
             unmatched_token.access_token,
             unmatched_token.refresh_token,
             unmatched_token.expires,
@@ -638,12 +638,12 @@ impl UserpStore for PsqlStore {
                 RETURNING *
             ",
             Uuid::new_v4(),
-            unmatched_token.provider_user.name
+            unmatched_token.provider_user_raw["name"].as_str()
         )
         .fetch_one(&self.pool)
         .await?;
 
-        if let Some(address) = unmatched_token.provider_user.email {
+        if let Some(address) = unmatched_token.provider_user_raw["email"].as_str() {
             sqlx::query!(
                 "
                     INSERT INTO user_email (id, user_id, address, verified)
@@ -652,7 +652,7 @@ impl UserpStore for PsqlStore {
                 Uuid::new_v4(),
                 user.get_id(),
                 address,
-                unmatched_token.provider_user.email_verified
+                false
             )
             .execute(&self.pool)
             .await?;
@@ -672,7 +672,7 @@ impl UserpStore for PsqlStore {
             Uuid::new_v4(),
             user.get_id(),
             unmatched_token.provider_name,
-            unmatched_token.provider_user.id,
+            unmatched_token.provider_user_id,
             unmatched_token.access_token,
             unmatched_token.refresh_token,
             unmatched_token.expires,
@@ -694,7 +694,7 @@ impl UserpStore for PsqlStore {
                 AND provider_user_id = $2
             ",
             unmatched_token.provider_name,
-            unmatched_token.provider_user.id
+            unmatched_token.provider_user_id
         )
         .fetch_optional(&self.pool)
         .await?;

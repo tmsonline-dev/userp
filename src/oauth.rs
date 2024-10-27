@@ -20,6 +20,7 @@ use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse
 use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, TokenResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use serde_json::Value;
 use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use url::Url;
@@ -30,9 +31,7 @@ const OAUTH_DATA_KEY: &str = "userp-oauth-state";
 #[derive(Debug, Clone)]
 pub struct OAuthProviderUser {
     pub id: String,
-    pub email: Option<String>,
-    pub name: Option<String>,
-    pub email_verified: bool,
+    pub raw: Value,
 }
 
 pub enum RefreshInitResult {
@@ -126,7 +125,8 @@ pub struct UnmatchedOAuthToken {
     pub expires: Option<DateTime<Utc>>,
     pub scopes: Vec<String>,
     pub provider_name: String,
-    pub provider_user: OAuthProviderUser,
+    pub provider_user_id: String,
+    pub provider_user_raw: Value,
 }
 
 impl UnmatchedOAuthToken {
@@ -144,7 +144,8 @@ impl UnmatchedOAuthToken {
                 .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
                 .unwrap_or_default(),
             provider_name: provider_name.into(),
-            provider_user,
+            provider_user_id: provider_user.id,
+            provider_user_raw: provider_user.raw,
         }
     }
 }

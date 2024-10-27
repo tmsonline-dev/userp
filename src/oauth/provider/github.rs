@@ -22,7 +22,7 @@ impl GitHubOAuthProvider {
             |access_token| async move {
                 let client = reqwest::Client::new();
 
-                let res = client
+                let raw = client
                     .get("https://api.github.com/user")
                     .header("User-Agent", "userp")
                     .header("Accept", "application/vnd.github+json")
@@ -30,31 +30,16 @@ impl GitHubOAuthProvider {
                     .bearer_auth(access_token)
                     .send()
                     .await?
+                    .error_for_status()?
                     .json::<Value>()
                     .await?;
 
-                let id = res
-                    .as_object()
-                    .and_then(|obj| obj.get("id").and_then(|id| id.as_number()))
-                    .context("Missing id")?
+                let id = raw["id"]
+                    .as_number()
+                    .context("Missing 'id' in response")?
                     .to_string();
 
-                let email = res
-                    .as_object()
-                    .and_then(|obj| obj.get("email").and_then(|id| id.as_str()))
-                    .map(|email| email.to_string());
-
-                let name = res
-                    .as_object()
-                    .and_then(|obj| obj.get("name").and_then(|id| id.as_str()))
-                    .map(|name| name.to_string());
-
-                Ok(OAuthProviderUser {
-                    id,
-                    email_verified: email.is_some(),
-                    email,
-                    name,
-                })
+                Ok(OAuthProviderUser { id, raw })
             },
         )
         .expect("Built in providers should work")

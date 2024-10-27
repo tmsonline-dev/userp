@@ -22,37 +22,22 @@ impl SpotifyOAuthProvider {
             |access_token| async move {
                 let client = reqwest::Client::new();
 
-                let res = client
+                let raw = client
                     .get("https://api.spotify.com/v1/me")
                     .header("Accept", "application/json")
                     .bearer_auth(access_token)
                     .send()
                     .await?
+                    .error_for_status()?
                     .json::<Value>()
                     .await?;
 
-                let id = res
-                    .as_object()
-                    .and_then(|obj| obj.get("id").and_then(|id| id.as_str()))
-                    .context("Missing id")?
+                let id = raw["id"]
+                    .as_str()
+                    .context("Missing 'id' in response")?
                     .to_string();
 
-                let email = res
-                    .as_object()
-                    .and_then(|obj| obj.get("email").and_then(|id| id.as_str()))
-                    .map(|name| name.to_string());
-
-                let name = res
-                    .as_object()
-                    .and_then(|obj| obj.get("display_name").and_then(|id| id.as_str()))
-                    .map(|name| name.to_string());
-
-                Ok(OAuthProviderUser {
-                    id,
-                    email,
-                    name,
-                    email_verified: false,
-                })
+                Ok(OAuthProviderUser { id, raw })
             },
         )
         .expect("Built in providers should work")

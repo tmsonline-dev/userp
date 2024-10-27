@@ -91,7 +91,7 @@ impl UserpStore for MemoryStore {
             .ok_or(MemoryStoreError::TokenNotFound(token_id.to_string()))?;
 
         prev.provider_name = unmatched_token.provider_name;
-        prev.provider_user_id = unmatched_token.provider_user.id;
+        prev.provider_user_id = unmatched_token.provider_user_id;
         prev.access_token = unmatched_token.access_token;
         prev.refresh_token = unmatched_token.refresh_token;
         prev.expires = unmatched_token.expires;
@@ -119,7 +119,7 @@ impl UserpStore for MemoryStore {
             .values()
             .find(|t| {
                 t.provider_name == unmatched_token.provider_name
-                    && t.provider_user_id == unmatched_token.provider_user.id
+                    && t.provider_user_id == unmatched_token.provider_user_id
             })
             .cloned())
     }
@@ -135,7 +135,7 @@ impl UserpStore for MemoryStore {
             id: Uuid::new_v4(),
             user_id,
             provider_name: unmatched_token.provider_name,
-            provider_user_id: unmatched_token.provider_user.id,
+            provider_user_id: unmatched_token.provider_user_id,
             access_token: unmatched_token.access_token,
             refresh_token: unmatched_token.refresh_token,
             expires: unmatched_token.expires,
@@ -160,7 +160,7 @@ impl UserpStore for MemoryStore {
             id: Uuid::new_v4(),
             user_id: user.id,
             provider_name: unmatched_token.provider_name,
-            provider_user_id: unmatched_token.provider_user.id,
+            provider_user_id: unmatched_token.provider_user_id,
             access_token: unmatched_token.access_token,
             refresh_token: unmatched_token.refresh_token,
             expires: unmatched_token.expires,
@@ -184,7 +184,7 @@ impl UserpStore for MemoryStore {
             .values()
             .find(|t| {
                 t.provider_name == unmatched_token.provider_name
-                    && t.provider_user_id == unmatched_token.provider_user.id
+                    && t.provider_user_id == unmatched_token.provider_user_id
             })
             .and_then(|t| users.get(&t.user_id).map(|u| (u.clone(), t.clone()))))
     }
