@@ -1,6 +1,7 @@
 pub mod custom;
 pub mod github;
 pub mod gitlab;
+pub mod google;
 pub mod spotify;
 
 use super::UnmatchedOAuthToken;

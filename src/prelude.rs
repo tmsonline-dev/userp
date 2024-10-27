@@ -10,7 +10,8 @@ pub use crate::enums::*;
 #[cfg(feature = "oauth")]
 pub use crate::oauth::{
     provider::{
-        github::GitHubOAuthProvider, gitlab::GitLabOAuthProvider, spotify::SpotifyOAuthProvider,
+        github::GitHubOAuthProvider, gitlab::GitLabOAuthProvider, google::GoogleOAuthProvider,
+        spotify::SpotifyOAuthProvider,
     },
     OAuthConfig, OAuthProviderUser, OAuthProviders, OAuthToken, RefreshInitResult,
     UnmatchedOAuthToken,
