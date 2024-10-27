@@ -14,8 +14,8 @@ use tower_http::trace::TraceLayer;
 
 use userp::{
     prelude::{
-        EmailConfig, GitHubOAuthProvider, OAuthConfig, PasswordConfig, PasswordReset, Routes,
-        SmtpSettings, SpotifyOAuthProvider, UserpConfig,
+        EmailConfig, GitHubOAuthProvider, GitLabOAuthProvider, OAuthConfig, PasswordConfig,
+        PasswordReset, Routes, SmtpSettings, SpotifyOAuthProvider, UserpConfig,
     },
     url::Url,
     Userp,
@@ -63,6 +63,10 @@ async fn main() {
             .with_client(GitHubOAuthProvider::new(
                 req_var("GITHUB_CLIENT_ID"),
                 req_var("GITHUB_CLIENT_SECRET"),
+            ))
+            .with_client(GitLabOAuthProvider::new(
+                req_var("GITLAB_CLIENT_ID"),
+                req_var("GITLAB_CLIENT_SECRET"),
             )),
     )
     .with_https_only(false);
