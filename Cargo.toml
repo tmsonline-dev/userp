@@ -8,14 +8,6 @@ license = "ISC"
 repository = "https://github.com/StefanTerdell/userp"
 homepage = "https://github.com/StefanTerdell/userp"
 
-[workspace]
-exclude = [
-  "examples/memory-store",
-  "examples/memory-store-oauth-only",
-  "examples/psql-store",
-  "examples/memory-store-password-only-no-templates",
-]
-
 [dependencies]
 thiserror = "1.0.64"
 async-trait = "0.1.83"

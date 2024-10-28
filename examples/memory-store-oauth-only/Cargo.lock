@@ -2081,6 +2081,7 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-extra",
+ "base64 0.22.1",
  "chrono",
  "oauth2",
  "reqwest 0.12.8",
