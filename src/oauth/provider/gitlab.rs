@@ -1,4 +1,4 @@
-use super::custom::OAuthCustomProvider;
+use super::{custom::OAuthCustomProvider, oidc::OAuthOidcProvider};
 use crate::oauth::OAuthProviderUser;
 use anyhow::Context;
 use serde_json::Value;
@@ -19,7 +19,7 @@ impl GitLabOAuthProvider {
             "https://gitlab.com/oauth/authorize",
             "https://gitlab.com/oauth/token",
             &["openid"],
-            |access_token| async move {
+            |access_token, _| async move {
                 let client = reqwest::Client::new();
 
                 let raw = client
@@ -39,6 +39,23 @@ impl GitLabOAuthProvider {
 
                 Ok(OAuthProviderUser { id, raw })
             },
+        )
+        .expect("Built in providers should work")
+    }
+
+    /// ⚠️ Warning: JWT token signature is not checked yet.
+    pub fn new_oidc_unverified(
+        client_id: impl Into<String>,
+        client_secret: impl Into<String>,
+    ) -> OAuthOidcProvider {
+        OAuthOidcProvider::new(
+            "gitlab",
+            "GitLab OIDC",
+            client_id,
+            client_secret,
+            "https://gitlab.com/oauth/authorize",
+            "https://gitlab.com/oauth/token",
+            &["openid"],
         )
         .expect("Built in providers should work")
     }

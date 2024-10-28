@@ -19,7 +19,7 @@ impl GoogleOAuthProvider {
             "https://accounts.google.com/o/oauth2/v2/auth",
             "https://oauth2.googleapis.com/token",
             &["openid"],
-            |access_token| async move {
+            |access_token, _| async move {
                 let client = reqwest::Client::new();
 
                 let raw = client

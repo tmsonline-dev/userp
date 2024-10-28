@@ -1,3 +1,4 @@
+pub mod client;
 pub mod link;
 pub mod login;
 pub mod provider;
@@ -16,7 +17,8 @@ use self::refresh::OAuthRefreshCallbackError;
 use self::signup::OAuthSignupCallbackError;
 
 use chrono::{DateTime, Utc};
-use oauth2::{basic::BasicTokenType, EmptyExtraTokenFields, StandardTokenResponse};
+use oauth2::ExtraTokenFields;
+use oauth2::{basic::BasicTokenType, StandardTokenResponse};
 use oauth2::{AuthorizationCode, CsrfToken, RedirectUrl, TokenResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -130,8 +132,8 @@ pub struct UnmatchedOAuthToken {
 }
 
 impl UnmatchedOAuthToken {
-    pub fn from_standard_token_response(
-        token_response: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
+    pub fn from_standard_token_response<T: ExtraTokenFields>(
+        token_response: &StandardTokenResponse<T, BasicTokenType>,
         provider_name: &str,
         provider_user: OAuthProviderUser,
     ) -> Self {

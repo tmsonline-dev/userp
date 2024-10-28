@@ -19,7 +19,7 @@ impl SpotifyOAuthProvider {
             "https://accounts.spotify.com/authorize",
             "https://accounts.spotify.com/api/token",
             &["user-read-email"],
-            |access_token| async move {
+            |access_token, _| async move {
                 let client = reqwest::Client::new();
 
                 let raw = client

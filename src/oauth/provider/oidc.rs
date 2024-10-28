@@ -1,73 +1,32 @@
 use super::{ExchangeResult, OAuthProvider};
 use crate::{
     config::Allow,
-    oauth::{
-        client::{ClientWithGenericExtraTokenFields, TokenResponseWithGenericExtraFields},
-        OAuthProviderUser, UnmatchedOAuthToken,
-    },
+    oauth::{client::ClientWithGenericExtraTokenFields, UnmatchedOAuthToken},
 };
 use anyhow::Context;
 use async_trait::async_trait;
 use oauth2::{
     reqwest::async_http_client, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
-    RedirectUrl, RefreshToken, Scope, TokenResponse, TokenUrl,
+    RedirectUrl, RefreshToken, Scope, TokenUrl,
 };
-use std::{fmt::Display, future::Future, pin::Pin};
+use std::fmt::Display;
 use url::Url;
 
-pub type OAuthProviderUserCallbackResult = anyhow::Result<OAuthProviderUser>;
-
-trait AsyncOAuthProviderUserCallback: Send + Sync {
-    fn call(
-        &self,
-        access_token: String,
-        token_response: &TokenResponseWithGenericExtraFields,
-    ) -> Pin<Box<dyn Future<Output = OAuthProviderUserCallbackResult> + Send>>;
-}
-
-impl<T, F> AsyncOAuthProviderUserCallback for T
-where
-    T: Fn(String, &TokenResponseWithGenericExtraFields) -> F + Sync + Send,
-    F: Future<Output = OAuthProviderUserCallbackResult> + Send + 'static,
-{
-    fn call(
-        &self,
-        access_token: String,
-        token_response: &TokenResponseWithGenericExtraFields,
-    ) -> Pin<Box<dyn Future<Output = OAuthProviderUserCallbackResult> + Send>> {
-        Box::pin(self(access_token, token_response))
-    }
-}
-
-pub struct OAuthCustomProvider {
+/// ⚠️ Warning: JWT token signature is not checked yet.
+#[derive(Debug)]
+pub struct OAuthOidcProvider {
     client: ClientWithGenericExtraTokenFields,
     name: String,
     display_name: String,
     scopes: Vec<Scope>,
-    get_user: Box<dyn AsyncOAuthProviderUserCallback>,
     allow_signup: Option<Allow>,
     allow_login: Option<Allow>,
     allow_linking: Option<bool>,
 }
 
-impl std::fmt::Debug for OAuthCustomProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OAuthProviderBaseWithUserCallback")
-            .field("client", &self.client)
-            .field("name", &self.name)
-            .field("display_name", &self.display_name)
-            .field("scopes", &self.scopes)
-            .field("get_user", &"You dont want no part of this Dewey")
-            .field("allow_signup", &self.allow_signup)
-            .field("allow_login", &self.allow_login)
-            .field("allow_linking", &self.allow_linking)
-            .finish()
-    }
-}
-
-impl OAuthCustomProvider {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_with_callback<Fut, F>(
+impl OAuthOidcProvider {
+    /// ⚠️ Warning: JWT token signature is not checked yet.
+    pub fn new(
         name: impl Into<String>,
         display_name: impl Into<String>,
         client_id: impl Into<String>,
@@ -75,12 +34,7 @@ impl OAuthCustomProvider {
         auth_url: impl Into<String>,
         token_url: impl Into<String>,
         scopes: &[impl Display],
-        get_user: F,
-    ) -> Result<OAuthCustomProvider, anyhow::Error>
-    where
-        Fut: Future<Output = OAuthProviderUserCallbackResult> + Send + 'static,
-        F: Fn(String, &TokenResponseWithGenericExtraFields) -> Fut + Send + Sync + 'static,
-    {
+    ) -> Result<OAuthOidcProvider, anyhow::Error> {
         let client = ClientWithGenericExtraTokenFields::new(
             ClientId::new(client_id.into()),
             Some(ClientSecret::new(client_secret.into())),
@@ -88,15 +42,35 @@ impl OAuthCustomProvider {
             Some(TokenUrl::from_url(Url::parse(&token_url.into())?)),
         );
 
+        let name = name.into();
+
+        let mut has_openid_scope = false;
+        let mut scopes = scopes
+            .iter()
+            .map(|s| {
+                let s = s.to_string();
+
+                if s == "openid" {
+                    has_openid_scope = true
+                };
+
+                Scope::new(s.to_string())
+            })
+            .collect::<Vec<_>>();
+
+        if !has_openid_scope {
+            eprintln!("Missing 'openid' scope when building '{name}' Oidc provider. This is probably a mistake. Adding.");
+            scopes.push(Scope::new("openid".into()));
+        };
+
         Ok(Self {
             allow_login: None,
             allow_signup: None,
             allow_linking: None,
             client,
             display_name: display_name.into(),
-            scopes: scopes.iter().map(|s| Scope::new(s.to_string())).collect(),
-            name: name.into(),
-            get_user: Box::new(get_user),
+            scopes,
+            name,
         })
     }
 
@@ -117,7 +91,7 @@ impl OAuthCustomProvider {
 }
 
 #[async_trait]
-impl OAuthProvider for OAuthCustomProvider {
+impl OAuthProvider for OAuthOidcProvider {
     fn name(&self) -> &str {
         self.name.as_str()
     }
@@ -170,10 +144,9 @@ impl OAuthProvider for OAuthCustomProvider {
             .await
             .context("Requesting authorization code exchange")?;
 
-        let provider_user = self
-            .get_user
-            .call(res.access_token().secret().to_owned(), &res)
-            .await?;
+        let provider_user = res
+            .extra_fields()
+            .get_oauth_oidc_provider_user_unvalidated()?;
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
             &res,
@@ -197,9 +170,9 @@ impl OAuthProvider for OAuthCustomProvider {
             .await
             .context("Requesting refresh token exchange")?;
 
-        let provider_user = (self.get_user)
-            .call(res.access_token().secret().to_owned(), &res)
-            .await?;
+        let provider_user = res
+            .extra_fields()
+            .get_oauth_oidc_provider_user_unvalidated()?;
 
         Ok(UnmatchedOAuthToken::from_standard_token_response(
             &res,

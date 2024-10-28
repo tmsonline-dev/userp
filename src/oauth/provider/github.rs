@@ -19,7 +19,7 @@ impl GitHubOAuthProvider {
             "https://github.com/login/oauth/authorize",
             "https://github.com/login/oauth/access_token",
             &["user:email"],
-            |access_token| async move {
+            |access_token, _| async move {
                 let client = reqwest::Client::new();
 
                 let raw = client
