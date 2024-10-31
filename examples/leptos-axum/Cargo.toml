@@ -20,20 +20,36 @@ wasm-bindgen = "=0.2.93"
 thiserror = "1"
 tracing = { version = "0.1", optional = true }
 http = "1"
+userp = { version = "0.0.4", path = "../..", optional = true }
+uuid = { version = "1.11.0", features = ["v4", "serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
+dotenvy = { version = "0.15.7", optional = true }
+serde = { version = "1.0.214", features = ["derive"] }
 
 [features]
-hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
-ssr = [
-    "dep:axum",
-    "dep:tokio",
-    "dep:tower",
-    "dep:tower-http",
-    "dep:leptos_axum",
-    "leptos/ssr",
-    "leptos_meta/ssr",
-    "leptos_router/ssr",
-    "dep:tracing",
+hydrate = [
+  "leptos/hydrate",
+  "leptos_meta/hydrate",
+  "leptos_router/hydrate",
 ]
+ssr = [
+  "dep:dotenvy",
+  "dep:userp",
+  "dep:axum",
+  "dep:tokio",
+  "dep:tower",
+  "dep:tower-http",
+  "dep:leptos_axum",
+  "leptos/ssr",
+  "leptos_meta/ssr",
+  "leptos_router/ssr",
+  "dep:tracing",
+]
+
+[profile.dev]
+opt-level = 1
+[profile.dev.package."*"]
+opt-level = 3
 
 # Defines a size-optimized profile for the WASM bundle in release mode
 [profile.wasm-release]

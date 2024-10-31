@@ -1,6 +1,12 @@
 mod cookies;
 mod extract;
-#[cfg(feature = "axum-router")]
+#[cfg(any(
+    feature = "axum-router-oauth-callbacks",
+    feature = "axum-router-email",
+    feature = "axum-router-password",
+    feature = "axum-router-pages",
+    feature = "axum-router-account"
+))]
 mod router;
 
 use crate::core::CoreUserp;

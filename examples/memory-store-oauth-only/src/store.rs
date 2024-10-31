@@ -23,6 +23,8 @@ pub struct MemoryStore {
 pub enum MemoryStoreError {
     #[error("The token was not found: {0}")]
     TokenNotFound(String),
+    #[error("The user ID did not match")]
+    UserMissmatch,
 }
 
 impl IntoResponse for MemoryStoreError {
@@ -47,12 +49,15 @@ impl UserpStore for MemoryStore {
         Ok(sessions.get(&session_id).cloned())
     }
 
-    async fn delete_session(&self, session_id: Uuid) -> Result<(), Self::Error> {
+    async fn delete_session(&self, user_id: Uuid, session_id: Uuid) -> Result<(), Self::Error> {
         let mut sessions = self.sessions.write().await;
 
-        sessions.remove(&session_id);
+        let session = sessions.remove(&session_id);
 
-        Ok(())
+        match session {
+            Some(session) if session.user_id != user_id => Err(MemoryStoreError::UserMissmatch),
+            _ => Ok(()),
+        }
     }
 
     async fn create_session(

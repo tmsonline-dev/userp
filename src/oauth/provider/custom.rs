@@ -52,7 +52,7 @@ pub struct OAuthCustomProvider {
 
 impl std::fmt::Debug for OAuthCustomProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OAuthProviderBaseWithUserCallback")
+        f.debug_struct("OAuthCustomProvider")
             .field("client", &self.client)
             .field("name", &self.name)
             .field("display_name", &self.display_name)

@@ -94,13 +94,14 @@ impl UserpStore for PsqlStore {
         .await?)
     }
 
-    async fn delete_session(&self, session_id: Uuid) -> Result<(), Self::Error> {
+    async fn delete_session(&self, user_id: Uuid, session_id: Uuid) -> Result<(), Self::Error> {
         Ok(sqlx::query!(
             "
                 DELETE FROM login_session
-                WHERE id = $1
+                WHERE id = $1 AND user_id = $2
             ",
-            session_id
+            session_id,
+            user_id
         )
         .execute(&self.pool)
         .await
@@ -216,13 +217,14 @@ impl UserpStore for PsqlStore {
         .await?)
     }
 
-    async fn delete_oauth_token(&self, token_id: Uuid) -> Result<(), Self::Error> {
+    async fn delete_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Result<(), Self::Error> {
         sqlx::query!(
             "
                 DELETE FROM oauth_token
-                WHERE id = $1
+                WHERE id = $1 AND user_id = $2
             ",
-            token_id
+            token_id,
+            user_id
         )
         .execute(&self.pool)
         .await?;

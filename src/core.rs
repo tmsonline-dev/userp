@@ -4,21 +4,21 @@ use crate::email::EmailConfig;
 use crate::oauth::OAuthConfig;
 #[cfg(feature = "password")]
 use crate::password::PasswordConfig;
+use crate::routes::Routes;
 use crate::{
     config::Allow,
     constants::SESSION_ID_KEY,
     enums::LoginMethod,
-    routes::Routes,
     traits::{LoginSession, UserpCookies, UserpStore},
 };
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct CoreUserp<S: UserpStore, C: UserpCookies> {
+    pub routes: Routes<String>,
     pub(crate) allow_signup: Allow,
     pub(crate) allow_login: Allow,
     pub(crate) cookies: C,
-    pub(crate) routes: Routes<String>,
     pub(crate) store: S,
     #[cfg(feature = "password")]
     pub(crate) pass: PasswordConfig,
@@ -50,11 +50,13 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
 
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn log_out(mut self) -> Result<Self, S::Error> {
-        if let Some(session) = self.cookies.get(SESSION_ID_KEY) {
+        if self.cookies.get(SESSION_ID_KEY).is_some() {
             self.cookies.remove(SESSION_ID_KEY);
 
-            if let Ok(session_id) = Uuid::parse_str(&session) {
-                self.store.delete_session(session_id).await?;
+            if let Some(session) = self.session().await? {
+                self.store
+                    .delete_session(session.get_user_id(), session.get_id())
+                    .await?;
             }
         }
 

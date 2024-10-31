@@ -265,7 +265,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
                 provider_name.clone(),
                 code,
                 state,
-                self.routes.actions.signup_oauth_provider.clone(),
+                self.routes.oauth.callbacks.signup_oauth_provider.clone(),
             )
             .await?;
 

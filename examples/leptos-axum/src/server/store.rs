@@ -1,3 +1,4 @@
+use super::models::*;
 use crate::models::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
 use axum::{
     async_trait,
@@ -10,6 +11,7 @@ use userp::{
     chrono::{DateTime, Utc},
     prelude::{LoginMethod, UnmatchedOAuthToken, UserEmail, UserpStore},
     thiserror,
+    traits::LoginSession,
     uuid::Uuid,
 };
 
@@ -72,10 +74,37 @@ impl UserpStore for MemoryStore {
         user_id: Uuid,
         method: LoginMethod,
     ) -> Result<Self::LoginSession, Self::Error> {
-        let session = MyLoginSession {
-            id: Uuid::new_v4(),
-            user_id,
-            method,
+        let id = Uuid::new_v4();
+
+        let session = match method {
+            LoginMethod::Password => MyLoginSession {
+                id,
+                user_id,
+                method: PASSWORD_LOGIN_METHOD.into(),
+                oauth_token_id: None,
+                email_address: None,
+            },
+            LoginMethod::PasswordReset { address } => MyLoginSession {
+                id,
+                user_id,
+                method: PASSWORD_RESET_LOGIN_METHOD.into(),
+                oauth_token_id: None,
+                email_address: Some(address),
+            },
+            LoginMethod::Email { address } => MyLoginSession {
+                id,
+                user_id,
+                method: EMAIL_LOGIN_METHOD.into(),
+                oauth_token_id: None,
+                email_address: Some(address),
+            },
+            LoginMethod::OAuth { token_id } => MyLoginSession {
+                id,
+                user_id,
+                method: OAUTH_LOGIN_METHOD.into(),
+                oauth_token_id: Some(token_id),
+                email_address: None,
+            },
         };
 
         let mut sessions = self.sessions.write().await;
@@ -199,7 +228,7 @@ impl UserpStore for MemoryStore {
             let mut sessions = self.sessions.write().await;
             sessions.retain(|_, session| {
                 session.user_id != user_id
-                    || session.method != LoginMethod::Password
+                    || session.get_method() != LoginMethod::Password
                     || session.id == session_id
             });
 
@@ -220,7 +249,7 @@ impl UserpStore for MemoryStore {
             let mut sessions = self.sessions.write().await;
             sessions.retain(|_, session| {
                 session.user_id != user_id
-                    || session.method != LoginMethod::Password
+                    || session.get_method() != LoginMethod::Password
                     || session.id == session_id
             });
 

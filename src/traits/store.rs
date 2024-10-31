@@ -1,7 +1,7 @@
 #[cfg(feature = "email")]
-use crate::email::{EmailChallenge, UserEmail};
+pub use crate::email::{EmailChallenge, UserEmail};
 #[cfg(feature = "oauth")]
-use crate::oauth::{OAuthToken, UnmatchedOAuthToken};
+pub use crate::oauth::{OAuthToken, UnmatchedOAuthToken};
 use crate::{
     enums::LoginMethod,
     traits::{LoginSession, User},
@@ -35,7 +35,7 @@ pub trait UserpStore: Send + Sync {
         &self,
         session_id: Uuid,
     ) -> Result<Option<Self::LoginSession>, Self::Error>;
-    async fn delete_session(&self, session_id: Uuid) -> Result<(), Self::Error>;
+    async fn delete_session(&self, user_id: Uuid, session_id: Uuid) -> Result<(), Self::Error>;
 
     // password store
     #[cfg(feature = "password")]
@@ -123,7 +123,7 @@ pub trait UserpStore: Send + Sync {
         user_id: Uuid,
     ) -> Result<Vec<Self::OAuthToken>, Self::Error>;
     #[cfg(all(feature = "account", feature = "oauth"))]
-    async fn delete_oauth_token(&self, token_id: Uuid) -> Result<(), Self::Error>;
+    async fn delete_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Result<(), Self::Error>;
     #[cfg(feature = "account")]
     async fn delete_user(&self, id: Uuid) -> Result<(), Self::Error>;
     #[cfg(all(feature = "account", feature = "password"))]
@@ -134,13 +134,15 @@ pub trait UserpStore: Send + Sync {
     ) -> Result<(), Self::Error>;
     #[cfg(all(feature = "account", feature = "email"))]
     async fn get_user_emails(&self, user_id: Uuid) -> Result<Vec<Self::UserEmail>, Self::Error>;
-    #[cfg(all(feature = "account", feature = "password"))]
+
+    #[cfg(all(any(feature = "account", feature = "email"), feature = "password"))]
     async fn set_user_password_hash(
         &self,
         user_id: Uuid,
         password_hash: String,
         session_id: Uuid,
     ) -> Result<(), Self::Error>;
+
     #[cfg(all(feature = "account", feature = "email"))]
     async fn set_user_email_allow_link_login(
         &self,

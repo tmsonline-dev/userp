@@ -4,6 +4,6 @@
 
 @layer components {
   body {
-    @apply bg-slate-800
+    @apply text-center
   }
 }

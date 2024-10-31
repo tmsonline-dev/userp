@@ -1,18 +1,16 @@
 pub use crate::config::*;
 #[cfg(all(feature = "password", feature = "email"))]
-pub use crate::email::reset::EmailResetError;
+pub use crate::email::reset::*;
 #[cfg(feature = "email")]
-pub use crate::email::{
-    login::EmailLoginError, signup::EmailSignupError, EmailChallenge, EmailConfig, SmtpSettings,
-    UserEmail,
-};
+pub use crate::email::{login::*, signup::*, EmailChallenge, EmailConfig, SmtpSettings, UserEmail};
 pub use crate::enums::*;
 #[cfg(feature = "oauth")]
 pub use crate::oauth::{
-    provider::{
-        github::GitHubOAuthProvider, gitlab::GitLabOAuthProvider, google::GoogleOAuthProvider,
-        spotify::SpotifyOAuthProvider,
-    },
+    link::*,
+    login::*,
+    provider::{github::*, gitlab::*, google::*, spotify::*},
+    refresh::*,
+    signup::*,
     OAuthConfig, OAuthProviderUser, OAuthProviders, OAuthToken, RefreshInitResult,
     UnmatchedOAuthToken,
 };

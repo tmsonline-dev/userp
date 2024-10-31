@@ -1,6 +1,6 @@
 #[cfg(feature = "email")]
 use crate::email::UserEmail;
-#[cfg(feature = "oauth")]
+#[cfg(feature = "oauth-action-routes")]
 use crate::oauth::{provider::OAuthProvider, OAuthToken};
 use crate::{
     core::CoreUserp,
@@ -8,7 +8,7 @@ use crate::{
     traits::{LoginSession, User, UserpCookies, UserpStore},
 };
 use askama::Template;
-#[cfg(feature = "axum-pages")]
+#[cfg(feature = "axum-router-pages")]
 use askama_axum::IntoResponse;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -52,7 +52,7 @@ pub struct TemplateOAuthToken<'a> {
     pub provider_name: &'a str,
 }
 
-#[cfg(feature = "oauth")]
+#[cfg(feature = "oauth-action-routes")]
 impl<'a, T: OAuthToken> From<&'a T> for TemplateOAuthToken<'a> {
     fn from(value: &'a T) -> Self {
         Self {
@@ -67,7 +67,7 @@ pub struct TemplateOAuthProvider<'a> {
     pub display_name: &'a str,
 }
 
-#[cfg(feature = "oauth")]
+#[cfg(feature = "oauth-action-routes")]
 impl<'a> From<&'a Arc<dyn OAuthProvider>> for TemplateOAuthProvider<'a> {
     fn from(value: &'a Arc<dyn OAuthProvider>) -> Self {
         Self {
@@ -151,7 +151,7 @@ impl UserTemplate<'_> {
         message: Option<&'a str>,
         error: Option<&'a str>,
         #[cfg(feature = "email")] emails: &'a [S::UserEmail],
-        #[cfg(feature = "oauth")] oauth_tokens: &'a [S::OAuthToken],
+        #[cfg(feature = "oauth-action-routes")] oauth_tokens: &'a [S::OAuthToken],
     ) -> UserTemplate<'a> {
         UserTemplate {
             message,
@@ -160,29 +160,29 @@ impl UserTemplate<'_> {
             sessions: sessions.iter().map(|s| s.into()).collect(),
             home_page_route: &auth.routes.pages.home,
             login_page_route: &auth.routes.pages.login,
-            session_delete_action_route: &auth.routes.actions.user_session_delete,
-            user_delete_action_route: &auth.routes.actions.user_delete,
-            verify_session_action_route: &auth.routes.actions.user_verify_session,
+            session_delete_action_route: &auth.routes.account.user_session_delete,
+            user_delete_action_route: &auth.routes.account.user_delete,
+            verify_session_action_route: &auth.routes.user_verify_session,
             #[cfg(feature = "password")]
             password: Some(UserTemplatePasswordInfo {
                 has_password: user.get_password_hash().is_some(),
-                delete_action_route: &auth.routes.actions.user_password_delete,
-                set_action_route: &auth.routes.actions.user_password_set,
+                delete_action_route: &auth.routes.account.user_password_delete,
+                set_action_route: &auth.routes.account.user_password_set,
             }),
             #[cfg(not(feature = "password"))]
             password: None,
             #[cfg(feature = "email")]
             email: Some(UserTemplateEmailInfo {
                 emails: emails.iter().map(|e| e.into()).collect(),
-                delete_action_route: &auth.routes.actions.user_email_delete,
-                add_action_route: &auth.routes.actions.user_email_add,
-                verify_action_route: &auth.routes.actions.user_email_verify,
-                enable_login_action_route: &auth.routes.actions.user_email_enable_login,
-                disable_login_action_route: &auth.routes.actions.user_email_disable_login,
+                delete_action_route: &auth.routes.account.user_email_delete,
+                add_action_route: &auth.routes.account.user_email_add,
+                verify_action_route: &auth.routes.email.user_email_verify,
+                enable_login_action_route: &auth.routes.account.user_email_enable_login,
+                disable_login_action_route: &auth.routes.account.user_email_disable_login,
             }),
             #[cfg(not(feature = "email"))]
             email: None,
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "oauth-action-routes")]
             oauth: {
                 Some(UserTemplateOAuthInfo {
                     tokens: oauth_tokens.iter().map(|t| t.into()).collect(),
@@ -200,19 +200,19 @@ impl UserTemplate<'_> {
                             }
                         })
                         .collect(),
-                    delete_action_route: &auth.routes.actions.user_oauth_delete,
-                    refresh_action_route: &auth.routes.actions.user_oauth_refresh,
-                    link_action_route: &auth.routes.actions.user_oauth_link,
+                    delete_action_route: &auth.routes.account.user_oauth_delete,
+                    refresh_action_route: &auth.routes.oauth.actions.user_oauth_refresh,
+                    link_action_route: &auth.routes.oauth.actions.user_oauth_link,
                     user_page_route: &auth.routes.pages.user,
                 })
             },
-            #[cfg(not(feature = "oauth"))]
+            #[cfg(not(feature = "oauth-action-routes"))]
             oauth: None,
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[cfg(feature = "axum-pages")]
+    #[cfg(feature = "axum-router-pages")]
     pub fn render_with<S: UserpStore, C: UserpCookies>(
         auth: &CoreUserp<S, C>,
         user: &S::User,
@@ -221,7 +221,7 @@ impl UserTemplate<'_> {
         message: Option<&str>,
         error: Option<&str>,
         #[cfg(feature = "email")] emails: &[S::UserEmail],
-        #[cfg(feature = "oauth")] oauth_tokens: &[S::OAuthToken],
+        #[cfg(feature = "oauth-action-routes")] oauth_tokens: &[S::OAuthToken],
     ) -> Result<String, askama::Error> {
         Self::with(
             auth,
@@ -232,14 +232,14 @@ impl UserTemplate<'_> {
             error,
             #[cfg(feature = "email")]
             emails,
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "oauth-action-routes")]
             oauth_tokens,
         )
         .render()
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[cfg(feature = "axum-pages")]
+    #[cfg(feature = "axum-router-pages")]
     pub fn into_response_with<S: UserpStore, C: UserpCookies>(
         auth: &CoreUserp<S, C>,
         user: &S::User,
@@ -248,7 +248,7 @@ impl UserTemplate<'_> {
         message: Option<&str>,
         error: Option<&str>,
         #[cfg(feature = "email")] emails: &[S::UserEmail],
-        #[cfg(feature = "oauth")] oauth_tokens: &[S::OAuthToken],
+        #[cfg(feature = "oauth-action-routes")] oauth_tokens: &[S::OAuthToken],
     ) -> impl IntoResponse {
         Self::with(
             auth,
@@ -259,7 +259,7 @@ impl UserTemplate<'_> {
             error,
             #[cfg(feature = "email")]
             emails,
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "oauth-action-routes")]
             oauth_tokens,
         )
         .into_response()
@@ -299,7 +299,7 @@ impl LoginTemplate<'_> {
         message: Option<&'a str>,
         error: Option<&'a str>,
     ) -> LoginTemplate<'a> {
-        #[cfg(feature = "oauth")]
+        #[cfg(feature = "oauth-action-routes")]
         let oauth_login_providers = auth.oauth_login_providers();
 
         LoginTemplate {
@@ -308,7 +308,7 @@ impl LoginTemplate<'_> {
             error,
             #[cfg(feature = "password")]
             password: Some(TemplatePasswordInfo {
-                action_route: &auth.routes.actions.login_password,
+                action_route: &auth.routes.password.login_password,
                 #[cfg(feature = "email")]
                 reset_route: Some(&auth.routes.pages.password_send_reset),
                 #[cfg(not(feature = "email"))]
@@ -318,11 +318,11 @@ impl LoginTemplate<'_> {
             password: None,
             #[cfg(feature = "email")]
             email: Some(TemplateEmailInfo {
-                action_route: &auth.routes.actions.login_email,
+                action_route: &auth.routes.email.login_email,
             }),
             #[cfg(not(feature = "email"))]
             email: None,
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "oauth-action-routes")]
             oauth: ({
                 if oauth_login_providers.is_empty() {
                     None
@@ -332,11 +332,11 @@ impl LoginTemplate<'_> {
                             .into_iter()
                             .map(|p| p.into())
                             .collect(),
-                        action_route: &auth.routes.actions.login_oauth,
+                        action_route: &auth.routes.oauth.actions.login_oauth,
                     })
                 }
             }),
-            #[cfg(not(feature = "oauth"))]
+            #[cfg(not(feature = "oauth-action-routes"))]
             oauth: None,
             signup_route: &auth.routes.pages.signup,
         }
@@ -351,7 +351,7 @@ impl LoginTemplate<'_> {
         Self::with(auth, next, message, error).render()
     }
 
-    #[cfg(feature = "axum-pages")]
+    #[cfg(feature = "axum-router-pages")]
     pub fn into_response_with<S: UserpStore, C: UserpCookies>(
         auth: &CoreUserp<S, C>,
         next: Option<&str>,
@@ -381,7 +381,7 @@ impl SignupTemplate<'_> {
         message: Option<&'a str>,
         error: Option<&'a str>,
     ) -> SignupTemplate<'a> {
-        #[cfg(feature = "oauth")]
+        #[cfg(feature = "oauth-action-routes")]
         let oauth_signup_providers = auth.oauth_signup_providers();
 
         SignupTemplate {
@@ -390,7 +390,7 @@ impl SignupTemplate<'_> {
             error,
             #[cfg(feature = "password")]
             password: Some(TemplatePasswordInfo {
-                action_route: &auth.routes.actions.signup_password,
+                action_route: &auth.routes.password.signup_password,
                 #[cfg(feature = "email")]
                 reset_route: Some(&auth.routes.pages.password_send_reset),
                 #[cfg(not(feature = "email"))]
@@ -400,11 +400,11 @@ impl SignupTemplate<'_> {
             password: None,
             #[cfg(feature = "email")]
             email: Some(TemplateEmailInfo {
-                action_route: &auth.routes.actions.signup_email,
+                action_route: &auth.routes.email.signup_email,
             }),
             #[cfg(not(feature = "email"))]
             email: None,
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "oauth-action-routes")]
             oauth: ({
                 if oauth_signup_providers.is_empty() {
                     None
@@ -414,11 +414,11 @@ impl SignupTemplate<'_> {
                             .into_iter()
                             .map(|p| p.into())
                             .collect(),
-                        action_route: &auth.routes.actions.signup_oauth,
+                        action_route: &auth.routes.oauth.actions.signup_oauth,
                     })
                 }
             }),
-            #[cfg(not(feature = "oauth"))]
+            #[cfg(not(feature = "oauth-action-routes"))]
             oauth: None,
             login_route: &auth.routes.pages.login,
         }
@@ -433,7 +433,7 @@ impl SignupTemplate<'_> {
         Self::with(auth, next, message, error).render()
     }
 
-    #[cfg(feature = "axum-pages")]
+    #[cfg(feature = "axum-router-pages")]
     pub fn response_from<S: UserpStore, C: UserpCookies>(
         auth: &CoreUserp<S, C>,
         next: Option<&str>,

@@ -49,7 +49,11 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
                 .exchange_refresh_token(
                     provider.name(),
                     &self.redirect_uri(
-                        self.routes.actions.user_oauth_refresh_provider.clone(),
+                        self.routes
+                            .oauth
+                            .callbacks
+                            .user_oauth_refresh_provider
+                            .clone(),
                         provider.name(),
                     ),
                     &RefreshToken::new(refresh_token.to_string()),
@@ -63,7 +67,12 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
 
             Ok((self, RefreshInitResult::Ok))
         } else {
-            let path = self.routes.actions.user_oauth_refresh_provider.clone();
+            let path = self
+                .routes
+                .oauth
+                .callbacks
+                .user_oauth_refresh_provider
+                .clone();
             let (new_self, url) = self
                 .oauth_init(
                     path,
@@ -116,7 +125,11 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
                 provider_name.clone(),
                 code,
                 state,
-                self.routes.actions.user_oauth_refresh_provider.clone(),
+                self.routes
+                    .oauth
+                    .callbacks
+                    .user_oauth_refresh_provider
+                    .clone(),
             )
             .await?;
 

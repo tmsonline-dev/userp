@@ -53,7 +53,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
         }
 
         self.send_email_challenge(
-            self.routes.pages.password_reset.clone(),
+            self.routes.email.password_reset_callback.clone(),
             email,
             "Click here to reset password".into(),
             next,

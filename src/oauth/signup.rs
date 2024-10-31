@@ -65,7 +65,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
             return Err(OAuthSignupInitError::NotAllowed);
         };
 
-        let path = self.routes.actions.signup_oauth_provider.clone();
+        let path = self.routes.oauth.callbacks.signup_oauth_provider.clone();
 
         Ok(self
             .oauth_init(path, provider, OAuthFlow::SignUp { next })
@@ -84,7 +84,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
                 provider_name.clone(),
                 code,
                 state,
-                self.routes.actions.signup_oauth_provider.clone(),
+                self.routes.oauth.callbacks.signup_oauth_provider.clone(),
             )
             .await?;
 

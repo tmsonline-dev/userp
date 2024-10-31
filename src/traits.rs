@@ -1,6 +1,6 @@
 mod store;
 
-pub use store::UserpStore;
+pub use store::*;
 
 use crate::enums::LoginMethod;
 use uuid::Uuid;

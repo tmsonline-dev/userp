@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "default"), allow(unused))]
+
 pub mod config;
 pub mod constants;
 pub mod core;

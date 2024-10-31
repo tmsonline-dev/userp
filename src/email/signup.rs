@@ -57,7 +57,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
         }
 
         self.send_email_challenge(
-            self.routes.actions.signup_email.clone(),
+            self.routes.email.signup_email.clone(),
             email,
             "Click here to sign up".into(),
             next,

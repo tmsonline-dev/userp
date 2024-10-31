@@ -45,7 +45,7 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
         next: Option<String>,
     ) -> Result<(), SendEmailChallengeError<S::Error>> {
         self.send_email_challenge(
-            self.routes.actions.user_email_verify.clone(),
+            self.routes.email.user_email_verify.clone(),
             email,
             "Click here to verify email".into(),
             next,
