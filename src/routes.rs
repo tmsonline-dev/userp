@@ -1,24 +1,24 @@
-use std::fmt::Display;
+pub(crate) mod pages;
+use pages::*;
 
 #[cfg(feature = "account")]
-mod account;
+pub(crate) mod account;
 #[cfg(feature = "account")]
 use account::*;
 #[cfg(feature = "email")]
-mod email;
+pub(crate) mod email;
 #[cfg(feature = "email")]
 use email::*;
 #[cfg(feature = "oauth")]
-mod oauth;
+pub(crate) mod oauth;
 #[cfg(feature = "oauth")]
 use oauth::*;
 #[cfg(feature = "password")]
-mod password;
+pub(crate) mod password;
 #[cfg(feature = "password")]
 use password::*;
 
-mod pages;
-use pages::*;
+use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 pub struct Routes<T = &'static str> {

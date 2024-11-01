@@ -1,6 +1,6 @@
 #[cfg(feature = "oauth-action-routes")]
-pub mod actions;
-pub mod callbacks;
+pub(crate) mod actions;
+pub(crate) mod callbacks;
 
 #[cfg(feature = "oauth-action-routes")]
 use self::actions::*;

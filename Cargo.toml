@@ -32,8 +32,9 @@ password-auth = { version = "1.0.0", optional = true }
 base64 = "0.22.1"
 
 [features]
-default = ["axum-router"]
-axum-router = [
+default = ["axum-router-full"]
+
+axum-router-full = [
   "axum-router-pages",
   "axum-router-oauth",
   "axum-router-password",
@@ -41,23 +42,45 @@ axum-router = [
   "axum-router-account",
 ]
 axum-router-pages = [
-  "pages",
+  "server-pages",
   "askama/with-axum",
   "dep:askama_axum",
   "axum-extract",
   "dep:urlencoding",
 ]
 axum-router-oauth = ["oauth-action-routes", "axum-router-oauth-callbacks"]
-axum-router-oauth-callbacks = ["oauth", "axum-extract", "dep:urlencoding"]
-axum-router-password = ["password", "axum-extract", "dep:urlencoding"]
-axum-router-email = ["email", "axum-extract", "dep:urlencoding"]
-axum-router-account = ["account", "axum-extract", "dep:urlencoding"]
-axum-extract = ["dep:axum", "dep:axum-extra"]
+axum-router-oauth-callbacks = [
+  "server-oauth",
+  "axum-extract",
+  "dep:urlencoding",
+]
+axum-router-password = ["server-password", "axum-extract", "dep:urlencoding"]
+axum-router-email = ["server-email", "axum-extract", "dep:urlencoding"]
+axum-router-account = ["server-account", "axum-extract", "dep:urlencoding"]
+axum-extract = ["dep:axum", "dep:axum-extra", "server"]
+
 account = []
-email = ["dep:reqwest", "dep:chrono", "dep:lettre", "dep:url"]
-password = ["dep:password-auth"]
-pages = ["dep:askama"]
-oauth = [
+email = []
+password = []
+pages = []
+oauth = []
+oauth-action-routes = ["oauth"]
+
+server = []
+server-account = ["server", "account"]
+server-email = [
+  "server",
+  "email",
+  "dep:reqwest",
+  "dep:chrono",
+  "dep:lettre",
+  "dep:url",
+]
+server-password = ["server", "password", "dep:password-auth"]
+server-pages = ["server", "pages", "dep:askama"]
+server-oauth = [
+  "server",
+  "oauth",
   "dep:chrono",
   "dep:oauth2",
   "dep:url",
@@ -65,4 +88,3 @@ oauth = [
   "dep:serde_json",
   "dep:reqwest",
 ]
-oauth-action-routes = ["oauth"]
