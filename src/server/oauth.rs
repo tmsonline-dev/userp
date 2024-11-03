@@ -1,9 +1,9 @@
-pub(crate) mod client;
-pub(crate) mod link;
-pub(crate) mod login;
-pub(crate) mod provider;
-pub(crate) mod refresh;
-pub(crate) mod signup;
+pub mod client;
+pub mod link;
+pub mod login;
+pub mod provider;
+pub mod refresh;
+pub mod signup;
 
 use crate::{
     models::{

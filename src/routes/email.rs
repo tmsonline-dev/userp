@@ -1,14 +1,16 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-#[derive(Debug, Clone)]
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmailActionRoutes<T = &'static str> {
     pub login_email: T,
     pub signup_email: T,
     pub user_email_verify: T,
-    #[cfg(feature = "password")]
+    #[cfg(feature = "client-password")]
     pub password_reset: T,
-    #[cfg(feature = "password")]
+    #[cfg(feature = "client-password")]
     pub password_reset_callback: T,
-    #[cfg(feature = "password")]
+    #[cfg(feature = "client-password")]
     pub password_send_reset: T,
 }
 
@@ -18,11 +20,11 @@ impl Default for EmailActionRoutes {
             login_email: "/login/email",
             signup_email: "/signup/email",
             user_email_verify: "/user/email/verify",
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_reset: "/password/reset",
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_reset_callback: "/password/reset-callback",
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_send_reset: "/password/send-reset",
         }
     }
@@ -34,11 +36,11 @@ impl<'a> From<&'a EmailActionRoutes<String>> for EmailActionRoutes<&'a str> {
             login_email: &value.login_email,
             signup_email: &value.signup_email,
             user_email_verify: &value.user_email_verify,
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_reset: &value.password_reset,
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_reset_callback: &value.password_reset_callback,
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_send_reset: &value.password_send_reset,
         }
     }
@@ -62,11 +64,11 @@ impl<T: Display> EmailActionRoutes<T> {
             login_email: format!("{prefix}{}", self.login_email),
             signup_email: format!("{prefix}{}", self.signup_email),
             user_email_verify: format!("{prefix}{}", self.user_email_verify),
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_send_reset: format!("{prefix}{}", self.password_send_reset),
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_reset: format!("{prefix}{}", self.password_reset),
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             password_reset_callback: format!("{prefix}{}", self.password_reset_callback),
         }
     }

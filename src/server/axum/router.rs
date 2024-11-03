@@ -1,13 +1,13 @@
 #[cfg(feature = "axum-router-account")]
-pub(crate) mod account;
+pub mod account;
 #[cfg(feature = "axum-router-email")]
-pub(crate) mod email;
+pub mod email;
 #[cfg(feature = "axum-router-oauth-callbacks")]
-pub(crate) mod oauth;
+pub mod oauth;
 #[cfg(feature = "axum-router-pages")]
-pub(crate) mod pages;
+pub mod pages;
 #[cfg(feature = "axum-router-password")]
-pub(crate) mod password;
+pub mod password;
 
 use super::AxumUserp;
 use crate::server::{config::UserpConfig, store::UserpStore};

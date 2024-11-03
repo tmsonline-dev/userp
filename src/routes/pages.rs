@@ -1,18 +1,19 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PageRoutes<T = &'static str> {
     pub post_login: T,
     pub post_logout: T,
     pub login: T,
     pub signup: T,
-    #[cfg(feature = "account")]
+    #[cfg(feature = "client-account")]
     pub user: T,
-    #[cfg(feature = "account")]
+    #[cfg(feature = "client-account")]
     pub home: T,
-    #[cfg(all(feature = "password", feature = "email"))]
+    #[cfg(all(feature = "client-password", feature = "client-email"))]
     pub password_send_reset: T,
-    #[cfg(all(feature = "password", feature = "email"))]
+    #[cfg(all(feature = "client-password", feature = "client-email"))]
     pub password_reset: T,
 }
 
@@ -23,13 +24,13 @@ impl Default for PageRoutes {
             post_logout: "/",
             login: "/login",
             signup: "/signup",
-            #[cfg(feature = "account")]
+            #[cfg(feature = "client-account")]
             user: "/user",
-            #[cfg(feature = "account")]
+            #[cfg(feature = "client-account")]
             home: "/",
-            #[cfg(all(feature = "password", feature = "email"))]
+            #[cfg(all(feature = "client-password", feature = "client-email"))]
             password_send_reset: "/password/send-reset",
-            #[cfg(all(feature = "password", feature = "email"))]
+            #[cfg(all(feature = "client-password", feature = "client-email"))]
             password_reset: "/password/reset",
         }
     }
@@ -42,13 +43,13 @@ impl<'a> From<&'a PageRoutes<String>> for PageRoutes<&'a str> {
             post_logout: &value.post_logout,
             login: &value.login,
             signup: &value.signup,
-            #[cfg(feature = "account")]
+            #[cfg(feature = "client-account")]
             user: &value.user,
-            #[cfg(feature = "account")]
+            #[cfg(feature = "client-account")]
             home: &value.home,
-            #[cfg(all(feature = "password", feature = "email"))]
+            #[cfg(all(feature = "client-password", feature = "client-email"))]
             password_send_reset: &value.password_send_reset,
-            #[cfg(all(feature = "password", feature = "email"))]
+            #[cfg(all(feature = "client-password", feature = "client-email"))]
             password_reset: &value.password_reset,
         }
     }
@@ -73,13 +74,13 @@ impl<T: Display> PageRoutes<T> {
             post_logout: format!("{prefix}{}", self.post_logout),
             login: format!("{prefix}{}", self.login),
             signup: format!("{prefix}{}", self.signup),
-            #[cfg(feature = "account")]
+            #[cfg(feature = "client-account")]
             user: format!("{prefix}{}", self.user),
-            #[cfg(feature = "account")]
+            #[cfg(feature = "client-account")]
             home: format!("{prefix}{}", self.home),
-            #[cfg(all(feature = "password", feature = "email"))]
+            #[cfg(all(feature = "client-password", feature = "client-email"))]
             password_send_reset: format!("{prefix}{}", self.password_send_reset),
-            #[cfg(all(feature = "password", feature = "email"))]
+            #[cfg(all(feature = "client-password", feature = "client-email"))]
             password_reset: format!("{prefix}{}", self.password_reset),
         }
     }

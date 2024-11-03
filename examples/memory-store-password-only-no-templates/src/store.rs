@@ -2,10 +2,7 @@ use crate::models::{MyLoginSession, MyUser};
 use axum::async_trait;
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
 use tokio::sync::RwLock;
-use userp::{
-    prelude::{LoginMethod, UserpStore},
-    uuid::Uuid,
-};
+use userp::{prelude::*, reexports::uuid::Uuid};
 
 #[derive(Clone, Default, Debug)]
 pub struct MemoryStore {

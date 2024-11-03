@@ -1,8 +1,5 @@
 use serde::Deserialize;
-use userp::{
-    prelude::{LoginMethod, LoginSession, User},
-    uuid::Uuid,
-};
+use userp::{prelude::*, reexports::uuid::Uuid};
 
 #[derive(Deserialize)]
 pub struct SigninForm {

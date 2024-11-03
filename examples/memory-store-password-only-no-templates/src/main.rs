@@ -14,10 +14,7 @@ use templates::SigninTemplate;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
-use userp::{
-    prelude::{Allow, PasswordConfig, Routes, UserpConfig},
-    Userp,
-};
+use userp::prelude::*;
 
 #[derive(Clone, FromRef)]
 struct AppState {
@@ -52,7 +49,7 @@ async fn main() {
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 
-    println!("User example minimal axum/memstore running at http://localhost:3000 :)");
+    println!("Userp example listening at http://localhost:3000 :)");
     let tcp = TcpListener::bind("0.0.0.0:3000").await.unwrap();
     serve(tcp, app.into_make_service()).await.unwrap();
 }
@@ -97,7 +94,7 @@ async fn get_protected(auth: Userp<MemoryStore>) -> impl IntoResponse {
 }
 
 async fn get_logout(auth: Userp<MemoryStore>) -> impl IntoResponse {
-    auth.log_out().await.unwrap();
+    let auth = auth.log_out().await.unwrap();
 
-    Redirect::to("/")
+    (auth, Redirect::to("/"))
 }

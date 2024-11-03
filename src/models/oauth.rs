@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct UnmatchedOAuthToken {
     pub access_token: String,
     pub refresh_token: Option<String>,
@@ -20,7 +21,7 @@ pub trait OAuthToken: Send + Sync {
     fn get_refresh_token(&self) -> &Option<String>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OAuthProviderUser {
     pub id: String,
     pub raw: Value,

@@ -137,7 +137,7 @@ where
             error.as_deref(),
             #[cfg(feature = "server-email")]
             &emails,
-            #[cfg(feature = "oauth-action-routes")]
+            #[cfg(feature = "server-oauth-action-routes")]
             &oauth_tokens,
         )
         .into_response()

@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-userp = { path = "../../", default-features = false, features = ["password", "axum-extract"] }
+userp = { path = "../../", default-features = false, features = [
+  "server-password",
+  "axum-extract",
+] }
 axum = "0.7.7"
 axum-macros = "0.4.2"
 tokio = { version = "1.40.0", features = ["full"] }

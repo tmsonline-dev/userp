@@ -2,6 +2,7 @@
 workspace-lsp-roots = [
   "./examples/memory-store-oauth-only",
   "./examples/memory-store",
-  "./examples/minimal-pw-only",
+  "./examples/memory-store-password-only-no-templates",
   "./examples/psql-store",
+  "./examples/leptos-basic",
 ]

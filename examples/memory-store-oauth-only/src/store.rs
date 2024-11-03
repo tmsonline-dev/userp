@@ -7,9 +7,8 @@ use axum::{
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use userp::{
-    prelude::{LoginMethod, UnmatchedOAuthToken, UserpStore},
-    thiserror,
-    uuid::Uuid,
+    prelude::*,
+    reexports::{thiserror, uuid::Uuid},
 };
 
 #[derive(Clone, Default, Debug)]

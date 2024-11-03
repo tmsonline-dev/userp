@@ -12,14 +12,7 @@ use dotenv::var;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
-use userp::{
-    prelude::{
-        EmailConfig, GitHubOAuthProvider, GitLabOAuthProvider, GoogleOAuthProvider, OAuthConfig,
-        PasswordConfig, PasswordReset, Routes, SmtpSettings, SpotifyOAuthProvider, UserpConfig,
-    },
-    url::Url,
-    Userp,
-};
+use userp::prelude::{url::Url, *};
 
 #[derive(Clone, FromRef)]
 struct AppState {
@@ -90,7 +83,7 @@ async fn main() {
         .with_state(state)
         .layer(TraceLayer::new_for_http());
 
-    println!("User example axum/memstore running at http://localhost:3000 :)");
+    println!("Userp example listening at http://localhost:3000 :)");
     let tcp = TcpListener::bind("0.0.0.0:3000").await.unwrap();
     serve(tcp, app.into_make_service()).await.unwrap();
 }

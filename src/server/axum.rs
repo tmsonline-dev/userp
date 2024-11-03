@@ -1,5 +1,5 @@
-pub(crate) mod cookies;
-pub(crate) mod extract;
+pub mod cookies;
+pub mod extract;
 #[cfg(any(
     feature = "axum-router-oauth-callbacks",
     feature = "axum-router-email",
@@ -7,7 +7,7 @@ pub(crate) mod extract;
     feature = "axum-router-pages",
     feature = "axum-router-account"
 ))]
-pub(crate) mod router;
+pub mod router;
 
 use crate::server::core::CoreUserp;
 use cookies::AxumUserpCookies;

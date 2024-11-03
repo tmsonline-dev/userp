@@ -1,21 +1,23 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-#[derive(Debug, Clone)]
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AccountActionRoutes<T = &'static str> {
     pub user_delete: T,
     pub user_session_delete: T,
-    #[cfg(feature = "email")]
+    #[cfg(feature = "client-email")]
     pub user_email_add: T,
-    #[cfg(feature = "email")]
+    #[cfg(feature = "client-email")]
     pub user_email_delete: T,
-    #[cfg(feature = "email")]
+    #[cfg(feature = "client-email")]
     pub user_email_disable_login: T,
-    #[cfg(feature = "email")]
+    #[cfg(feature = "client-email")]
     pub user_email_enable_login: T,
-    #[cfg(feature = "oauth")]
+    #[cfg(feature = "client-oauth")]
     pub user_oauth_delete: T,
-    #[cfg(feature = "password")]
+    #[cfg(feature = "client-password")]
     pub user_password_delete: T,
-    #[cfg(feature = "password")]
+    #[cfg(feature = "client-password")]
     pub user_password_set: T,
 }
 
@@ -24,19 +26,19 @@ impl Default for AccountActionRoutes {
         Self {
             user_delete: "/user/delete",
             user_session_delete: "/user/session/delete",
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_add: "/user/email/add",
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_delete: "/user/email/delete",
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_disable_login: "/user/email/disable_login",
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_enable_login: "/user/email/enable_login",
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "client-oauth")]
             user_oauth_delete: "/user/oauth/delete",
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             user_password_delete: "/user/password/delete",
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             user_password_set: "/user/password/set",
         }
     }
@@ -47,19 +49,19 @@ impl<'a> From<&'a AccountActionRoutes<String>> for AccountActionRoutes<&'a str> 
         Self {
             user_delete: &value.user_delete,
             user_session_delete: &value.user_session_delete,
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_add: &value.user_email_add,
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_delete: &value.user_email_delete,
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_disable_login: &value.user_email_disable_login,
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_enable_login: &value.user_email_enable_login,
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "client-oauth")]
             user_oauth_delete: &value.user_oauth_delete,
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             user_password_delete: &value.user_password_delete,
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             user_password_set: &value.user_password_set,
         }
     }
@@ -82,19 +84,19 @@ impl<T: Display> AccountActionRoutes<T> {
         AccountActionRoutes {
             user_delete: format!("{prefix}{}", self.user_delete),
             user_session_delete: format!("{prefix}{}", self.user_session_delete),
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             user_password_set: format!("{prefix}{}", self.user_password_set),
-            #[cfg(feature = "password")]
+            #[cfg(feature = "client-password")]
             user_password_delete: format!("{prefix}{}", self.user_password_delete),
-            #[cfg(feature = "oauth")]
+            #[cfg(feature = "client-oauth")]
             user_oauth_delete: format!("{prefix}{}", self.user_oauth_delete),
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_add: format!("{prefix}{}", self.user_email_add),
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_delete: format!("{prefix}{}", self.user_email_delete),
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_enable_login: format!("{prefix}{}", self.user_email_enable_login),
-            #[cfg(feature = "email")]
+            #[cfg(feature = "client-email")]
             user_email_disable_login: format!("{prefix}{}", self.user_email_disable_login),
         }
     }

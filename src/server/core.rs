@@ -49,9 +49,11 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     #[must_use = "Don't forget to return the auth session as part of the response!"]
     pub async fn log_out(mut self) -> Result<Self, S::Error> {
         if self.cookies.get(SESSION_ID_KEY).is_some() {
+            let session = self.session().await;
+
             self.cookies.remove(SESSION_ID_KEY);
 
-            if let Some(session) = self.session().await? {
+            if let Some(session) = session? {
                 self.store
                     .delete_session(session.get_user_id(), session.get_id())
                     .await?;

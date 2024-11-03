@@ -1,4 +1,3 @@
-use super::models::*;
 use crate::models::{MyEmailChallenge, MyLoginSession, MyOAuthToken, MyUser, MyUserEmail};
 use axum::{
     async_trait,
@@ -8,12 +7,14 @@ use axum::{
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use userp::{
-    chrono::{DateTime, Utc},
-    prelude::{LoginMethod, UnmatchedOAuthToken, UserEmail, UserpStore},
-    thiserror,
-    traits::LoginSession,
-    uuid::Uuid,
+    prelude::*,
+    reexports::{
+        chrono::{DateTime, Utc},
+        uuid::Uuid,
+    },
 };
+
+pub type Userp = userp::prelude::Userp<MemoryStore>;
 
 #[derive(Clone, Default, Debug)]
 pub struct MemoryStore {
@@ -76,35 +77,10 @@ impl UserpStore for MemoryStore {
     ) -> Result<Self::LoginSession, Self::Error> {
         let id = Uuid::new_v4();
 
-        let session = match method {
-            LoginMethod::Password => MyLoginSession {
-                id,
-                user_id,
-                method: PASSWORD_LOGIN_METHOD.into(),
-                oauth_token_id: None,
-                email_address: None,
-            },
-            LoginMethod::PasswordReset { address } => MyLoginSession {
-                id,
-                user_id,
-                method: PASSWORD_RESET_LOGIN_METHOD.into(),
-                oauth_token_id: None,
-                email_address: Some(address),
-            },
-            LoginMethod::Email { address } => MyLoginSession {
-                id,
-                user_id,
-                method: EMAIL_LOGIN_METHOD.into(),
-                oauth_token_id: None,
-                email_address: Some(address),
-            },
-            LoginMethod::OAuth { token_id } => MyLoginSession {
-                id,
-                user_id,
-                method: OAUTH_LOGIN_METHOD.into(),
-                oauth_token_id: Some(token_id),
-                email_address: None,
-            },
+        let session = MyLoginSession {
+            id,
+            user_id,
+            method,
         };
 
         let mut sessions = self.sessions.write().await;

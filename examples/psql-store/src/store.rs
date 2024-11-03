@@ -5,9 +5,11 @@ use axum::response::IntoResponse;
 use sqlx::postgres::PgPool;
 use thiserror::Error;
 use userp::{
-    chrono::{DateTime, Utc},
-    prelude::{LoginMethod, OAuthToken, UnmatchedOAuthToken, User, UserEmail, UserpStore},
-    uuid::Uuid,
+    prelude::*,
+    reexports::{
+        chrono::{DateTime, Utc},
+        uuid::Uuid,
+    },
 };
 
 #[derive(Clone, Debug)]

@@ -1275,7 +1275,6 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-extra",
- "base64",
  "password-auth",
  "serde",
  "thiserror",

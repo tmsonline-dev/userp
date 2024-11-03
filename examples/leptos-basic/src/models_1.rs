@@ -1,8 +1,10 @@
 use crate::models::*;
 use userp::{
-    chrono::{DateTime, Utc},
-    prelude::{EmailChallenge, LoginMethod, LoginSession, OAuthToken, User, UserEmail},
-    uuid::Uuid,
+    prelude::*,
+    reexports::{
+        chrono::{DateTime, Utc},
+        uuid::Uuid,
+    },
 };
 
 impl User for MyUser {

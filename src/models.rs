@@ -1,13 +1,14 @@
-#[cfg(feature = "email")]
-pub(crate) mod email;
-#[cfg(feature = "oauth")]
-pub(crate) mod oauth;
-pub(crate) mod prelude;
+#[cfg(feature = "client-email")]
+pub mod email;
+#[cfg(feature = "client-oauth")]
+pub mod oauth;
+pub mod prelude;
 
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Allow {
     Never,
     OnSelf,
@@ -22,7 +23,7 @@ pub trait LoginSession: Send + Sync + Sized {
 
 pub trait User: Send + Sync + Sized {
     fn get_id(&self) -> Uuid;
-    #[cfg(feature = "password")]
+    #[cfg(feature = "client-password")]
     fn get_password_hash(&self) -> Option<String>;
 }
 
@@ -33,15 +34,15 @@ pub trait UserpCookies {
     fn list_encoded(&self) -> Vec<String>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum LoginMethod {
-    #[cfg(feature = "password")]
+    #[cfg(feature = "client-password")]
     Password,
-    #[cfg(all(feature = "password", feature = "email"))]
+    #[cfg(all(feature = "client-password", feature = "client-email"))]
     PasswordReset { address: String },
-    #[cfg(feature = "email")]
+    #[cfg(feature = "client-email")]
     Email { address: String },
-    #[cfg(feature = "oauth")]
+    #[cfg(feature = "client-oauth")]
     OAuth { token_id: Uuid },
 }
 

@@ -1,6 +1,6 @@
-pub(crate) mod hasher;
-pub(crate) mod login;
-pub(crate) mod signup;
+pub mod hasher;
+pub mod login;
+pub mod signup;
 
 use self::hasher::{DefaultPasswordHasher, PasswordHasher};
 use crate::models::Allow;

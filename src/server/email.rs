@@ -1,8 +1,8 @@
-pub(crate) mod login;
+pub mod login;
 #[cfg(feature = "server-password")]
-pub(crate) mod reset;
-pub(crate) mod signup;
-pub(crate) mod verify;
+pub mod reset;
+pub mod signup;
+pub mod verify;
 
 use chrono::{Duration, Utc};
 use lettre::{message::header::ContentType, Message, SmtpTransport, Transport};

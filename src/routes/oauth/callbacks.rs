@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OAuthCallbackRoutes<T = &'static str> {
     pub login_oauth_provider: T,
     pub signup_oauth_provider: T,

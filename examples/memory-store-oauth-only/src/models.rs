@@ -1,7 +1,9 @@
 use userp::{
-    chrono::{DateTime, Utc},
-    prelude::{LoginMethod, LoginSession, OAuthToken, User},
-    uuid::Uuid,
+    prelude::*,
+    reexports::{
+        chrono::{DateTime, Utc},
+        uuid::Uuid,
+    },
 };
 
 #[derive(Debug, Clone)]

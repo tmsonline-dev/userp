@@ -1,9 +1,9 @@
-pub(crate) mod custom;
-pub(crate) mod github;
-pub(crate) mod gitlab;
-pub(crate) mod google;
-pub(crate) mod oidc;
-pub(crate) mod spotify;
+pub mod custom;
+pub mod github;
+pub mod gitlab;
+pub mod google;
+pub mod oidc;
+pub mod spotify;
 
 use crate::models::{oauth::UnmatchedOAuthToken, Allow};
 use async_trait::async_trait;

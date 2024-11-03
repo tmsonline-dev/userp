@@ -7,10 +7,12 @@ use axum::{
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use userp::{
-    chrono::{DateTime, Utc},
-    prelude::{LoginMethod, UnmatchedOAuthToken, UserEmail, UserpStore},
-    thiserror,
-    uuid::Uuid,
+    prelude::*,
+    reexports::{
+        chrono::{DateTime, Utc},
+        thiserror,
+        uuid::Uuid,
+    },
 };
 
 #[derive(Clone, Default, Debug)]
