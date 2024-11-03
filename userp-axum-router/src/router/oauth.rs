@@ -1,4 +1,12 @@
-use crate::server::{
+use axum::{
+    extract::{FromRef, Path, Query},
+    http::StatusCode,
+    response::{IntoResponse, Redirect},
+    routing::{get, post},
+    Form, Router,
+};
+use serde::{Deserialize, Serialize};
+use userp_server::{
     axum::AxumUserp,
     config::UserpConfig,
     oauth::{
@@ -8,17 +16,9 @@ use crate::server::{
         signup::OAuthSignupCallbackError,
         OAuthGenericCallbackError, RefreshInitResult,
     },
+    reexports::oauth2::{AuthorizationCode, CsrfToken},
     store::UserpStore,
 };
-use axum::{
-    extract::{FromRef, Path, Query},
-    http::StatusCode,
-    response::{IntoResponse, Redirect},
-    routing::{get, post},
-    Form, Router,
-};
-use oauth2::{AuthorizationCode, CsrfToken};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -40,191 +40,6 @@ pub struct CodeStateQuery {
 #[derive(Deserialize)]
 pub struct ProviderPath {
     pub provider: String,
-}
-
-impl UserpConfig {
-    pub(crate) fn with_oauth_routes<St, S>(&self, mut router: Router<S>) -> Router<S>
-    where
-        UserpConfig: FromRef<S>,
-        S: Send + Sync + Clone + 'static,
-        St: UserpStore + FromRef<S> + Send + Sync + 'static,
-        St::Error: IntoResponse,
-    {
-        #[cfg(feature = "axum-router-oauth")]
-        {
-            router = router
-                .route(
-                    self.routes.oauth.actions.login_oauth.as_str(),
-                    post(post_login_oauth::<St>),
-                )
-                .route(
-                    self.routes.oauth.actions.signup_oauth.as_str(),
-                    post(post_signup_oauth::<St>),
-                )
-                .route(
-                    self.routes.oauth.actions.user_oauth_link.as_str(),
-                    post(post_user_oauth_link::<St>),
-                )
-                .route(
-                    self.routes.oauth.actions.user_oauth_refresh.as_str(),
-                    post(post_user_oauth_refresh::<St>),
-                );
-        }
-
-        if self.routes.oauth.callbacks.login_oauth_provider
-            == self.routes.oauth.callbacks.signup_oauth_provider
-            || self.routes.oauth.callbacks.login_oauth_provider
-                == self.routes.oauth.callbacks.user_oauth_link_provider
-            || self.routes.oauth.callbacks.login_oauth_provider
-                == self.routes.oauth.callbacks.user_oauth_refresh_provider
-        {
-            router = router
-                .route(
-                    self.routes.oauth.callbacks.login_oauth_provider.as_str(),
-                    get(get_generic_oauth::<St>),
-                )
-                .route(
-                    &(self.routes.oauth.callbacks.login_oauth_provider.to_owned() + "/"),
-                    get(get_generic_oauth::<St>),
-                );
-        } else {
-            router = router
-                .route(
-                    self.routes.oauth.callbacks.login_oauth_provider.as_str(),
-                    get(get_login_oauth::<St>),
-                )
-                .route(
-                    &(self.routes.oauth.callbacks.login_oauth_provider.to_owned() + "/"),
-                    get(get_login_oauth::<St>),
-                );
-        }
-
-        if self.routes.oauth.callbacks.signup_oauth_provider
-            == self.routes.oauth.callbacks.login_oauth_provider
-            || self.routes.oauth.callbacks.signup_oauth_provider
-                == self.routes.oauth.callbacks.user_oauth_link_provider
-            || self.routes.oauth.callbacks.signup_oauth_provider
-                == self.routes.oauth.callbacks.user_oauth_refresh_provider
-        {
-            router = router
-                .route(
-                    self.routes.oauth.callbacks.signup_oauth_provider.as_str(),
-                    get(get_generic_oauth::<St>),
-                )
-                .route(
-                    &(self.routes.oauth.callbacks.signup_oauth_provider.to_owned() + "/"),
-                    get(get_generic_oauth::<St>),
-                );
-        } else {
-            router = router
-                .route(
-                    self.routes.oauth.callbacks.signup_oauth_provider.as_str(),
-                    get(get_signup_oauth::<St>),
-                )
-                .route(
-                    &(self.routes.oauth.callbacks.signup_oauth_provider.to_owned() + "/"),
-                    get(get_signup_oauth::<St>),
-                );
-        }
-
-        if self.routes.oauth.callbacks.user_oauth_link_provider
-            == self.routes.oauth.callbacks.signup_oauth_provider
-            || self.routes.oauth.callbacks.user_oauth_link_provider
-                == self.routes.oauth.callbacks.login_oauth_provider
-            || self.routes.oauth.callbacks.user_oauth_link_provider
-                == self.routes.oauth.callbacks.user_oauth_refresh_provider
-        {
-            router = router
-                .route(
-                    self.routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_link_provider
-                        .as_str(),
-                    get(get_generic_oauth::<St>),
-                )
-                .route(
-                    &(self
-                        .routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_link_provider
-                        .to_owned()
-                        + "/"),
-                    get(get_generic_oauth::<St>),
-                );
-        } else {
-            router = router
-                .route(
-                    self.routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_link_provider
-                        .as_str(),
-                    get(get_user_oauth_link::<St>),
-                )
-                .route(
-                    &(self
-                        .routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_link_provider
-                        .to_owned()
-                        + "/"),
-                    get(get_user_oauth_link::<St>),
-                );
-        }
-
-        if self.routes.oauth.callbacks.user_oauth_refresh_provider
-            == self.routes.oauth.callbacks.signup_oauth_provider
-            || self.routes.oauth.callbacks.user_oauth_refresh_provider
-                == self.routes.oauth.callbacks.user_oauth_link_provider
-            || self.routes.oauth.callbacks.user_oauth_refresh_provider
-                == self.routes.oauth.callbacks.login_oauth_provider
-        {
-            router = router
-                .route(
-                    self.routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_refresh_provider
-                        .as_str(),
-                    get(get_generic_oauth::<St>),
-                )
-                .route(
-                    &(self
-                        .routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_refresh_provider
-                        .to_owned()
-                        + "/"),
-                    get(get_generic_oauth::<St>),
-                );
-        } else {
-            router = router
-                .route(
-                    self.routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_refresh_provider
-                        .as_str(),
-                    get(get_user_oauth_refresh::<St>),
-                )
-                .route(
-                    &(self
-                        .routes
-                        .oauth
-                        .callbacks
-                        .user_oauth_refresh_provider
-                        .to_owned()
-                        + "/"),
-                    get(get_user_oauth_refresh::<St>),
-                );
-        }
-
-        router
-    }
 }
 
 pub async fn get_login_oauth<St>(
@@ -265,9 +80,9 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    #[cfg(feature = "server-account")]
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
-    #[cfg(not(feature = "server-account"))]
+    #[cfg(not(feature = "account"))]
     let user_route = auth.routes.pages.post_login.clone();
 
     match auth
@@ -317,9 +132,9 @@ where
         }
     };
 
-    #[cfg(feature = "server-account")]
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
-    #[cfg(not(feature = "server-account"))]
+    #[cfg(not(feature = "account"))]
     let user_route = auth.routes.pages.post_login.clone();
 
     Ok(
@@ -424,9 +239,9 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
-    #[cfg(feature = "server-account")]
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
-    #[cfg(not(feature = "server-account"))]
+    #[cfg(not(feature = "account"))]
     let user_route = auth.routes.pages.post_login.clone();
 
     match auth.oauth_link_init(provider, next).await {

@@ -1,9 +1,3 @@
-use crate::server::{
-    axum::AxumUserp,
-    config::UserpConfig,
-    password::{login::PasswordLoginError, signup::PasswordSignupError},
-    store::UserpStore,
-};
 use axum::{
     extract::FromRef,
     response::{IntoResponse, Redirect},
@@ -11,6 +5,12 @@ use axum::{
     Form, Router,
 };
 use serde::{Deserialize, Serialize};
+use userp_server::{
+    axum::AxumUserp,
+    config::UserpConfig,
+    password::{login::PasswordLoginError, signup::PasswordSignupError},
+    store::UserpStore,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PasswordIdNextForm {
@@ -19,29 +19,7 @@ pub struct PasswordIdNextForm {
     pub next: Option<String>,
 }
 
-impl UserpConfig {
-    pub(crate) fn with_password_routes<St, S>(&self, mut router: Router<S>) -> Router<S>
-    where
-        UserpConfig: FromRef<S>,
-        S: Send + Sync + Clone + 'static,
-        St: UserpStore + FromRef<S> + Send + Sync + 'static,
-        St::Error: IntoResponse,
-    {
-        router = router
-            .route(
-                self.routes.password.login_password.as_str(),
-                post(post_login_password::<St>),
-            )
-            .route(
-                self.routes.password.signup_password.as_str(),
-                post(post_signup_password::<St>),
-            );
-
-        router
-    }
-}
-
-async fn post_signup_password<St>(
+pub(crate) async fn post_signup_password<St>(
     auth: AxumUserp<St>,
     Form(PasswordIdNextForm {
         password_id: email,
@@ -73,7 +51,7 @@ where
     }
 }
 
-async fn post_login_password<St>(
+pub(crate) async fn post_login_password<St>(
     auth: AxumUserp<St>,
     Form(PasswordIdNextForm {
         password_id: email,

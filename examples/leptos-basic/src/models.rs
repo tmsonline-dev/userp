@@ -1,11 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use userp::{
-    models::LoginMethod,
-    reexports::{
-        chrono::{DateTime, Utc},
-        uuid::Uuid,
-    },
-};
+use userp::{prelude::*, reexports::uuid::Uuid};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MyUser {
@@ -53,13 +48,8 @@ pub struct MyOAuthToken {
 #[cfg(feature = "ssr")]
 pub mod ssr {
     use super::*;
-    use userp::{
-        prelude::*,
-        reexports::{
-            chrono::{DateTime, Utc},
-            uuid::Uuid,
-        },
-    };
+    use chrono::{DateTime, Utc};
+    use userp::reexports::uuid::Uuid;
 
     impl User for MyUser {
         fn get_password_hash(&self) -> Option<String> {

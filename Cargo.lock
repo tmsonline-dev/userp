@@ -2297,24 +2297,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
-name = "userp-axum"
+name = "userp"
 version = "0.0.4"
 dependencies = [
- "anyhow",
- "async-trait",
+ "userp-axum-router",
+ "userp-client",
+ "userp-pages",
+ "userp-server",
+]
+
+[[package]]
+name = "userp-axum-router"
+version = "0.0.4"
+dependencies = [
  "axum",
- "axum-extra",
- "base64 0.22.1",
- "chrono",
- "lettre",
- "oauth2",
- "password-auth",
- "reqwest 0.12.9",
  "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "url",
  "urlencoding",
  "userp-client",
  "userp-pages",
@@ -2326,10 +2323,7 @@ dependencies = [
 name = "userp-client"
 version = "0.0.4"
 dependencies = [
- "chrono",
  "serde",
- "serde_json",
- "thiserror",
  "uuid",
 ]
 
@@ -2350,6 +2344,8 @@ version = "0.0.4"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
+ "axum-extra",
  "base64 0.22.1",
  "chrono",
  "lettre",
@@ -2361,7 +2357,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
- "urlencoding",
  "userp-client",
  "uuid",
 ]

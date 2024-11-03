@@ -1,5 +1,5 @@
 use super::cookies::AxumUserpCookies;
-use crate::Userp;
+use crate::{config::UserpConfig, core::CoreUserp, store::UserpStore};
 use axum::async_trait;
 use axum::{
     extract::{FromRef, FromRequestParts},
@@ -8,9 +8,8 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Key, PrivateCookieJar};
 use std::convert::Infallible;
-use userp_server::{config::UserpConfig, store::UserpStore};
 
-impl<S: UserpStore> IntoResponseParts for Userp<S> {
+impl<S: UserpStore> IntoResponseParts for CoreUserp<S, AxumUserpCookies> {
     type Error = Infallible;
 
     fn into_response_parts(
@@ -22,7 +21,7 @@ impl<S: UserpStore> IntoResponseParts for Userp<S> {
 }
 
 #[async_trait]
-impl<S, St> FromRequestParts<S> for Userp<St>
+impl<S, St> FromRequestParts<S> for CoreUserp<St, AxumUserpCookies>
 where
     St: UserpStore,
     UserpConfig: FromRef<S>,
@@ -39,17 +38,17 @@ where
         };
         let store = St::from_ref(state);
 
-        return Ok(Userp {
+        return Ok(CoreUserp {
             allow_signup: config.allow_signup,
             allow_login: config.allow_login,
             routes: config.routes,
             cookies,
             store,
-            #[cfg(feature = "server-email")]
+            #[cfg(feature = "email")]
             email: config.email,
-            #[cfg(feature = "server-password")]
+            #[cfg(feature = "password")]
             pass: config.pass,
-            #[cfg(feature = "server-oauth-callbacks")]
+            #[cfg(feature = "oauth-callbacks")]
             oauth: config.oauth,
         });
     }

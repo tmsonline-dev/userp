@@ -1,7 +1,7 @@
+use crate::models::UserpCookies;
 use axum::response::IntoResponseParts;
 use axum_extra::extract::cookie::{Cookie, Expiration, PrivateCookieJar, SameSite};
 use std::convert::Infallible;
-use userp_server::models::UserpCookies;
 
 #[derive(Debug, Clone)]
 pub struct AxumUserpCookies {

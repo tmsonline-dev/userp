@@ -11,6 +11,10 @@ homepage = "https://github.com/StefanTerdell/userp"
 [dependencies]
 anyhow = { version = "1.0.89", optional = true }
 async-trait = { version = "0.1.83" }
+axum = { version = "0.7.7", features = ["macros"], optional = true }
+axum-extra = { version = "0.9.4", features = [
+  "cookie-private",
+], optional = true }
 base64 = { version = "0.22.1", optional = true }
 chrono = { version = "0.4.38", optional = true, features = ["serde"] }
 lettre = { version = "0.11.9", optional = true }
@@ -22,22 +26,29 @@ serde_json = { version = "1.0.128", optional = true }
 thiserror = "1.0.64"
 tokio = { version = "1.40.0", features = ["full"] }
 url = { version = "2.5.2", optional = true }
-urlencoding = { version = "2.1.3", optional = true }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
 userp-client = { path = "../userp-client/", default-features = false }
 
 [features]
-default = ["account", "email", "password", "oauth"]
+default = ["account", "email", "password", "oauth", "axum"]
 account = ["userp-client/account"]
-email = ["userp-client/email", "dep:reqwest", "dep:lettre", "dep:url", "dep:chrono"]
+email = [
+  "userp-client/email",
+  "dep:reqwest",
+  "dep:lettre",
+  "dep:url",
+  "dep:chrono",
+]
 password = ["userp-client/password", "dep:password-auth"]
 oauth-callbacks = [
   "userp-client/oauth-callbacks",
   "dep:oauth2",
   "dep:url",
   "dep:anyhow",
+  "dep:chrono",
   "dep:reqwest",
   "dep:base64",
-  "dep:serde_json"
+  "dep:serde_json",
 ]
 oauth = ["oauth-callbacks", "userp-client/oauth"]
+axum = ["dep:axum", "dep:axum-extra"]

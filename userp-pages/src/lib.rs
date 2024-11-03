@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "default"), allow(unused))]
+
 use askama::Template;
 #[cfg(feature = "axum")]
 use askama_axum::IntoResponse;

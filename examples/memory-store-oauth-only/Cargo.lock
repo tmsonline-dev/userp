@@ -2075,9 +2075,49 @@ checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 name = "userp"
 version = "0.0.4"
 dependencies = [
- "anyhow",
+ "userp-axum-router",
+ "userp-client",
+ "userp-pages",
+ "userp-server",
+]
+
+[[package]]
+name = "userp-axum-router"
+version = "0.0.4"
+dependencies = [
+ "axum",
+ "serde",
+ "urlencoding",
+ "userp-client",
+ "userp-pages",
+ "userp-server",
+ "uuid",
+]
+
+[[package]]
+name = "userp-client"
+version = "0.0.4"
+dependencies = [
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "userp-pages"
+version = "0.0.4"
+dependencies = [
  "askama",
  "askama_axum",
+ "userp-client",
+ "userp-server",
+ "uuid",
+]
+
+[[package]]
+name = "userp-server"
+version = "0.0.4"
+dependencies = [
+ "anyhow",
  "async-trait",
  "axum",
  "axum-extra",
@@ -2090,7 +2130,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
- "urlencoding",
+ "userp-client",
  "uuid",
 ]
 

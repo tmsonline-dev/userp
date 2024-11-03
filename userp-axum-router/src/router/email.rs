@@ -1,4 +1,14 @@
-use crate::server::{
+use axum::extract::Query;
+use axum::http::StatusCode;
+use axum::routing::get;
+use axum::{
+    extract::FromRef,
+    response::{IntoResponse, Redirect},
+    routing::post,
+    Form, Router,
+};
+use serde::{Deserialize, Serialize};
+use userp_server::{
     axum::AxumUserp,
     config::UserpConfig,
     email::{
@@ -9,16 +19,6 @@ use crate::server::{
     },
     store::UserpStore,
 };
-use axum::extract::Query;
-use axum::routing::get;
-use axum::{
-    extract::FromRef,
-    response::{IntoResponse, Redirect},
-    routing::post,
-    Form, Router,
-};
-use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EmailNextForm {
@@ -36,50 +36,7 @@ pub struct NewPasswordForm {
     pub new_password: String,
 }
 
-impl UserpConfig {
-    pub(crate) fn with_email_routes<St, S>(&self, mut router: Router<S>) -> Router<S>
-    where
-        UserpConfig: FromRef<S>,
-        S: Send + Sync + Clone + 'static,
-        St: UserpStore + FromRef<S> + Send + Sync + 'static,
-        St::Error: IntoResponse,
-    {
-        router = router
-            .route(
-                self.routes.email.login_email.as_str(),
-                post(post_login_email::<St>).get(get_login_email::<St>),
-            )
-            .route(
-                self.routes.email.signup_email.as_str(),
-                post(post_signup_email::<St>).get(get_signup_email::<St>),
-            )
-            .route(
-                self.routes.email.user_email_verify.as_str(),
-                post(post_user_email_verify::<St>).get(get_user_email_verify::<St>),
-            );
-
-        #[cfg(feature = "axum-router-password")]
-        {
-            router = router
-                .route(
-                    self.routes.email.password_reset.as_str(),
-                    post(post_password_reset::<St>),
-                )
-                .route(
-                    self.routes.email.password_reset_callback.as_str(),
-                    get(get_password_reset_callback::<St>),
-                )
-                .route(
-                    self.routes.email.password_send_reset.as_str(),
-                    post(post_password_send_reset::<St>),
-                );
-        }
-
-        router
-    }
-}
-
-async fn post_login_email<St>(
+pub(crate) async fn post_login_email<St>(
     auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -111,7 +68,7 @@ where
     }
 }
 
-async fn get_login_email<St>(
+pub(crate) async fn get_login_email<St>(
     auth: AxumUserp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -140,7 +97,7 @@ where
     }
 }
 
-async fn post_signup_email<St>(
+pub(crate) async fn post_signup_email<St>(
     auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -172,7 +129,7 @@ where
     }
 }
 
-async fn get_signup_email<St>(
+pub(crate) async fn get_signup_email<St>(
     auth: AxumUserp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -200,7 +157,7 @@ where
     }
 }
 
-async fn get_user_email_verify<St>(
+pub(crate) async fn get_user_email_verify<St>(
     auth: AxumUserp<St>,
     Query(CodeQuery { code }): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -210,9 +167,9 @@ where
 {
     let login_route = auth.routes.pages.login.clone();
 
-    #[cfg(feature = "server-account")]
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
-    #[cfg(not(feature = "server-account"))]
+    #[cfg(not(feature = "account"))]
     let user_route = auth.routes.pages.post_login.clone();
 
     match auth.email_verify_callback(code).await {
@@ -249,7 +206,7 @@ where
     }
 }
 
-async fn post_user_email_verify<St>(
+pub(crate) async fn post_user_email_verify<St>(
     auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -261,9 +218,9 @@ where
         return Ok(StatusCode::UNAUTHORIZED.into_response());
     };
 
-    #[cfg(feature = "server-account")]
+    #[cfg(feature = "account")]
     let user_route = auth.routes.pages.user.clone();
-    #[cfg(not(feature = "server-account"))]
+    #[cfg(not(feature = "account"))]
     let user_route = auth.routes.pages.post_login.clone();
 
     match auth.email_verify_init(email.clone(), next).await {
@@ -288,8 +245,8 @@ where
     }
 }
 
-#[cfg(feature = "axum-router-password")]
-async fn post_password_send_reset<St>(
+#[cfg(feature = "password")]
+pub(crate) async fn post_password_send_reset<St>(
     auth: AxumUserp<St>,
     Form(EmailNextForm { email, next }): Form<EmailNextForm>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -314,7 +271,7 @@ where
     }
 }
 
-#[cfg(feature = "axum-router-password")]
+#[cfg(feature = "password")]
 pub async fn post_password_reset<St>(
     auth: AxumUserp<St>,
     Form(NewPasswordForm { new_password }): Form<NewPasswordForm>,
@@ -323,7 +280,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    use crate::models::{LoginSession, User};
+    use userp_server::models::{LoginSession, User};
 
     if let Some((user, session)) = auth.reset_user_session().await? {
         let new_password_hash = auth.pass.hasher.genereate_hash(new_password).await;
@@ -339,8 +296,8 @@ where
     }
 }
 
-#[cfg(feature = "axum-router-password")]
-async fn get_password_reset_callback<St>(
+#[cfg(feature = "password")]
+pub(crate) async fn get_password_reset_callback<St>(
     auth: AxumUserp<St>,
     Query(query): Query<CodeQuery>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -348,7 +305,7 @@ where
     St: UserpStore,
     St::Error: IntoResponse,
 {
-    use crate::server::email::reset::{EmailResetCallbackError, EmailResetError};
+    use userp_server::email::reset::{EmailResetCallbackError, EmailResetError};
 
     let login_route = auth.routes.pages.login.clone();
 

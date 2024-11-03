@@ -1,3 +1,6 @@
+#[cfg(feature = "axum")]
+pub use crate::axum::{cookies::*, AxumUserp};
+
 #[cfg(all(feature = "email", feature = "password"))]
 pub use crate::email::reset::*;
 #[cfg(all(feature = "email", feature = "password"))]

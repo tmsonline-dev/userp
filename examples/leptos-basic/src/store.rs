@@ -4,15 +4,10 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use chrono::{DateTime, Utc};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
-use userp::{
-    prelude::*,
-    reexports::{
-        chrono::{DateTime, Utc},
-        uuid::Uuid,
-    },
-};
+use userp::{prelude::*, reexports::uuid::Uuid};
 
 pub type Userp = userp::prelude::Userp<MemoryStore>;
 

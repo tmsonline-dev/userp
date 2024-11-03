@@ -5,7 +5,7 @@ use crate::{
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
-use userp::routes::Routes;
+use userp::prelude::*;
 
 #[component]
 pub fn App() -> impl IntoView {

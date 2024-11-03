@@ -19,16 +19,16 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct CoreUserp<S: UserpStore, C: UserpCookies> {
     pub routes: Routes<String>,
-    pub(crate) allow_signup: Allow,
-    pub(crate) allow_login: Allow,
-    pub(crate) cookies: C,
-    pub(crate) store: S,
+    pub allow_signup: Allow,
+    pub allow_login: Allow,
+    pub cookies: C,
+    pub store: S,
     #[cfg(feature = "password")]
-    pub(crate) pass: PasswordConfig,
+    pub pass: PasswordConfig,
     #[cfg(feature = "email")]
-    pub(crate) email: EmailConfig,
+    pub email: EmailConfig,
     #[cfg(feature = "oauth-callbacks")]
-    pub(crate) oauth: OAuthConfig,
+    pub oauth: OAuthConfig,
 }
 
 impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {

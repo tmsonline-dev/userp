@@ -6,6 +6,8 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[workspace]
+
 [dependencies]
 axum = { version = "0.7", optional = true }
 console_error_panic_hook = "0.1"
@@ -20,16 +22,16 @@ wasm-bindgen = "=0.2.93"
 thiserror = "1"
 tracing = { version = "0.1", optional = true }
 http = "1"
-userp = { version = "0.0.4", path = "../..", default-features = false, features = [
-  "client-full",
-] }
+userp = { version = "0.0.4", path = "../../userp" }
 serde = { version = "1.0.214", features = ["derive"] }
 dotenvy = { version = "0.15.7", optional = true }
+chrono = { version = "0.4.38", features = ["serde"] }
 
 [features]
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
 ssr = [
-  "userp/axum-full",
+  "userp/axum-router",
+  "userp/pages",
   "dep:dotenvy",
   "dep:axum",
   "dep:tokio",

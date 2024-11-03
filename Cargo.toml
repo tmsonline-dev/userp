@@ -1,3 +1,16 @@
 [workspace]
 resolver = "2"
-members = ["userp-client", "userp-server", "userp-pages", "userp-axum"]
+members = [
+  "userp",
+  "userp-client",
+  "userp-server",
+  "userp-pages",
+  "userp-axum-router",
+]
+exclude = [
+  "examples/leptos-basic",
+  "examples/memory-store",
+  "examples/memory-store-oauth-only",
+  "examples/memory-store-password-only-no-templates",
+  "examples/psql-store",
+]

@@ -1,10 +1,14 @@
-use crate::models::{LoginSession, User};
-use crate::server::{axum::AxumUserp, config::UserpConfig, store::UserpStore};
 use axum::response::IntoResponse;
 use axum::{extract::FromRef, routing::post, Router};
 use axum::{http::StatusCode, response::Redirect, Form};
 use serde::Deserialize;
 use urlencoding::encode;
+use userp_server::{
+    axum::AxumUserp,
+    config::UserpConfig,
+    models::{LoginSession, User},
+    store::UserpStore,
+};
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -20,72 +24,6 @@ pub struct NewPasswordAccountForm {
 #[derive(Deserialize)]
 pub struct EmailAccountForm {
     pub email: String,
-}
-
-impl UserpConfig {
-    pub(crate) fn with_account_routes<St, S>(&self, mut router: Router<S>) -> Router<S>
-    where
-        UserpConfig: FromRef<S>,
-        S: Send + Sync + Clone + 'static,
-        St: UserpStore + FromRef<S> + Send + Sync + 'static,
-        St::Error: IntoResponse,
-    {
-        {
-            router = router
-                .route(
-                    self.routes.account.user_delete.as_str(),
-                    post(post_user_delete::<St>),
-                )
-                .route(
-                    self.routes.account.user_session_delete.as_str(),
-                    post(post_user_session_delete::<St>),
-                );
-
-            #[cfg(feature = "server-password")]
-            {
-                router = router
-                    .route(
-                        self.routes.account.user_password_set.as_str(),
-                        post(post_user_password_set::<St>),
-                    )
-                    .route(
-                        self.routes.account.user_password_delete.as_str(),
-                        post(post_user_password_delete::<St>),
-                    );
-            }
-
-            #[cfg(feature = "server-oauth-callbacks")]
-            {
-                router = router.route(
-                    self.routes.account.user_oauth_delete.as_str(),
-                    post(post_user_oauth_delete::<St>),
-                );
-            }
-
-            #[cfg(feature = "server-email")]
-            {
-                router = router
-                    .route(
-                        self.routes.account.user_email_add.as_str(),
-                        post(post_user_email_add::<St>),
-                    )
-                    .route(
-                        self.routes.account.user_email_delete.as_str(),
-                        post(post_user_email_delete::<St>),
-                    )
-                    .route(
-                        self.routes.account.user_email_enable_login.as_str(),
-                        post(post_user_email_enable_login::<St>),
-                    )
-                    .route(
-                        self.routes.account.user_email_disable_login.as_str(),
-                        post(post_user_email_disable_login::<St>),
-                    );
-            }
-
-            router
-        }
-    }
 }
 
 pub async fn post_user_delete<St>(auth: AxumUserp<St>) -> Result<impl IntoResponse, St::Error>
@@ -104,7 +42,7 @@ where
     })
 }
 
-#[cfg(feature = "server-password")]
+#[cfg(feature = "password")]
 pub async fn post_user_password_set<St>(
     auth: AxumUserp<St>,
     Form(NewPasswordAccountForm { new_password }): Form<NewPasswordAccountForm>,
@@ -115,7 +53,7 @@ where
 {
     let mut user_session = auth.user_session().await?;
 
-    #[cfg(all(feature = "server-password", feature = "server-email"))]
+    #[cfg(all(feature = "password", feature = "email"))]
     if user_session.is_none() {
         user_session = auth.reset_user_session().await?;
     }
@@ -135,7 +73,7 @@ where
     Ok(Redirect::to(&format!("{user_route}?message=The password has been set!")).into_response())
 }
 
-#[cfg(feature = "server-password")]
+#[cfg(feature = "password")]
 pub async fn post_user_password_delete<St>(
     auth: AxumUserp<St>,
 ) -> Result<impl IntoResponse, St::Error>
@@ -160,7 +98,7 @@ where
         .into_response())
 }
 
-#[cfg(feature = "server-oauth-callbacks")]
+#[cfg(feature = "oauth-callbacks")]
 pub async fn post_user_oauth_delete<St>(
     auth: AxumUserp<St>,
     Form(IdAccountForm { id }): Form<IdAccountForm>,
@@ -180,7 +118,7 @@ where
     Ok(Redirect::to(&format!("{user_route}?message=Token deleted")).into_response())
 }
 
-#[cfg(feature = "server-email")]
+#[cfg(feature = "email")]
 pub async fn post_user_email_add<St>(
     auth: AxumUserp<St>,
     Form(EmailAccountForm { email }): Form<EmailAccountForm>,
@@ -200,7 +138,7 @@ where
     Ok(Redirect::to(&format!("{user_route}?message=Email added")).into_response())
 }
 
-#[cfg(feature = "server-email")]
+#[cfg(feature = "email")]
 pub async fn post_user_email_delete<St>(
     auth: AxumUserp<St>,
     Form(EmailAccountForm { email }): Form<EmailAccountForm>,
@@ -220,7 +158,7 @@ where
     Ok(Redirect::to(&format!("{user_route}?message=Email deleted")).into_response())
 }
 
-#[cfg(feature = "server-email")]
+#[cfg(feature = "email")]
 pub async fn post_user_email_enable_login<St>(
     auth: AxumUserp<St>,
     Form(EmailAccountForm { email }): Form<EmailAccountForm>,
@@ -246,7 +184,7 @@ where
     .into_response())
 }
 
-#[cfg(feature = "server-email")]
+#[cfg(feature = "email")]
 pub async fn post_user_email_disable_login<St>(
     auth: AxumUserp<St>,
     Form(EmailAccountForm { email }): Form<EmailAccountForm>,
@@ -286,9 +224,9 @@ where
 
     auth.store.delete_session(user.get_id(), id).await?;
 
-    #[cfg(feature = "axum-router-pages")]
+    #[cfg(feature = "pages")]
     let user_route = auth.routes.pages.user;
-    #[cfg(not(feature = "axum-router-pages"))]
+    #[cfg(not(feature = "pages"))]
     let user_route = auth.routes.pages.post_login;
 
     Ok(Redirect::to(&format!("{user_route}?message=Session deleted")).into_response())

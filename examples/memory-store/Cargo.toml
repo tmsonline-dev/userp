@@ -3,8 +3,10 @@ name = "memory-store-example"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+
 [dependencies]
-userp = { path = "../../" }
+userp = { path = "../../userp", features = ["axum-router", "pages"] }
 axum = "0.7.7"
 axum-macros = "0.4.2"
 tokio = { version = "1.40.0", features = ["full"] }

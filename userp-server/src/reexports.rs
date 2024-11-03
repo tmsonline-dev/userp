@@ -3,6 +3,8 @@ pub use anyhow;
 pub use async_trait;
 #[cfg(feature = "oauth-callbacks")]
 pub use base64;
+#[cfg(any(feature = "email", feature = "oauth-callbacks"))]
+pub use chrono;
 #[cfg(feature = "email")]
 pub use lettre;
 #[cfg(feature = "oauth-callbacks")]
@@ -11,6 +13,7 @@ pub use oauth2;
 pub use password_auth;
 #[cfg(any(feature = "email", feature = "oauth-callbacks"))]
 pub use reqwest;
+pub use thiserror;
 pub use tokio;
 #[cfg(any(feature = "email", feature = "oauth-callbacks"))]
 pub use url;

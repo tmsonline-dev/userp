@@ -9,16 +9,13 @@ repository = "https://github.com/StefanTerdell/userp"
 homepage = "https://github.com/StefanTerdell/userp"
 
 [dependencies]
-chrono = { version = "0.4.38", optional = true, features = ["serde"] }
 serde = { version = "1.0.210", features = ["derive"] }
-serde_json = { version = "1.0.128", optional = true }
-thiserror = "1.0.64"
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
 
 [features]
 default = ["account", "email", "password", "oauth"]
 account = []
-email = ["dep:chrono"]
+email = []
 password = []
-oauth-callbacks = ["dep:chrono", "dep:serde_json"]
+oauth-callbacks = []
 oauth = ["oauth-callbacks"]
