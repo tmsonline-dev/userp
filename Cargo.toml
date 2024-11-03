@@ -42,22 +42,18 @@ axum-full = [
   "axum-router-email",
   "axum-router-account",
 ]
+axum-router = ["axum", "dep:urlencoding"]
 axum-router-pages = [
   "server-pages",
   "askama/with-axum",
   "dep:askama_axum",
-  "axum",
-  "dep:urlencoding",
+  "axum-router",
 ]
 axum-router-oauth = ["server-oauth", "axum-router-oauth-callbacks"]
-axum-router-oauth-callbacks = [
-  "server-oauth-callbacks",
-  "axum",
-  "dep:urlencoding",
-]
-axum-router-password = ["server-password", "axum", "dep:urlencoding"]
-axum-router-email = ["server-email", "axum", "dep:urlencoding"]
-axum-router-account = ["server-account", "axum", "dep:urlencoding"]
+axum-router-oauth-callbacks = ["server-oauth-callbacks", "axum-router"]
+axum-router-password = ["server-password", "axum-router"]
+axum-router-email = ["server-email", "axum-router"]
+axum-router-account = ["server-account", "axum-router"]
 
 client-full = [
   "client-account",

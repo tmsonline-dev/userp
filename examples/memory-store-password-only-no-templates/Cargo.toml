@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 userp = { path = "../../", default-features = false, features = [
   "server-password",
-  "axum-extract",
+  "axum",
 ] }
 axum = "0.7.7"
 axum-macros = "0.4.2"
