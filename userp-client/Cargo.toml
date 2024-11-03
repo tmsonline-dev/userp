@@ -1,0 +1,24 @@
+[package]
+name = "userp-client"
+version = "0.0.4"
+edition = "2021"
+exclude = [".github/*"]
+description = "Userp is a user account system inspired by Next Auth, with OAuth, password and email support, a ready-made Axum router with Askama templates, and more on the way!"
+license = "ISC"
+repository = "https://github.com/StefanTerdell/userp"
+homepage = "https://github.com/StefanTerdell/userp"
+
+[dependencies]
+chrono = { version = "0.4.38", optional = true, features = ["serde"] }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = { version = "1.0.128", optional = true }
+thiserror = "1.0.64"
+uuid = { version = "1.10.0", features = ["serde", "v4"] }
+
+[features]
+default = ["account", "email", "password", "oauth"]
+account = []
+email = ["dep:chrono"]
+password = []
+oauth-callbacks = ["dep:chrono", "dep:serde_json"]
+oauth = ["oauth-callbacks"]

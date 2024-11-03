@@ -1,8 +1,0 @@
-[editor]
-workspace-lsp-roots = [
-  "./examples/memory-store-oauth-only",
-  "./examples/memory-store",
-  "./examples/memory-store-password-only-no-templates",
-  "./examples/psql-store",
-  "./examples/leptos-basic",
-]
