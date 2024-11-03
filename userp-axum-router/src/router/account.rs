@@ -1,11 +1,9 @@
 use axum::response::IntoResponse;
-use axum::{extract::FromRef, routing::post, Router};
 use axum::{http::StatusCode, response::Redirect, Form};
 use serde::Deserialize;
 use urlencoding::encode;
 use userp_server::{
     axum::AxumUserp,
-    config::UserpConfig,
     models::{LoginSession, User},
     store::UserpStore,
 };

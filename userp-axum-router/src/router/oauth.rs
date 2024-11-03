@@ -1,14 +1,12 @@
 use axum::{
-    extract::{FromRef, Path, Query},
+    extract::{Path, Query},
     http::StatusCode,
     response::{IntoResponse, Redirect},
-    routing::{get, post},
-    Form, Router,
+    Form,
 };
 use serde::{Deserialize, Serialize};
 use userp_server::{
     axum::AxumUserp,
-    config::UserpConfig,
     oauth::{
         link::{OAuthLinkCallbackError, OAuthLinkInitError},
         login::OAuthLoginCallbackError,

@@ -1,16 +1,12 @@
 use axum::extract::Query;
 use axum::http::StatusCode;
-use axum::routing::get;
 use axum::{
-    extract::FromRef,
     response::{IntoResponse, Redirect},
-    routing::post,
-    Form, Router,
+    Form,
 };
 use serde::{Deserialize, Serialize};
 use userp_server::{
     axum::AxumUserp,
-    config::UserpConfig,
     email::{
         login::{EmailLoginCallbackError, EmailLoginError, EmailLoginInitError},
         signup::{EmailSignupCallbackError, EmailSignupInitError},

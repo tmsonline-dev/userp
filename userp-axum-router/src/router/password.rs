@@ -1,13 +1,10 @@
 use axum::{
-    extract::FromRef,
     response::{IntoResponse, Redirect},
-    routing::post,
-    Form, Router,
+    Form,
 };
 use serde::{Deserialize, Serialize};
 use userp_server::{
     axum::AxumUserp,
-    config::UserpConfig,
     password::{login::PasswordLoginError, signup::PasswordSignupError},
     store::UserpStore,
 };

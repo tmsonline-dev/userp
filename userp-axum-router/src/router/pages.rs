@@ -1,13 +1,10 @@
 use axum::extract::Query;
-use axum::routing::get;
 use axum::{
-    extract::FromRef,
     response::{IntoResponse, Redirect},
-    Router,
 };
 use serde::Deserialize;
 use userp_pages::{LoginTemplate, SignupTemplate};
-use userp_server::{axum::AxumUserp, config::UserpConfig, store::UserpStore};
+use userp_server::{axum::AxumUserp, store::UserpStore};
 
 #[derive(Deserialize)]
 pub struct NextMessageErrorQuery {
