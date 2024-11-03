@@ -1,7 +1,7 @@
 pub use async_trait;
 pub use base64;
-#[cfg(feature = "server-oauth")]
+#[cfg(feature = "server-oauth-callbacks")]
 pub use oauth2;
 pub use tokio;
-#[cfg(any(feature = "server-email", feature = "server-oauth"))]
+#[cfg(any(feature = "server-email", feature = "server-oauth-callbacks"))]
 pub use url;

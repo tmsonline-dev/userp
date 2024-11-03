@@ -1,9 +1,9 @@
 #[cfg(feature = "server-email")]
 use crate::models::email::UserEmail;
-#[cfg(feature = "server-oauth")]
+#[cfg(feature = "server-oauth-callbacks")]
 use crate::models::oauth::OAuthToken;
 use crate::models::{LoginSession, User, UserpCookies};
-#[cfg(feature = "server-oauth-action-routes")]
+#[cfg(feature = "server-oauth")]
 use crate::server::oauth::provider::OAuthProvider;
 use crate::{
     models::LoginMethod,
@@ -54,7 +54,7 @@ pub struct TemplateOAuthToken<'a> {
     pub provider_name: &'a str,
 }
 
-#[cfg(feature = "server-oauth-action-routes")]
+#[cfg(feature = "server-oauth")]
 impl<'a, T: OAuthToken> From<&'a T> for TemplateOAuthToken<'a> {
     fn from(value: &'a T) -> Self {
         Self {
@@ -69,7 +69,7 @@ pub struct TemplateOAuthProvider<'a> {
     pub display_name: &'a str,
 }
 
-#[cfg(feature = "server-oauth-action-routes")]
+#[cfg(feature = "server-oauth")]
 impl<'a> From<&'a Arc<dyn OAuthProvider>> for TemplateOAuthProvider<'a> {
     fn from(value: &'a Arc<dyn OAuthProvider>) -> Self {
         Self {
@@ -153,7 +153,7 @@ impl UserTemplate<'_> {
         message: Option<&'a str>,
         error: Option<&'a str>,
         #[cfg(feature = "server-email")] emails: &'a [S::UserEmail],
-        #[cfg(feature = "server-oauth-action-routes")] oauth_tokens: &'a [S::OAuthToken],
+        #[cfg(feature = "server-oauth")] oauth_tokens: &'a [S::OAuthToken],
     ) -> UserTemplate<'a> {
         UserTemplate {
             message,
@@ -184,7 +184,7 @@ impl UserTemplate<'_> {
             }),
             #[cfg(not(feature = "server-email"))]
             email: None,
-            #[cfg(feature = "server-oauth-action-routes")]
+            #[cfg(feature = "server-oauth")]
             oauth: {
                 Some(UserTemplateOAuthInfo {
                     tokens: oauth_tokens.iter().map(|t| t.into()).collect(),
@@ -208,7 +208,7 @@ impl UserTemplate<'_> {
                     user_page_route: &auth.routes.pages.user,
                 })
             },
-            #[cfg(not(feature = "server-oauth-action-routes"))]
+            #[cfg(not(feature = "server-oauth"))]
             oauth: None,
         }
     }
@@ -223,7 +223,7 @@ impl UserTemplate<'_> {
         message: Option<&str>,
         error: Option<&str>,
         #[cfg(feature = "server-email")] emails: &[S::UserEmail],
-        #[cfg(feature = "server-oauth-action-routes")] oauth_tokens: &[S::OAuthToken],
+        #[cfg(feature = "server-oauth")] oauth_tokens: &[S::OAuthToken],
     ) -> Result<String, askama::Error> {
         Self::with(
             auth,
@@ -234,7 +234,7 @@ impl UserTemplate<'_> {
             error,
             #[cfg(feature = "server-email")]
             emails,
-            #[cfg(feature = "server-oauth-action-routes")]
+            #[cfg(feature = "server-oauth")]
             oauth_tokens,
         )
         .render()
@@ -250,7 +250,7 @@ impl UserTemplate<'_> {
         message: Option<&str>,
         error: Option<&str>,
         #[cfg(feature = "server-email")] emails: &[S::UserEmail],
-        #[cfg(feature = "server-oauth-action-routes")] oauth_tokens: &[S::OAuthToken],
+        #[cfg(feature = "server-oauth")] oauth_tokens: &[S::OAuthToken],
     ) -> impl IntoResponse {
         Self::with(
             auth,
@@ -261,7 +261,7 @@ impl UserTemplate<'_> {
             error,
             #[cfg(feature = "server-email")]
             emails,
-            #[cfg(feature = "server-oauth-action-routes")]
+            #[cfg(feature = "server-oauth")]
             oauth_tokens,
         )
         .into_response()
@@ -301,7 +301,7 @@ impl LoginTemplate<'_> {
         message: Option<&'a str>,
         error: Option<&'a str>,
     ) -> LoginTemplate<'a> {
-        #[cfg(feature = "server-oauth-action-routes")]
+        #[cfg(feature = "server-oauth")]
         let oauth_login_providers = auth.oauth_login_providers();
 
         LoginTemplate {
@@ -324,7 +324,7 @@ impl LoginTemplate<'_> {
             }),
             #[cfg(not(feature = "server-email"))]
             email: None,
-            #[cfg(feature = "server-oauth-action-routes")]
+            #[cfg(feature = "server-oauth")]
             oauth: ({
                 if oauth_login_providers.is_empty() {
                     None
@@ -338,7 +338,7 @@ impl LoginTemplate<'_> {
                     })
                 }
             }),
-            #[cfg(not(feature = "server-oauth-action-routes"))]
+            #[cfg(not(feature = "server-oauth"))]
             oauth: None,
             signup_route: &auth.routes.pages.signup,
         }
@@ -383,7 +383,7 @@ impl SignupTemplate<'_> {
         message: Option<&'a str>,
         error: Option<&'a str>,
     ) -> SignupTemplate<'a> {
-        #[cfg(feature = "server-oauth-action-routes")]
+        #[cfg(feature = "server-oauth")]
         let oauth_signup_providers = auth.oauth_signup_providers();
 
         SignupTemplate {
@@ -406,7 +406,7 @@ impl SignupTemplate<'_> {
             }),
             #[cfg(not(feature = "server-email"))]
             email: None,
-            #[cfg(feature = "server-oauth-action-routes")]
+            #[cfg(feature = "server-oauth")]
             oauth: ({
                 if oauth_signup_providers.is_empty() {
                     None
@@ -420,7 +420,7 @@ impl SignupTemplate<'_> {
                     })
                 }
             }),
-            #[cfg(not(feature = "server-oauth-action-routes"))]
+            #[cfg(not(feature = "server-oauth"))]
             oauth: None,
             login_route: &auth.routes.pages.login,
         }

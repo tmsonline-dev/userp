@@ -1,7 +1,7 @@
 use crate::routes::Routes;
 #[cfg(feature = "server-email")]
 use crate::server::email::EmailConfig;
-#[cfg(feature = "server-oauth")]
+#[cfg(feature = "server-oauth-callbacks")]
 use crate::server::oauth::OAuthConfig;
 #[cfg(feature = "server-password")]
 use crate::server::password::PasswordConfig;
@@ -22,7 +22,7 @@ pub struct CoreUserp<S: UserpStore, C: UserpCookies> {
     pub(crate) pass: PasswordConfig,
     #[cfg(feature = "server-email")]
     pub(crate) email: EmailConfig,
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     pub(crate) oauth: OAuthConfig,
 }
 
@@ -34,14 +34,14 @@ impl<S: UserpStore, C: UserpCookies> CoreUserp<S, C> {
     ) -> Result<Self, S::Error> {
         let session = self.store.create_session(user_id, method).await?;
 
-        #[cfg(feature = "axum-extract")]
+        #[cfg(feature = "axum")]
         self.cookies
             .add(SESSION_ID_KEY, &session.get_id().to_string());
 
         Ok(self)
     }
 
-    #[cfg(feature = "axum-extract")]
+    #[cfg(feature = "axum")]
     pub fn get_encoded_cookies(&self) -> Vec<String> {
         self.cookies.list_encoded()
     }

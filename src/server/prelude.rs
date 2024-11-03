@@ -8,7 +8,7 @@ pub use crate::server::axum::router::oauth::*;
 pub use crate::server::axum::router::pages::*;
 #[cfg(feature = "axum-router-password")]
 pub use crate::server::axum::router::password::*;
-#[cfg(feature = "axum-extract")]
+#[cfg(feature = "axum")]
 pub use crate::server::axum::{cookies::*, AxumUserp};
 
 #[cfg(all(feature = "server-email", feature = "server-password"))]
@@ -27,7 +27,7 @@ pub use crate::server::pages::*;
 #[cfg(feature = "server-password")]
 pub use crate::server::password::{hasher::*, login::*, signup::*, PasswordConfig};
 
-#[cfg(feature = "server-oauth")]
+#[cfg(feature = "server-oauth-callbacks")]
 pub use crate::server::oauth::{
     client::*,
     link::*,

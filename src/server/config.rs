@@ -1,6 +1,6 @@
 #[cfg(feature = "server-email")]
 use crate::server::email::EmailConfig;
-#[cfg(feature = "server-oauth")]
+#[cfg(feature = "server-oauth-callbacks")]
 use crate::server::oauth::OAuthConfig;
 #[cfg(feature = "server-password")]
 use crate::server::password::PasswordConfig;
@@ -17,7 +17,7 @@ pub struct UserpConfig {
     pub pass: PasswordConfig,
     #[cfg(feature = "server-email")]
     pub email: EmailConfig,
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     pub oauth: OAuthConfig,
 }
 
@@ -27,7 +27,7 @@ impl UserpConfig {
         routes: impl Into<Routes<String>>,
         #[cfg(feature = "server-password")] pass: PasswordConfig,
         #[cfg(feature = "server-email")] email: EmailConfig,
-        #[cfg(feature = "server-oauth")] oauth: OAuthConfig,
+        #[cfg(feature = "server-oauth-callbacks")] oauth: OAuthConfig,
     ) -> Self {
         Self {
             key,
@@ -39,7 +39,7 @@ impl UserpConfig {
             pass,
             #[cfg(feature = "server-email")]
             email,
-            #[cfg(feature = "server-oauth")]
+            #[cfg(feature = "server-oauth-callbacks")]
             oauth,
         }
     }

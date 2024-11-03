@@ -1,6 +1,6 @@
 #[cfg(feature = "client-email")]
 pub mod email;
-#[cfg(feature = "client-oauth")]
+#[cfg(feature = "client-oauth-callbacks")]
 pub mod oauth;
 pub mod prelude;
 
@@ -42,7 +42,7 @@ pub enum LoginMethod {
     PasswordReset { address: String },
     #[cfg(feature = "client-email")]
     Email { address: String },
-    #[cfg(feature = "client-oauth")]
+    #[cfg(feature = "client-oauth-callbacks")]
     OAuth { token_id: Uuid },
 }
 

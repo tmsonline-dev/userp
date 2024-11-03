@@ -32,9 +32,10 @@ urlencoding = { version = "2.1.3", optional = true }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
 
 [features]
-default = ["axum-router-full"]
+default = ["axum-full"]
 
-axum-router-full = [
+axum = ["dep:axum", "dep:axum-extra", "server"]
+axum-full = [
   "axum-router-pages",
   "axum-router-oauth",
   "axum-router-password",
@@ -45,36 +46,32 @@ axum-router-pages = [
   "server-pages",
   "askama/with-axum",
   "dep:askama_axum",
-  "axum-extract",
+  "axum",
   "dep:urlencoding",
 ]
-axum-router-oauth = [
-  "server-oauth-action-routes",
-  "axum-router-oauth-callbacks",
-]
+axum-router-oauth = ["server-oauth", "axum-router-oauth-callbacks"]
 axum-router-oauth-callbacks = [
-  "server-oauth",
-  "axum-extract",
+  "server-oauth-callbacks",
+  "axum",
   "dep:urlencoding",
 ]
-axum-router-password = ["server-password", "axum-extract", "dep:urlencoding"]
-axum-router-email = ["server-email", "axum-extract", "dep:urlencoding"]
-axum-router-account = ["server-account", "axum-extract", "dep:urlencoding"]
-axum-extract = ["dep:axum", "dep:axum-extra", "server"]
+axum-router-password = ["server-password", "axum", "dep:urlencoding"]
+axum-router-email = ["server-email", "axum", "dep:urlencoding"]
+axum-router-account = ["server-account", "axum", "dep:urlencoding"]
 
 client-full = [
   "client-account",
   "client-email",
   "client-password",
   "client-pages",
-  "client-oauth-action-routes",
+  "client-oauth",
 ]
 client-account = []
 client-email = ["dep:chrono"]
 client-password = []
 client-pages = [] # Unused
-client-oauth = ["dep:chrono", "dep:serde_json"]
-client-oauth-action-routes = ["client-oauth"]
+client-oauth-callbacks = ["dep:chrono", "dep:serde_json"]
+client-oauth = ["client-oauth-callbacks"]
 
 server = ["dep:tokio", "dep:async-trait"]
 server-full = [
@@ -82,7 +79,7 @@ server-full = [
   "server-email",
   "server-password",
   "server-pages",
-  "server-oauth-action-routes",
+  "server-oauth",
 ]
 server-account = ["server", "client-account"]
 server-email = [
@@ -94,13 +91,13 @@ server-email = [
 ]
 server-password = ["server", "client-password", "dep:password-auth"]
 server-pages = ["server", "client-pages", "dep:askama"]
-server-oauth = [
+server-oauth-callbacks = [
   "server",
-  "client-oauth",
+  "client-oauth-callbacks",
   "dep:oauth2",
   "dep:url",
   "dep:anyhow",
   "dep:reqwest",
   "dep:base64",
 ]
-server-oauth-action-routes = ["server-oauth", "client-oauth-action-routes"]
+server-oauth = ["server-oauth-callbacks", "client-oauth"]

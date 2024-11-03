@@ -54,7 +54,7 @@ impl UserpConfig {
                     );
             }
 
-            #[cfg(feature = "server-oauth")]
+            #[cfg(feature = "server-oauth-callbacks")]
             {
                 router = router.route(
                     self.routes.account.user_oauth_delete.as_str(),
@@ -160,7 +160,7 @@ where
         .into_response())
 }
 
-#[cfg(feature = "server-oauth")]
+#[cfg(feature = "server-oauth-callbacks")]
 pub async fn post_user_oauth_delete<St>(
     auth: AxumUserp<St>,
     Form(IdAccountForm { id }): Form<IdAccountForm>,

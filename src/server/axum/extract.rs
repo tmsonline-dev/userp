@@ -48,7 +48,7 @@ where
             email: config.email,
             #[cfg(feature = "server-password")]
             pass: config.pass,
-            #[cfg(feature = "server-oauth")]
+            #[cfg(feature = "server-oauth-callbacks")]
             oauth: config.oauth,
         });
     }

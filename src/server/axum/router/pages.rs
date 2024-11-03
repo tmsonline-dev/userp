@@ -125,7 +125,7 @@ where
         let sessions = auth.store.get_user_sessions(user.get_id()).await?;
         #[cfg(feature = "server-email")]
         let emails = auth.store.get_user_emails(user.get_id()).await?;
-        #[cfg(feature = "server-oauth")]
+        #[cfg(feature = "server-oauth-callbacks")]
         let oauth_tokens = auth.store.get_user_oauth_tokens(user.get_id()).await?;
 
         UserTemplate::into_response_with(
@@ -137,7 +137,7 @@ where
             error.as_deref(),
             #[cfg(feature = "server-email")]
             &emails,
-            #[cfg(feature = "server-oauth-action-routes")]
+            #[cfg(feature = "server-oauth")]
             &oauth_tokens,
         )
         .into_response()

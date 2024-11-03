@@ -1,6 +1,6 @@
 #[cfg(feature = "server-email")]
 use crate::models::email::{EmailChallenge, UserEmail};
-#[cfg(feature = "server-oauth")]
+#[cfg(feature = "server-oauth-callbacks")]
 use crate::models::oauth::{OAuthToken, UnmatchedOAuthToken};
 use crate::models::{LoginMethod, LoginSession, User};
 use async_trait::async_trait;
@@ -18,7 +18,7 @@ pub trait UserpStore: Send + Sync {
     type UserEmail: UserEmail;
     #[cfg(feature = "server-email")]
     type EmailChallenge: EmailChallenge;
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     type OAuthToken: OAuthToken;
 
     // basic store
@@ -75,34 +75,34 @@ pub trait UserpStore: Send + Sync {
     ) -> Result<Option<Self::EmailChallenge>, Self::Error>;
 
     // oauth store
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     async fn update_token_by_unmatched_token(
         &self,
         token_id: Uuid,
         unmatched_token: UnmatchedOAuthToken,
     ) -> Result<Self::OAuthToken, Self::Error>;
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     async fn oauth_get_token_by_id(
         &self,
         token_id: Uuid,
     ) -> Result<Option<Self::OAuthToken>, Self::Error>;
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     async fn get_token_by_unmatched_token(
         &self,
         unmatched_token: UnmatchedOAuthToken,
     ) -> Result<Option<Self::OAuthToken>, Self::Error>;
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     async fn create_user_token_from_unmatched_token(
         &self,
         user_id: Uuid,
         unmatched_token: UnmatchedOAuthToken,
     ) -> Result<Self::OAuthToken, Self::Error>;
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     async fn create_user_from_unmatched_token(
         &self,
         unmatched_token: UnmatchedOAuthToken,
     ) -> Result<(Self::User, Self::OAuthToken), Self::Error>;
-    #[cfg(feature = "server-oauth")]
+    #[cfg(feature = "server-oauth-callbacks")]
     async fn get_user_by_unmatched_token(
         &self,
         unmatched_token: UnmatchedOAuthToken,
@@ -114,12 +114,12 @@ pub trait UserpStore: Send + Sync {
         &self,
         user_id: Uuid,
     ) -> Result<Vec<Self::LoginSession>, Self::Error>;
-    #[cfg(all(feature = "server-account", feature = "server-oauth"))]
+    #[cfg(all(feature = "server-account", feature = "server-oauth-callbacks"))]
     async fn get_user_oauth_tokens(
         &self,
         user_id: Uuid,
     ) -> Result<Vec<Self::OAuthToken>, Self::Error>;
-    #[cfg(all(feature = "server-account", feature = "server-oauth"))]
+    #[cfg(all(feature = "server-account", feature = "server-oauth-callbacks"))]
     async fn delete_oauth_token(&self, user_id: Uuid, token_id: Uuid) -> Result<(), Self::Error>;
     #[cfg(feature = "server-account")]
     async fn delete_user(&self, id: Uuid) -> Result<(), Self::Error>;

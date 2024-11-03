@@ -13,7 +13,7 @@ pub struct AccountActionRoutes<T = &'static str> {
     pub user_email_disable_login: T,
     #[cfg(feature = "client-email")]
     pub user_email_enable_login: T,
-    #[cfg(feature = "client-oauth")]
+    #[cfg(feature = "client-oauth-callbacks")]
     pub user_oauth_delete: T,
     #[cfg(feature = "client-password")]
     pub user_password_delete: T,
@@ -34,7 +34,7 @@ impl Default for AccountActionRoutes {
             user_email_disable_login: "/user/email/disable_login",
             #[cfg(feature = "client-email")]
             user_email_enable_login: "/user/email/enable_login",
-            #[cfg(feature = "client-oauth")]
+            #[cfg(feature = "client-oauth-callbacks")]
             user_oauth_delete: "/user/oauth/delete",
             #[cfg(feature = "client-password")]
             user_password_delete: "/user/password/delete",
@@ -57,7 +57,7 @@ impl<'a> From<&'a AccountActionRoutes<String>> for AccountActionRoutes<&'a str> 
             user_email_disable_login: &value.user_email_disable_login,
             #[cfg(feature = "client-email")]
             user_email_enable_login: &value.user_email_enable_login,
-            #[cfg(feature = "client-oauth")]
+            #[cfg(feature = "client-oauth-callbacks")]
             user_oauth_delete: &value.user_oauth_delete,
             #[cfg(feature = "client-password")]
             user_password_delete: &value.user_password_delete,
@@ -88,7 +88,7 @@ impl<T: Display> AccountActionRoutes<T> {
             user_password_set: format!("{prefix}{}", self.user_password_set),
             #[cfg(feature = "client-password")]
             user_password_delete: format!("{prefix}{}", self.user_password_delete),
-            #[cfg(feature = "client-oauth")]
+            #[cfg(feature = "client-oauth-callbacks")]
             user_oauth_delete: format!("{prefix}{}", self.user_oauth_delete),
             #[cfg(feature = "client-email")]
             user_email_add: format!("{prefix}{}", self.user_email_add),
