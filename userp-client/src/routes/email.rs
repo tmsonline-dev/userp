@@ -1,15 +1,28 @@
+//! Contains EmailActionRoutes and associated helper functions
+
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+
+/// Contains routes used in the Email login and signup (and - if the password feature is active - reset) flows
 pub struct EmailActionRoutes<T = &'static str> {
+    /// Post - Initiate an Email login by creating an EmailChallenge and sending the link
+    /// Get - Receives the challenge code, and creates the LoginSession using the Email method
     pub login_email: T,
+    /// Post - Initiate an Email signup by creating an EmailChallenge and sending the link
+    /// Get - Receives the link and code, and creates the LoginSession using the Email method
     pub signup_email: T,
+    /// Post - Initiate an Email verification by creating an EmailChallenge and sending the link
+    /// Get - Receives the challenge code, and verifies the address. Does NOT create a LoginSession
     pub user_email_verify: T,
     #[cfg(feature = "password")]
+    /// Post - Sets the users new password. Requires a LoginSession using the PasswordReset method
     pub password_reset: T,
+    /// Get - Receives the challenge code, and creates a LoginSession using the PasswordReset method
     #[cfg(feature = "password")]
     pub password_reset_callback: T,
+    /// Post - Initiate a Password Reset by creating an EmailChallenge and sending the link
     #[cfg(feature = "password")]
     pub password_send_reset: T,
 }
@@ -59,6 +72,7 @@ impl<T: Sized> AsRef<EmailActionRoutes<T>> for EmailActionRoutes<T> {
 }
 
 impl<T: Display> EmailActionRoutes<T> {
+    /// Adds a prefix to all routes. Unless empty, a prefix needs to start with a slash, and can not end with one.
     pub fn with_prefix(self, prefix: impl Display) -> EmailActionRoutes<String> {
         EmailActionRoutes {
             login_email: format!("{prefix}{}", self.login_email),

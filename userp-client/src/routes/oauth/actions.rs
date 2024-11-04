@@ -1,11 +1,18 @@
+//! Contains OAuthActionRoutes and associated helper functions.
+
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+/// Contains routes used to initiate the OAuth login, signup, link and refresh flows
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OAuthActionRoutes<T = &'static str> {
+    /// Post - Initiate the OAuth login flow
     pub login_oauth: T,
+    /// Post - Initiate the OAuth signup flow
     pub signup_oauth: T,
+    /// Post - Initiate the OAuth link flow
     pub user_oauth_link: T,
+    /// Post - Initiate the OAuth refresh flow
     pub user_oauth_refresh: T,
 }
 
@@ -44,6 +51,7 @@ impl<T: Sized> AsRef<OAuthActionRoutes<T>> for OAuthActionRoutes<T> {
 }
 
 impl<T: Display> OAuthActionRoutes<T> {
+    /// Adds a prefix to all routes. Unless empty, a prefix needs to start with a slash, and can not end with one.
     pub fn with_prefix(self, prefix: impl Display) -> OAuthActionRoutes<String> {
         OAuthActionRoutes {
             login_oauth: format!("{prefix}{}", self.login_oauth),

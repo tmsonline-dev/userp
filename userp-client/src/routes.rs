@@ -1,3 +1,5 @@
+//! Contains Routes and associated helper functions
+
 pub mod pages;
 use pages::*;
 
@@ -22,17 +24,25 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+/// Routes contain the relative URL paths of all actions, callbacks and pages used by Userp to recieve and redirect requests
 pub struct Routes<T = String> {
+    /// PageRoutes contain all the routes the user may visit to for instance log in or manage their account
     pub pages: PageRoutes<T>,
     #[cfg(feature = "oauth-callbacks")]
+    /// Contains the OAuthCallbackRouts and - if the `oauth` feature is enabled - the OAuthActionRoutes (login, signup etc.)
     pub oauth: OAuthRoutes<T>,
     #[cfg(feature = "email")]
+    /// Contains routes used in the Email login and signup (and - if the password feature is active - reset) flows
     pub email: EmailActionRoutes<T>,
     #[cfg(feature = "password")]
+    /// Contains routes associated with logging in and signing up using the Password method
     pub password: PasswordActionRoutes<T>,
     #[cfg(feature = "account")]
+    /// Contains routes used to control the user account and associated entities
     pub account: AccountActionRoutes<T>,
+    /// Get - deletes the current UserLogin session and redirects the user to pages.post_logout
     pub logout: T,
+    /// Get - returns 200 if the current session is still present on the server. Returns 401 if not.
     pub user_verify_session: T,
 }
 
@@ -85,6 +95,7 @@ impl<'a> From<&'a Routes<String>> for Routes<&'a str> {
 }
 
 impl<T: Display> Routes<T> {
+    /// Adds a prefix to all routes. Unless empty, a prefix needs to start with a slash, and can not end with one.
     pub fn with_prefix(self, prefix: impl Display) -> Routes<String> {
         Routes {
             pages: self.pages.with_prefix(&prefix),

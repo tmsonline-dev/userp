@@ -1,3 +1,5 @@
+//! Includes all types and traits (but not individual models) defined in the crate.
+//! Something missing? This is a bug. Please file an issue in the project repo.
 pub use crate::models::*;
 #[cfg(feature = "account")]
 pub use crate::routes::account::*;

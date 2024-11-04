@@ -1,23 +1,36 @@
+//! Contains AccountActionRoutes and associated helper functions
+
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+/// Contains routes used to control the user account and associated entities
+/// that are not specifically required by the login/signup flows
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AccountActionRoutes<T = &'static str> {
+    /// Post route to delete a user account
     pub user_delete: T,
+    /// Post route to delete a login session
     pub user_session_delete: T,
+    /// Post route to add a user email
     #[cfg(feature = "email")]
     pub user_email_add: T,
+    /// Post route to delete a user email
     #[cfg(feature = "email")]
     pub user_email_delete: T,
+    /// Post route to disable Email login for a User Email
     #[cfg(feature = "email")]
     pub user_email_disable_login: T,
+    /// Post route to enable Email login for a User Email
     #[cfg(feature = "email")]
     pub user_email_enable_login: T,
+    /// Post route to delete an OAuth token
     #[cfg(feature = "oauth-callbacks")]
     pub user_oauth_delete: T,
     #[cfg(feature = "password")]
+    /// Post route to remove the users password
     pub user_password_delete: T,
     #[cfg(feature = "password")]
+    /// Post route to set the users password
     pub user_password_set: T,
 }
 
@@ -80,6 +93,7 @@ impl<T: Sized> AsRef<AccountActionRoutes<T>> for AccountActionRoutes<T> {
 }
 
 impl<T: Display> AccountActionRoutes<T> {
+    /// Adds a prefix to all routes. Unless empty, a prefix needs to start with a slash, and can not end with one.
     pub fn with_prefix(self, prefix: impl Display) -> AccountActionRoutes<String> {
         AccountActionRoutes {
             user_delete: format!("{prefix}{}", self.user_delete),

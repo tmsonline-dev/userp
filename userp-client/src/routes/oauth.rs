@@ -1,3 +1,5 @@
+//! Contains OAuthRoutes and associated helper functions
+
 #[cfg(feature = "oauth")]
 pub mod actions;
 pub mod callbacks;
@@ -9,10 +11,14 @@ use self::callbacks::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+/// Contains the OAuthCallbackRouts and - if the `oauth` feature is enabled - the OAuthActionRoutes (login, signup etc.)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OAuthRoutes<T = &'static str> {
+    /// Contains routes used to initiate the OAuth login, signup, link and refresh flows
     #[cfg(feature = "oauth")]
     pub actions: OAuthActionRoutes<T>,
+    /// Contains routes used to recieve the OAuth login, signup, link and refresh callbacks
+    /// Setting all callback routes to the same route is supported.
     pub callbacks: OAuthCallbackRoutes<T>,
 }
 
@@ -49,6 +55,7 @@ impl<T: Sized> AsRef<OAuthRoutes<T>> for OAuthRoutes<T> {
 }
 
 impl<T: Display> OAuthRoutes<T> {
+    /// Adds a prefix to all routes. Unless empty, a prefix needs to start with a slash, and can not end with one.
     pub fn with_prefix(self, prefix: impl Display) -> OAuthRoutes<String> {
         OAuthRoutes {
             #[cfg(feature = "oauth")]

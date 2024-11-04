@@ -1,9 +1,14 @@
+//! Contains PasswordActionRoutes and associated helper functions
+
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+/// Contains routes associated with logging in and signing up using the Password method
 pub struct PasswordActionRoutes<T = &'static str> {
+    /// Post - Login using the password method
     pub login_password: T,
+    /// Post - Signup using the password method
     pub signup_password: T,
 }
 
@@ -38,6 +43,7 @@ impl<T: Sized> AsRef<PasswordActionRoutes<T>> for PasswordActionRoutes<T> {
 }
 
 impl<T: Display> PasswordActionRoutes<T> {
+    /// Adds a prefix to all routes. Unless empty, a prefix needs to start with a slash, and can not end with one.
     pub fn with_prefix(self, prefix: impl Display) -> PasswordActionRoutes<String> {
         PasswordActionRoutes {
             login_password: format!("{prefix}{}", self.login_password),
