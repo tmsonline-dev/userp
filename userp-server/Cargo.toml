@@ -30,7 +30,7 @@ uuid = { version = "1.10.0", features = ["serde", "v4"] }
 userp-client = { path = "../userp-client/", default-features = false }
 
 [features]
-default = ["account", "email", "password", "oauth", "axum"]
+default = ["account", "email", "password", "oauth"]
 account = ["userp-client/account"]
 email = [
   "userp-client/email",
